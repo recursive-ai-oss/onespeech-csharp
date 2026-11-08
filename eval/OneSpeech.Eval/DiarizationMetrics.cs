@@ -141,7 +141,7 @@ public static class DiarizationMetrics
     }
 
     // Hungarian shortest augmenting paths, minimization of negative weights. Dummy rows/columns have zero weight.
-    private static double MaximumAssignment(double[,] weights, CancellationToken cancellationToken)
+    internal static double MaximumAssignment(double[,] weights, CancellationToken cancellationToken)
     {
         int n = weights.GetLength(0);
         var u = new double[n + 1]; var v = new double[n + 1]; var p = new int[n + 1]; var way = new int[n + 1];

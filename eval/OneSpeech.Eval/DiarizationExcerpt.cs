@@ -45,7 +45,7 @@ internal static class DiarizationExcerpt
         w.WriteString("recognizer", "word-timing-fixture; generated clock probes, NOT recognized text, WER, or word-alignment quality"); w.WriteEndObject();
         Console.WriteLine($"Excerpt: {transcript.Words.Length} fixture words, {transcript.Words.Count(x => x.Speaker is not null && x.Speaker.Id != SpeakerLabel.Unassigned.Id)} assigned; {transcript.Duration.TotalSeconds} seconds.");
     }
-    private static void Crop(string path, string output)
+    internal static void Crop(string path, string output)
     {
         using var source = AudioFileSource.Open(path, CancellationToken.None); if (source.Channels != 1) throw new InvalidDataException("Prepared excerpt source must be mono.");
         using var file = File.Create(output); using var writer = new BinaryWriter(file);

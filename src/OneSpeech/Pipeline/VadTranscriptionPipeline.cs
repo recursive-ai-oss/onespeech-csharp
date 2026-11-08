@@ -132,6 +132,8 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         return diarizer is BlockDiarizer block ? merged with { Models = [.. merged.Models.Concat(block.Models).DistinctBy(m => (m.Id, m.Revision))] } : merged;
     }
 
+    internal Transcript TranscribeBlocks(IEnumerable<AudioBuffer> blocks, string? language, CancellationToken cancellationToken) => Combine(blocks, language, cancellationToken);
+
     private Transcript Combine(IEnumerable<AudioBuffer> blocks, string? language, CancellationToken cancellationToken)
     {
         var words = ImmutableArray.CreateBuilder<Word>();

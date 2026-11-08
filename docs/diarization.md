@@ -37,7 +37,7 @@ A custom plain `Diarizer` still works in memory, but file inputs require `BlockD
 
 ## Voice clustering and overlap limitation
 
-`ClusteringDiarizer` is the tier-1 voice-clustering implementation, using caller-supplied VAD and speaker-embedding roles. It **does not detect overlapped speech**: each speech interval gets only one speaker at a time. The overlap-aware upgrades, pyannote segmentation and Nemotron 3 Diarization, are coming as explicit tier-2 options; neither is loaded by these helpers. Channel diarization is a distinct exception because separated channels supply activity independently. There is no automatic embedder selection or quality-validated default checkpoint in this component yet.
+`ClusteringDiarizer` is the tier-1 voice-clustering implementation, using caller-supplied VAD and speaker-embedding roles. It **does not detect overlapped speech**: each speech interval gets only one speaker at a time. The overlap-aware upgrades, pyannote segmentation and Nemotron 3 Diarization, are coming as explicit tier-2 options; neither is loaded by these helpers. Channel diarization is a distinct exception because separated channels supply activity independently. The component itself always uses the caller's embedder. The `Speech.Transcribe` helpers select CAM++ Chinese for a requested or detected Chinese language (`zh`, `zh-*`); otherwise they select CAM++ English. An explicit language takes precedence over detection. Recognition runs before the whole-recording diarization pass so this policy also applies without a language hint. Encoded streams are spooled once, with bounded PCM on both passes. This is a language-based starting choice, not a quality-validated default for every language.
 
 ### Windows and clock
 
@@ -94,8 +94,26 @@ The embedder is ModelScope `iic/speech_campplus_sv_en_voxceleb_16k` revision `03
 
 Pooled S128: AMI DER 29.0875%, JER 33.6682%; AliMeeting DER 55.2437%, JER 58.1043%. Descriptive 95% bootstrap intervals over the **two meetings** (1,000 resamples, seed 1729) are respectively DER [27.0682,33.9706]%, JER [29.1370,38.1994]%, and DER [45.3672,66.1638]%, JER [51.7859,64.4226]%. They do not establish generalization to a new speaker/meeting population. Individual-meeting intervals are unavailable. Missed speaker-time dominates these rows; this measurement does not separate VAD misses from the known inability to represent concurrent speakers.
 
-A black-box ModelScope 1.40.2 `speaker-diarization` pipeline probe rejected the pinned English CAM++ checkpoint at registry initialization (`speaker-verification` is not registered in the `speaker-diarization` group). Network was disabled to prevent unchecked auxiliary downloads. The documented bundle instead uses other VAD/Chinese/change-point checkpoints; no same-checkpoint reference was scored, and repository recipes were not opened or executed. Floors therefore stand without a comparative verdict.
+### Language-appropriate evaluation and published bundle comparison
 
-The file pipeline also produced a 300-second AMI test excerpt with a deliberately synthetic **word-timing fixture**, not ASR: 211 timed clock probes, 116 assigned to a diarizer speaker and 95 explicitly unassigned. This proves clock/speaker document integration only, not recognized text, WER, alignment quality or correct speaker attribution. The synthetic separated-party stereo file test independently exercises two channel labels. See the evaluation commands and data manifests for reproducibility; holdout references were never used to choose parameters.
+CAM++ Chinese (`iic/speech_campplus_sv_zh-cn_16k-common`, revision `013c18884dffb82846cf472dd06dd4a08d97e2cd`, converted SHA-256 `4b2f0fef5ec8cb855b53c6b5abae5dd4cd72c215137c52d32f5c477e4a792f49`) improves the Mandarin rows with the **same frozen settings**, without fitting on AliMeeting Eval:
+
+| AliMeeting Eval meeting | Chinese S128 DER / JER | Chinese A64-0.15 DER / JER |
+|---|---:|---:|
+| R8001_M8004_MS801 |62.3775% / 59.4958%|72.9761% / 82.1277%|
+| R8003_M8001_MS801 |39.6415% / 42.5590%|48.2732% / 59.3365%|
+
+A released ModelScope 1.40.2 public `speaker-diarization` pipeline was run black-box with its published bundle `iic/speech_campplus_speaker-diarization_common` at `0b056318fde24067871436d60d020fa01f3096b4`. Unlike passing a speaker-verification model directly to a diarization task, this is the documented bundle. It uses its own FSMN VAD, Chinese CAM++ and speaker-change locator, with default settings and no speaker-count oracle. Only auxiliary configuration paths were changed to verified local copies; network access was disabled. Pins are in `tools/oracles/diarization-modelscope/diarization-bundle.tsv`; its driver is `bundle.py` and dependency lock is under `tools/oracles/diarization-modelscope`. CPU float32, four threads/affinity to four logical CPUs, Python 3.13.17 / Torch 2.11.0 CPU, same host and scoring conventions as above. These are **different systems**, not logit-parity measurements.
+
+| Meeting | Our S128 DER / JER (English for AMI, Chinese for AliMeeting) | ModelScope bundle DER / JER |
+|---|---:|---:|
+| ES2004a |33.9706% / 38.1994%|26.5359% / 29.6337%|
+| ES2004b |27.0682% / 29.1370%|18.1017% / 19.2563%|
+| R8001_M8004_MS801 |62.3775% / 59.4958%|34.5196% / 34.0168%|
+| R8003_M8001_MS801 |39.6415% / 42.5590%|26.8887% / 28.5758%|
+
+Every row misses a 0.5-point difference bound. A single meeting cannot supply an utterance/file bootstrap interval; these fixed slices do not prove population quality. Missed speech is the largest component in all our S128 rows. Replacing the embedder alone does not address the VAD/overlap weakness; no cause beyond this loss breakdown is established here.
+
+A real 300-second AMI ES2004a excerpt through `Speech.Transcribe` with Whisper small produced 344 words, WER **16.0584%** against chronological timed AMI words (`en/1`, 411 reference words), 28 Unassigned, zero Overlap and zero untimed words. Under an optimal one-to-one speaker mapping, 290/344 (**84.3023%**) predicted words had the correct reference speaker; 290/335 (**86.5672%**) among words with reference-time coverage. Each predicted word's reference speaker is the one covering most of its interval, with ordinal ties. This is temporal speaker assignment, not lexical correctness; Unassigned, untimed and no-reference words count against the all-word fraction. These are informational excerpt results, not a long-form quality bar. `onespeech-eval diarize speech-excerpt DATA_ROOT ES2004a OUTPUT openai/whisper-small` writes the transcript JSON and scoring summary. Holdout references were never used to choose settings.
 
 See [evaluation](eval.md) for no-collar, overlap-inclusive DER/JER and RTTM input.

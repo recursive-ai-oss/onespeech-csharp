@@ -23,6 +23,7 @@ internal static class DiarizationRun
 
     internal static int Run(string[] args)
     {
+        if (args is ["speech-excerpt" or "speech-excerpt-score", var rootPath, var meeting, var destination, var model]) { SpeechExcerpt.Run(rootPath, meeting, destination, model, args[0] == "speech-excerpt-score"); return 0; }
         if (args.Length == 2 && args[0] == "select") { Select(args[1]); return 0; }
         if (args.Length == 2 && args[0] == "summary") { DiarizationSummary.Run(args[1]); return 0; }
         if (args.Length == 3 && args[0] == "channels") { ChannelCalibration.Run(args[1], args[2]); return 0; }
@@ -56,7 +57,7 @@ internal static class DiarizationRun
                 WriteTurns(hypothesis, id, turns);
                 using var hypothesisStream = File.OpenRead(hypothesis);
                 var score = DiarizationMetrics.Score(reference, Rttm.Read(hypothesisStream));
-                scores.WriteLine(ScoreJson(phase, root, entry, profile, score, hypothesis, turns.Select(t => t.Speaker.Id).Distinct().Count(), cache.Count)); scores.Flush();
+                scores.WriteLine(ScoreJson(phase, root, entry, profile, score, hypothesis, graph, turns.Select(t => t.Speaker.Id).Distinct().Count(), cache.Count)); scores.Flush();
                 Console.WriteLine(FormattableString.Invariant($"{id} {profile.Name}: DER={100 * score.Der:F4}% JER={100 * score.Jer:F4}% windows={cache.Count}"));
             }
         }
@@ -66,11 +67,19 @@ internal static class DiarizationRun
 
     internal static CampPlusEmbedder LoadEmbedder(string graph)
     {
-        var entry = ModelCatalog.Default.Get("iic/speech_campplus_sv_en_voxceleb_16k");
+        var entry = GraphEntry(graph);
         var model = new ModelInfo { Id = entry.Id, Source = entry.Source, Revision = entry.Revision, Tier = entry.Tier, License = entry.License, Attribution = entry.Attribution, Files = [.. entry.Files.Concat(entry.ConvertedFiles).Select(f => new ModelFileInfo { Name = f.Name, Sha256 = f.Sha256 })] };
-        return new CampPlusEmbedder(graph, model, dimension: 512, threads: 8);
+        return new CampPlusEmbedder(graph, model, dimension: entry.Id.Contains("zh-cn", StringComparison.Ordinal) ? 192 : 512, threads: 8);
     }
-    internal static void VerifyGraph(string graph) { if (HashFile(graph) != GraphHash) throw new InvalidDataException("CAM++ converted graph SHA-256 mismatch."); }
+    private static CatalogEntry GraphEntry(string graph)
+    {
+        string hash = HashFile(graph);
+        var entry = ModelCatalog.Default.Get(hash == GraphHash
+            ? "iic/speech_campplus_sv_en_voxceleb_16k" : "iic/speech_campplus_sv_zh-cn_16k-common");
+        if (!entry.ConvertedFiles.Any(f => f.Sha256 == hash)) throw new InvalidDataException("CAM++ converted graph SHA-256 mismatch.");
+        return entry;
+    }
+    internal static void VerifyGraph(string graph) { _ = GraphEntry(graph); }
     internal static string HashFile(string path) { using var input = File.OpenRead(path); return Convert.ToHexStringLower(SHA256.HashData(input)); }
     internal static Entry ReadEntry(string root, string id)
     {
@@ -96,7 +105,7 @@ internal static class DiarizationRun
             foreach (var turn in turns) writer.WriteLine(FormattableString.Invariant($"SPEAKER {id} 1 {turn.Start.TotalSeconds:R} {(turn.End - turn.Start).TotalSeconds:R} <NA> <NA> {turn.Speaker.Id} <NA> <NA>"));
         File.Move(path + ".partial", path, overwrite: true);
     }
-    private static string ScoreJson(string phase, string root, Entry entry, Profile profile, DiarizationScore score, string hyp, int speakers, int windows)
+    private static string ScoreJson(string phase, string root, Entry entry, Profile profile, DiarizationScore score, string hyp, string graph, int speakers, int windows)
     {
         using var buffer = new MemoryStream();
         using (var w = new Utf8JsonWriter(buffer))
@@ -105,7 +114,7 @@ internal static class DiarizationRun
             w.WriteString("audioSha256", entry.AudioHash); w.WriteString("referenceSha256", entry.ReferenceHash); w.WriteString("manifestSha256", HashFile(Path.Combine(root, "manifest.jsonl")));
             w.WriteString("profile", profile.Name); w.WriteString("method", profile.Method.ToString()); w.WriteNumber("landmarks", profile.Landmarks); w.WriteNumber("ahcThreshold", profile.Threshold);
             w.WriteNumber("windowSeconds", 1.5); w.WriteNumber("shiftSeconds", 0.25); w.WriteNumber("minSpeakers", 1); w.WriteNumber("maxSpeakers", 8);
-            w.WriteString("embedder", "iic/speech_campplus_sv_en_voxceleb_16k"); w.WriteString("revision", "032b8131a7ad812f87061955ca974c99060c5a03"); w.WriteString("graphSha256", GraphHash); w.WriteString("precision", "fp32"); w.WriteNumber("threads", 8);
+            w.WriteString("embedder", GraphEntry(graph).Id); w.WriteString("revision", GraphEntry(graph).Revision); w.WriteString("graphSha256", HashFile(graph)); w.WriteString("precision", "fp32"); w.WriteNumber("threads", 8);
             w.WriteString("vad", "Silero-v6.2.3/threshold0.5/negative0.35/minSpeech250ms/minSilence100ms/pad30ms/independent30s-horizons");
             w.WriteNumber("referenceSeconds", score.ReferenceSeconds); w.WriteNumber("missSeconds", score.MissSeconds); w.WriteNumber("falseAlarmSeconds", score.FalseAlarmSeconds); w.WriteNumber("confusionSeconds", score.ConfusionSeconds);
             w.WriteNumber("jaccardErrorSum", score.JaccardErrorSum); w.WriteNumber("referenceSpeakers", score.ReferenceSpeakers);

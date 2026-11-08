@@ -6,7 +6,7 @@ Core embeds the Silero VAD v6.2.3 ONNX release model. No other model weights are
 
 ## Data
 
-No third-party audio or evaluation data is included.
+No third-party audio or transcript text is included. ID-only LibriSpeech evaluation lists are included, with attribution below.
 
 ## Libraries
 
@@ -72,3 +72,17 @@ below are the publishers' descriptions, not an independent audit or a licence gr
   Source: https://modelscope.cn/models/iic/speech_eres2netv2_sv_zh-cn_16k-common .
   Publisher-stated training data: a large Chinese speaker dataset with approximately 200,000
   speakers; the card does not identify the corpus by name.
+
+## LibriSpeech evaluation identifiers
+
+`eval/manifests/librispeech-speaker-trials.tsv` and
+`eval/manifests/librispeech-speaker-parity50.txt` contain utterance identifiers derived from
+LibriSpeech test-clean/test-other (OpenSLR resource 12), by Vassil Panayotov, Guoguo Chen,
+Daniel Povey and Sanjeev Khudanpur (2015).
+
+Source: https://www.openslr.org/12/ . Dataset licence: Creative Commons Attribution 4.0
+International, https://creativecommons.org/licenses/by/4.0/ .
+
+OneSpeech selected and paired these identifiers for evaluation; no original audio or transcript
+text is included in these files. The selection, pairing method and seed are documented in
+`docs/speakers.md`. This attribution does not imply endorsement by the dataset authors.

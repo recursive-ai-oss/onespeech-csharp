@@ -38,6 +38,7 @@ public sealed class SpeakerFeatureTests
         var extractor = new SpeakerFbank();
         float[] invalid = new float[400]; invalid[3] = float.NaN;
         Assert.Throws<ArgumentException>(() => extractor.Compute(invalid, CancellationToken.None));
+        Assert.Throws<ArgumentException>(() => extractor.Compute(Enumerable.Repeat(float.MaxValue, 400).ToArray(), CancellationToken.None));
         Assert.Throws<OperationCanceledException>(() => extractor.Compute(new float[400], new CancellationToken(true)));
     }
 }

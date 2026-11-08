@@ -159,3 +159,17 @@ probes. Embedding minimum/mean cosine were 0.999999999957/0.999999999985, above 
 This is numeric parity on a fixed probe set, not a speaker-verification quality claim. The converted
 English graph is 29,414,032 bytes, SHA-256
 `f333a00d5d66b9bf3d7e7abf35f36ff4a01e6e8a0df235b89a125e9fbe3cc15c`.
+
+On the committed 20,000-trial LibriSpeech verification slice, both this graph and the pinned
+ModelScope reference scored **0.75% EER** and **0.0379 normalized minDCF**. The paired bootstrap
+95% intervals for our-minus-reference differences were [0,0] percentage points and [0,0], respectively:
+the relevant ROC operating points were identical. These are conditional trial-resampling intervals,
+not confidence intervals over a new population of speakers. The same feature extractor was also
+checked on deterministic silence, tone, impulse, DC-offset, clipped, seeded-noise, exact-window and
+two-window probes; maximum absolute error across them was 0.000851 (within the 0.001 tolerance).
+
+These CPU/float32 checks used Linux x64, an AMD Ryzen 9 7950X3D (32 logical CPUs, AVX2 and AVX-512
+available), eight inference threads, .NET SDK 10.0.403/runtime 10.0.14, OneModel 1.0.0 and
+OneAudio 1.7.2. No GPU was used. Oracle dependencies and wheel hashes are pinned in the speaker
+oracle's `uv.lock`; model and identifier pins are given above. Conversion is deterministic: its
+recorded graph SHA-256 was reproduced from the same checkpoint independently.

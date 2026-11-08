@@ -33,7 +33,7 @@ def main():
         original = kaldi.fbank
         def capture(waveform, *positional, **kwargs):
             result = original(waveform, *positional, **kwargs)
-            observed.append(result.detach().cpu())
+            observed.append(result.detach().cpu().clone())
             return result
         kaldi.fbank = capture
     from modelscope.pipelines import pipeline

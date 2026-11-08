@@ -123,7 +123,13 @@ public sealed class ModelCatalog
             publisher |= source.Host == "github.com" && upstream.Host == "raw.githubusercontent.com" && upstream.AbsolutePath.StartsWith(repo + "/" + e.Revision + "/", StringComparison.Ordinal);
             bool converted = e.ConvertedFiles.Contains(f);
             if (converted) publisher = e.Tier == ModelTier.Tier1 && upstream.Host == "github.com" && upstream.AbsolutePath.StartsWith("/recursive-ai-oss/onespeech-csharp/releases/download/", StringComparison.Ordinal);
-            if (!publisher || upstream.Query.Length != 0 || upstream.Fragment.Length != 0) Fail("File must be pinned to the publisher repository revision.");
+            // ModelScope publishes pinned data through an API query rather than a resolve path.
+            // Accept only this exact repository, revision and filename; no extra query keys.
+            bool modelScope = !converted && source.Host == "modelscope.cn" && upstream.Host == source.Host &&
+                repo.StartsWith("/models/", StringComparison.Ordinal) &&
+                upstream.AbsolutePath == "/api/v1/models/" + repo[8..] + "/repo" &&
+                upstream.Query == "?Revision=" + e.Revision + "&FilePath=" + Uri.EscapeDataString(f.Name);
+            if ((!publisher && !modelScope) || (!modelScope && upstream.Query.Length != 0) || upstream.Fragment.Length != 0) Fail("File must be pinned to the publisher repository revision.");
             if (f.MirrorUrl is not null)
             {
                 if (e.Tier != ModelTier.Tier1) Fail("Tier 2 must never have a mirror.");

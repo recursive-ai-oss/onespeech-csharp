@@ -20,10 +20,24 @@ public sealed class CatalogTests
     public void EmbeddedCatalogHasPinnedCompleteEntriesAndNoUnmeasuredDefault()
     {
         var catalog = ModelCatalog.Default;
-        Assert.Equal(6, catalog.Entries.Length);
-        Assert.All(catalog.Entries, e => { Assert.Equal(ModelTier.Tier1, e.Tier); Assert.False(e.Gated); Assert.Empty(e.ConvertedFiles); Assert.All(e.Files, f => Assert.Null(f.MirrorUrl)); });
+        Assert.Equal(7, catalog.Entries.Length);
+        Assert.All(catalog.Entries, e => { Assert.Equal(ModelTier.Tier1, e.Tier); Assert.False(e.Gated); Assert.All(e.Files, f => Assert.Null(f.MirrorUrl)); });
         Assert.Throws<ModelNotFoundException>(() => catalog.GetDefault("whisper"));
         Assert.Equal("169d4a4341b33bc18d8881c4b69c2e104e1cc0af", catalog.Get("openai/whisper-tiny").Revision);
+    }
+
+    [Fact]
+    public void ModelScopeQueriesArePinnedToExactRepoRevisionAndFile()
+    {
+        var original = Entry;
+        var entry = original with { Source = "https://modelscope.cn/models/publisher/model", Files = [original.Files[0] with { UpstreamUrl = "https://modelscope.cn/api/v1/models/publisher/model/repo?Revision=" + original.Revision + "&FilePath=weights" }] };
+        Assert.Single(new ModelCatalog([entry]).Entries);
+        foreach (string suffix in new[] { "&other=1", "&Revision=master", "#fragment" })
+            Assert.Throws<InvalidModelCatalogException>(() => new ModelCatalog([entry with { Files = [entry.Files[0] with { UpstreamUrl = entry.Files[0].UpstreamUrl + suffix }] }]));
+        foreach (var url in new[] { entry.Files[0].UpstreamUrl.Replace(original.Revision, "master", StringComparison.Ordinal), entry.Files[0].UpstreamUrl.Replace("FilePath=weights", "FilePath=other", StringComparison.Ordinal), entry.Files[0].UpstreamUrl.Replace("publisher/model/repo", "publisher/other/repo", StringComparison.Ordinal), entry.Files[0].UpstreamUrl.Replace("modelscope.cn", "example.org", StringComparison.Ordinal) })
+            Assert.Throws<InvalidModelCatalogException>(() => new ModelCatalog([entry with { Files = [entry.Files[0] with { UpstreamUrl = url }] }]));
+        var converted = ModelCatalog.Default.Get("iic/speech_campplus_sv_en_voxceleb_16k").ConvertedFiles;
+        Assert.Equal("f333a00d5d66b9bf3d7e7abf35f36ff4a01e6e8a0df235b89a125e9fbe3cc15c", Assert.Single(converted).Sha256);
     }
 
     private const string Valid = """

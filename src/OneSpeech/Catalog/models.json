@@ -1001,6 +1001,38 @@
         "streaming": true,
         "languages": []
       }
+    },
+    {
+      "id": "iic/speech_campplus_sv_en_voxceleb_16k",
+      "family": "speaker-campplus",
+      "source": "https://modelscope.cn/models/iic/speech_campplus_sv_en_voxceleb_16k",
+      "revision": "032b8131a7ad812f87061955ca974c99060c5a03",
+      "files": [
+        {
+          "name": "campplus_voxceleb.bin",
+          "size": 29357703,
+          "sha256": "5b1a88b6f8d85826fabef804779c3372b42f3af21457fa48bd5c097c0686b2de",
+          "upstreamUrl": "https://modelscope.cn/api/v1/models/iic/speech_campplus_sv_en_voxceleb_16k/repo?Revision=032b8131a7ad812f87061955ca974c99060c5a03&FilePath=campplus_voxceleb.bin",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "campplus-en-fp32.onemodel",
+          "size": 29414032,
+          "sha256": "f333a00d5d66b9bf3d7e7abf35f36ff4a01e6e8a0df235b89a125e9fbe3cc15c",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/campplus-en-f333a00d5d66b9bf.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "Apache-2.0",
+      "attribution": "CAM++ — Hui Wang, Siqi Zheng, Yafeng Chen, Luyao Cheng and Qian Chen. Published by 3D-Speaker/ModelScope iic under Apache-2.0. Publisher-stated training data: VoxCeleb2, 5,994 speakers. OneSpeech runs the released weights without training or fine-tuning; retain the Apache-2.0 licence and upstream notices.",
+      "gated": false,
+      "capabilities": {
+        "languages": []
+      }
     }
+
   ]
 }

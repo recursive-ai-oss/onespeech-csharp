@@ -50,3 +50,17 @@ The envelope is `{ "schemaVersion": 1, "models": [...] }`. Model properties are 
 File metadata is name, size, sha256, upstreamUrl and optional mirrorUrl. Relative names use slash-separated ASCII letters/digits, hyphens, underscores and dots, with an alphanumeric first character per component; Windows device names are also refused; traversal, absolute paths and hidden components are refused. Names are unique ignoring case. Maximum file size is 64 GiB. URLs require HTTPS, no credentials or custom port, and upstream paths pinned to the declared source repository and revision. The publisher forms supported are `<repository>/resolve/<revision>/<file>` and GitHub's `raw.githubusercontent.com/<owner>/<repo>/<revision>/<file>`.
 
 The reader bounds input **before** generated deserialization: 8 MiB UTF-8, depth 32, 64 KiB encoded strings, 500,000 tokens, 100,000 containers, 256 elements per general array, and 64 per file-set array. It accepts at most 256 model entries and 64 files in each file set, rejecting duplicate IDs, duplicate properties, unknown properties, invalid UTF-8, unsupported versions and semantic policy violations. `capabilities`, its `languages` array, and `convertedFiles` are explicit, required fields in schema 1 (use empty arrays where nothing is declared). Empty languages does not mean unrestricted language support. JSON uses `CatalogJsonContext`, generated at compile time, not reflection.
+
+## CAM++ English developer artifact
+
+The CAM++ English entry records the verified publisher checkpoint and the SHA-256/size of its
+converted float32 graph. The converted file's content-addressed `models-v1` release URL is a
+**reserved, unpublished artifact location**, not a claim that bytes are downloadable. Nothing has
+been mirrored or published. Current `ModelStore.PullAsync` fetches publisher `files`, not
+`convertedFiles`; run the converter locally until an actual converted asset is available.
+No speaker default is selected. See [speaker inference](speakers.md).
+
+ModelScope publisher files use its HTTPS data API, with exactly `Revision=<pinned commit>` and
+`FilePath=<catalog filename>` query fields in that order. The catalog checks the API host,
+repository path, revision, filename, absence of extra query keys/fragments, and SHA-256/size.
+This narrow query exception does not apply to other publishers, mirrors, or converted artifacts.

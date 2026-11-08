@@ -33,7 +33,7 @@ public sealed class SpeakerFbank
     }
 
     /// <summary>Computes [mel, frame] row-major mean-normalized natural-log energies. Samples must be finite;
-    /// nonfinite samples throw ArgumentException. See FrameCount for length limits. Checks cancellation each frame.
+    /// nonfinite samples or finite magnitudes that overflow feature computation throw ArgumentException. See FrameCount for length limits. Checks cancellation each frame.
     /// Float PCM is used without amplitude scaling, followed by DC removal and 0.97 preemphasis. Energy is floored at float machine epsilon.</summary>
     public float[] Compute(ReadOnlySpan<float> samples, CancellationToken cancellationToken)
     {
@@ -57,6 +57,7 @@ public sealed class SpeakerFbank
             {
                 float sum = 0;
                 for (int k = 0; k < Bins; k++) sum += power[k] * filters[m * Bins + k];
+                if (!float.IsFinite(sum)) throw new ArgumentException("PCM magnitude overflows speaker feature computation.", nameof(samples));
                 result[m * frames + frame] = MathF.Log(Math.Max(1.1920928955078125e-7f, sum));
             }
         }

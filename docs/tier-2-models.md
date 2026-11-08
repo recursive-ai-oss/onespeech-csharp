@@ -1,0 +1,9 @@
+# Tier-2 models, gates and credentials
+
+Tier 2 includes CC-BY-4.0, OpenMDW-1.1 and every gated model even if its licence is MIT. Select these models explicitly by catalog ID. They are never defaults, mirrored weights or offline model packages. They load pinned publisher files with SHA-256 verification and may convert into the user's cache; converted tier-2 artifacts must not be redistributed. `ModelInfo` preserves licence, source, revision, file digests and exact attribution.
+
+A publisher gate requires **your own account's acceptance** and an authorized read token. The library does not accept terms for you. Supply the explicit `token` parameter on `ModelStore.PullAsync`, or inject `ONESPEECH_MODEL_TOKEN` through your host's secret manager. Do not put credentials in command-line arguments, source, JSON transcripts, shared shell history or logs. The CLI reads the environment variable. Gate authorization is required even for cached files and custom sources.
+
+HTTP authorization is sent only on the original exact publisher request, never to redirects or mirrors. Token material is not persisted by the downloader. Distinguish `ModelTokenRequiredException`, `ModelTokenRejectedException` and `ModelGateNotAcceptedException`; fix account access rather than retrying indefinitely. Network failures and digest mismatches have separate typed errors. Never bypass a gate with an unofficial mirror.
+
+The catalog contains pyannote segmentation entries but the [segmentation slot](gated-segmentation.md) currently refuses inference; authorized reference rows are pending. Successful pre-fetch alone does not imply that a family has a working inference adapter. Nemotron 3 Diarization and Parakeet are ungated tier-2 examples with published inference support. See [model loading](models.md) for cache precedence, trust boundaries and custom `ModelSource` hooks.

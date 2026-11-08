@@ -55,3 +55,20 @@ All packages share the repository version and metadata; each archive must remain
 below 250 MB. Nothing is published by the script.
 
 Unaffiliated with other products or companies named OneSpeech.
+
+## Command examples
+
+After installing the tool from a feed containing its package and dependencies:
+
+```sh
+onespeech --help
+onespeech models list
+onespeech models pull openai/whisper-tiny
+onespeech transcribe meeting.m4a --language en --format json --output meeting.json
+onespeech align short.wav words.txt --language en --format vtt --output short.vtt
+onespeech diarize meeting.wav --model nvidia/Nemotron-3-Diarization
+onespeech identify query.wav alice enrollment.wav --threshold 0.3
+onespeech verify first.wav second.wav
+```
+
+Model IDs select roles, not filenames. An ASR model passed to `diarize` is not a speaker embedder. First use may download additional models for alignment and diarization; pre-fetch those as well for a disconnected host. Gate tokens must be injected through the environment, never added to these command lines. Enrollment and query files must be obtained with appropriate consent.

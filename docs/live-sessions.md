@@ -87,3 +87,32 @@ are not pooled. Zero working-state allocation must not be presented as zero
 total allocation if a model backend still allocates. Measurements name the
 backend version, chunk size and partial cadence, and include backend allocation
 separately. A chunk that emits nothing has no payload exemption.
+
+## Consuming updates
+
+This method takes an application-owned PCM source and cancellation token. It does not open an audio device. Keep the current partial separately from committed finals in your UI.
+
+```csharp
+static async Task ShowLive(IAsyncEnumerable<OneSpeech.AudioBuffer> pcm,
+    CancellationToken cancellationToken)
+{
+    await foreach (var update in OneSpeech.Speech.Listen(pcm, cancellationToken, language: "en"))
+    {
+        switch (update)
+        {
+            case OneSpeech.PartialEvent partial:
+                Console.WriteLine($"Draft {partial.Revision}: {partial.Segment.Text}");
+                break;
+            case OneSpeech.FinalEvent final:
+                Console.WriteLine($"Final: {final.Segment.Text}");
+                break;
+            case OneSpeech.EndpointEvent endpoint:
+                Console.WriteLine($"Endpoint at {endpoint.End}: {endpoint.Reason}");
+                break;
+            case OneSpeech.SpeakerTurnEvent speaker:
+                Console.WriteLine(speaker.Turn.Speaker.Id);
+                break;
+        }
+    }
+}
+```

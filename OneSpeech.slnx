@@ -20,4 +20,5 @@
   <Project Path="tools/OneSpeech.ModelPackages/OneSpeech.ModelPackages.csproj" />
   <Project Path="tests/OneSpeech.Cli.Tests/OneSpeech.Cli.Tests.csproj" />
   <Project Path="tests/CliSmoke/CliSmoke.csproj" />
+  <Project Path="tests/DocsSamples/DocsSamples.csproj" />
 </Solution>

@@ -34,8 +34,10 @@ jobs:
         run: dotnet restore OneSpeech.slnx
       - name: Build
         run: dotnet build OneSpeech.slnx -c Release --no-restore
-      - name: Test contracts
-        run: dotnet test tests/OneSpeech.Tests -c Release --no-build
+      - name: Test contracts and evaluation
+        run: |
+          dotnet test tests/OneSpeech.Tests -c Release --no-build
+          dotnet test eval/OneSpeech.Eval.Tests -c Release --no-build
       - name: Pack
         run: dotnet pack OneSpeech.slnx -c Release --no-build -o "$RUNNER_TEMP/packages"
       - name: Publish NativeAOT smoke

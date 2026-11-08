@@ -11,23 +11,30 @@ internal sealed class WhisperModelSession : IDisposable
     internal WhisperConfiguration Configuration { get; }
     internal WhisperModelSession(string directory, int threads, CancellationToken cancellationToken)
     {
+        GraphTiming.BeginCost(0);
         Configuration = WhisperConfiguration.Load(directory);
+        GraphTiming.OverrideThreads(ref threads);
         var options = new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 2 };
         if (File.Exists(Path.Combine(directory, "encoder-part0.onemodel"))) encoderPart = Session.Load(Path.Combine(directory, "encoder-part0.onemodel"), options, cancellationToken: cancellationToken);
         try { encoder = Session.Load(Path.Combine(directory, "encoder.onemodel"), options, cancellationToken: cancellationToken); }
         catch { encoderPart?.Dispose(); throw; }
         try { decoder = Session.Load(Path.Combine(directory, "decoder.onemodel"), options, cancellationToken: cancellationToken); }
         catch { encoder.Dispose(); encoderPart?.Dispose(); throw; }
+        GraphTiming.EndCost(0);
     }
 
     internal SessionOutputs Encode(float[] features, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var input = Tensor.FromSpan<float>(features, Shape.Create(1, Configuration.MelBins, 3000));
+        GraphTiming.BeginOptional(encoderPart, 4);
         using var intermediate = encoderPart?.Run(new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["mel"] = input });
+        GraphTiming.EndOptional(encoderPart);
+        GraphTiming.Begin(4);
         var result = intermediate == null
             ? encoder.Run(new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["mel"] = input })
             : encoder.Run(new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["hidden"] = intermediate["encoder"] });
+        GraphTiming.End();
         if (cancellationToken.IsCancellationRequested) { result.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
         return result;
     }
@@ -54,7 +61,9 @@ internal sealed class WhisperModelSession : IDisposable
             inputs["cross_k_" + layer] = encoded["cross_k_" + layer];
             inputs["cross_v_" + layer] = encoded["cross_v_" + layer];
         }
+        GraphTiming.Begin(4);
         var result = decoder.Run(inputs);
+        GraphTiming.End();
         if (cancellationToken.IsCancellationRequested) { result.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
         return result;
     }

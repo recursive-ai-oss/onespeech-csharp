@@ -49,6 +49,7 @@ public sealed class WhisperLogMelSpectrogram
         ArgumentNullException.ThrowIfNull(audio);
         if (audio.SampleRate != SampleRate || audio.Channels != 1 || audio.FrameCount > WindowSamples)
             throw new ArgumentException("Expected at most 30 seconds of 16 kHz mono audio.", nameof(audio));
+        GraphTiming.BeginCost(1);
         ReadOnlySpan<float> samples = audio.Samples.Span;
         foreach (float sample in samples)
             if (!float.IsFinite(sample)) throw new ArgumentException("Audio samples must be finite.", nameof(audio));
@@ -116,6 +117,7 @@ public sealed class WhisperLogMelSpectrogram
             }
         }
         for (int i = 0; i < features.Length; i++) features[i] = (MathF.Max(features[i], peak - 8) + 4) / 4;
+        GraphTiming.EndCost(1);
         return features;
     }
 

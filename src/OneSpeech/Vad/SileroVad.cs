@@ -18,7 +18,9 @@ public sealed class SileroVad : VoiceActivityDetector, IDisposable
         this.options.Validate();
         using var stream = typeof(SileroVad).Assembly.GetManifestResourceStream("OneSpeech.silero_vad.onnx")
             ?? throw new ModelNotFoundException("The embedded Silero VAD model is missing. Rebuild with the pinned SileroModelPath.");
+        GraphTiming.BeginCost(0);
         graph = Session.Load(stream, new ModelOptions { IntraOpThreads = 1 }, cancellationToken: cancellationToken);
+        GraphTiming.EndCost(0);
     }
 
     /// <inheritdoc />
@@ -93,7 +95,9 @@ public sealed class SileroVadState : IDisposable
         if (frame.Length != FrameSamples) throw new ArgumentException("Expected one complete 32 ms frame.", nameof(frame));
         cancellationToken.ThrowIfCancellationRequested();
         frame.CopyTo(input.MutableData<float>()[context..]);
+        GraphTiming.Begin(2);
         graph.Run(InputNames, inputs, OutputNames, outputs);
+        GraphTiming.End();
         outputs[0].Data<float>().CopyTo(state.MutableData<float>());
         frame[^context..].CopyTo(input.MutableData<float>());
         return outputs[1].Data<float>()[0];

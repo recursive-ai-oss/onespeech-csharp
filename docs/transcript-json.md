@@ -37,3 +37,20 @@ Model provenance: required nonblank `id`, `source` (upstream repo URL), `revisio
 Both string and UTF-8 readers enforce an 8 MiB UTF-8 input limit, maximum depth 32, maximum 500,000 tokens, maximum 100,000 combined object/array containers, and maximum 64 KiB raw encoded bytes per property name or string (including escapes). Thus primitive array counts are bounded by the token limit; object-array counts by both limits. Limits are checked with a forward-only reader before allocating the document graph or decoded strings. String callers necessarily already own their input; UTF-8 encoding allocation occurs only after byte-size validation. Invalid Unicode, malformed/truncated JSON, required-field omissions, null object/array members, invalid intervals/probabilities/provenance, and unsupported versions throw `InvalidTranscriptJsonException`. Empty arrays are allowed. These are document bounds, not unbounded-file ingestion APIs.
 
 Writers use the same validation and limits; callers should avoid constructing oversized documents. Segment/turn copies of words need not be object-identical to the top-level list. No cross-list identity, ordering, text reconstruction, or speaker attribution is invented by serialization.
+
+## Round-trip example
+
+This no-model example preserves an untimed word and its written form. Null speaker means speaker assignment was not processed; it differs from `SpeakerLabel.Unassigned` after an unsuccessful assignment.
+
+```csharp
+var document = new OneSpeech.Transcript
+{
+    Text = "Hello.",
+    Language = "en",
+    Words = [new OneSpeech.Word { Text = "Hello.", TimingMethod = OneSpeech.TimingMethod.None }]
+};
+string json = document.ToJson();
+var restored = OneSpeech.Transcript.FromJson(json);
+if (restored.Text != document.Text || restored.Words[0].Start is not null)
+    throw new InvalidOperationException("Document round-trip changed text or invented timing.");
+```

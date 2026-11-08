@@ -25,7 +25,7 @@ using var recognizer = Qwen3Recognizer.Load(modelDirectory, new Qwen3Options
     Context = "Vocabulary: Recursive AI, log-mel, transcription.",
     Precision = Qwen3Precision.Binary32,
     Threads = 4,
-});
+}, cancellationToken);
 Transcript result = recognizer.Transcribe(audio, "en", cancellationToken);
 ```
 
@@ -53,7 +53,7 @@ eleven supported languages.
 ## Forced alignment
 
 ```csharp
-using var aligner = Qwen3ForcedAligner.Load(alignmentDirectory, threads: 4);
+using var aligner = Qwen3ForcedAligner.Load(alignmentDirectory, threads: 4, cancellationToken: cancellationToken);
 Transcript aligned = aligner.Align(audio, text, "en", cancellationToken);
 ```
 

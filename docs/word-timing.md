@@ -1,0 +1,9 @@
+# Word timing and forced alignment
+
+Every `Word` has nullable `Start` and `End`, nullable `Confidence`, and `TimingMethod`. Times are `TimeSpan` values on the original audio clock, not processing time. Missing boundaries remain null; confidence is not inferred from having a boundary. Speaker assignment cannot fill missing timing.
+
+The timing preference is **native → Qwen3-ForcedAligner → omniASR-CTC → DTW**, subject to model and language coverage. The pipeline asks registered timing aligners in order; it is not permission to claim a method a loaded family cannot provide. Qwen recognition uses its paired aligner; Whisper's default file path uses the omniASR CTC aligner rather than labelling DTW as native. Parakeet supplies native timing. Provenance distinguishes `Native`, `ForcedAligner`, `CtcAligner`, `Dtw` and `None`.
+
+The standalone `Speech.Align(path, text, language: ...)` helper currently uses omniASR-CTC by default, accepts at most 60 seconds, and downloads the roughly 1.3 GB model on first use. Passing a `Transcript` preserves its written words and non-timing fields instead of re-splitting its text. Stream overloads do not own the caller's stream. Empty or unalignable targets never justify fabricated times. See [CTC alignment](ctc-alignment.md) and [Qwen3](qwen3.md) for supported language and model details.
+
+Alignment maps supplied text to audio; it does not prove that every supplied word was spoken. Check null boundaries and the [measured errors](results.md#timing) before using timestamps as evidence. The Qwen toolkit post-processing difference is still a known gap. No method is sample-accurate ground truth.

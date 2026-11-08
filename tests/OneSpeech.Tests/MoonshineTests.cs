@@ -47,6 +47,21 @@ public sealed class MoonshineTests
         Assert.Throws<OperationCanceledException>(() => tokenizer.Encode("test", cancellationToken: new CancellationToken(true)));
     }
     [Fact]
+    public void StreamingFrontendRetainsButMasksTheIncompleteFrame()
+    {
+        string? directory = Environment.GetEnvironmentVariable("ONESPEECH_MOONSHINE_STREAMING_TINY");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(directory), "Set ONESPEECH_MOONSHINE_STREAMING_TINY to a verified converted model.");
+        using var model = MoonshineRecognizer.Load(directory!, cancellationToken: Token);
+        float[] odd = Enumerable.Range(0, 321).Select(i => .25f * MathF.Sin(2 * MathF.PI * 440 * i / 16000)).ToArray();
+        float[] padded = new float[400];
+        odd.AsSpan(0, 320).CopyTo(padded);
+        using var actual = model.Runtime.Encode(new AudioBuffer(odd, 16000), Token);
+        using var expected = model.Runtime.Encode(new AudioBuffer(padded, 16000), Token);
+        Assert.Equal(expected["encoder"].Data<float>().ToArray(), actual["encoder"].Data<float>().ToArray());
+        Assert.Equal(640, actual["encoder"].Data<float>().Length);
+    }
+
+    [Fact]
     public void StreamingCheckpointEmitsPartialsAndImmutableFinals()
     {
         string? directory = Environment.GetEnvironmentVariable("ONESPEECH_MOONSHINE_STREAMING_TINY");

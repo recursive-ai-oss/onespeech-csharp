@@ -2,6 +2,21 @@ using System.Security.Cryptography;
 using OneSpeech.Catalog.Conversion;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
+if (args is ["moonshine-service-smoke", var publisherDirectory, var freshCache, var smokeAudio])
+{
+    await MoonshineServiceSmoke.Run(publisherDirectory, freshCache, smokeAudio);
+    return 0;
+}
+if (args is ["moonshine-refresh-incomplete", var refreshModel, var refreshSplit, var refreshOutput])
+{
+    MoonshineBatch.Run(refreshModel, refreshSplit, refreshOutput, 0, 200, refreshIncomplete: true);
+    return 0;
+}
+if (args is ["moonshine-validate-saved", var savedModel, var savedOurs, var savedReference])
+{
+    MoonshineBatch.ValidateSaved(savedModel, savedOurs, savedReference);
+    return 0;
+}
 if (args is ["moonshine-edges", var meOutput])
 {
     MoonshineProbe.Edges(meOutput);

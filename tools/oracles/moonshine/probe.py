@@ -18,6 +18,7 @@ def run():
     p.add_argument("model")
     p.add_argument("audio")
     p.add_argument("output")
+    p.add_argument("--without-attention-mask", action="store_true")
     args = p.parse_args()
     torch.set_num_threads(2)
     torch.set_grad_enabled(False)
@@ -34,6 +35,11 @@ def run():
     cls = MoonshineStreamingForConditionalGeneration if "streaming" in args.model else MoonshineForConditionalGeneration
     model = cls.from_pretrained(args.model, local_files_only=True, torch_dtype=torch.float32, attn_implementation="eager").eval()
     inputs = processor(waveform, sampling_rate=rate, return_tensors="pt")
+    if args.without_attention_mask:
+        inputs.pop("attention_mask", None)
+    # Capture the standalone encoder before a decoder can add positions in-place.
+    encoder_output = model.get_encoder()(**inputs, return_dict=True)
+    encoder_output.last_hidden_state.detach().cpu().numpy().astype("<f4").tofile(dest / "encoder-standalone.bin")
     output = model(**inputs, decoder_input_ids=torch.tensor([[1]]), output_hidden_states=True, output_attentions=True, return_dict=True)
     shapes = {}
     for name, tensor in dict(inputs).items():
@@ -51,7 +57,7 @@ def run():
             a = tensor.detach().cpu().numpy()
             q, k = np.indices(a.shape[-2:])
             outside = (k < q - 16) | (k > q + 4)
-            print(json.dumps({"attention_outside_local_max": float(a[0, :, outside].max()), "attention_shape": list(a.shape)}))
+            print(json.dumps({"attention_outside_local_max": float(a[0, :, outside].max()) if outside.any() else 0.0, "attention_shape": list(a.shape)}))
         tensor.detach().cpu().numpy().astype("<f4").tofile(dest / f"attention-{index}.bin")
     output.encoder_last_hidden_state.detach().cpu().numpy().astype("<f4").tofile(dest / "encoder-final.bin")
     logits = output.logits.detach().cpu().numpy().astype("<f4")

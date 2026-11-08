@@ -25,6 +25,12 @@ internal static class MoonshineProbe
     {
         var c = MoonshineConfiguration.Load(directory);
         float[] audio = Read(Path.Combine(reference, File.Exists(Path.Combine(reference, "raw.bin")) ? "raw.bin" : "input_values.bin"));
+        if (c.Streaming && audio.Length % 80 != 0)
+        {
+            int valid = audio.Length / 80 * 80;
+            Array.Resize(ref audio, (audio.Length + 79) / 80 * 80);
+            Array.Clear(audio, valid, audio.Length - valid);
+        }
         int frames = c.Streaming ? (audio.Length / 80 + 3) / 4 : (((audio.Length - 127) / 64 + 1 - 7) / 3 + 1 - 3) / 2 + 1;
         using var input = Tensor.FromSpan<float>(audio, Shape.Create(1, 1, audio.Length));
         using var cos = Rotary(frames, c.RotaryDimension, false);
@@ -38,7 +44,7 @@ internal static class MoonshineProbe
         using var encoded = encoder.Run(encoderInputs);
         if (File.Exists(Path.Combine(reference, "attention-0.bin")) && encoded.TryGetValue("attention-0", out var probability)) Compare("attention-0", probability, reference);
         for (int layer = 0; layer < c.EncoderLayers; layer++) if (encoded.TryGetValue("stage_" + layer, out var hidden)) Compare("encoder-" + layer, hidden, reference);
-        Compare(File.Exists(Path.Combine(reference, "encoder-final.bin")) ? "encoder-final" : "encoder-" + c.EncoderLayers, encoded["encoder"], reference);
+        Compare(File.Exists(Path.Combine(reference, "encoder-standalone.bin")) ? "encoder-standalone" : File.Exists(Path.Combine(reference, "encoder-final.bin")) ? "encoder-final" : "encoder-" + c.EncoderLayers, encoded["encoder"], reference);
         using var decoder = Session.Load(Path.Combine(directory, "decoder.onemodel"), new ModelOptions { IntraOpThreads = 2 });
         using var tokens = Tensor.FromSpan<long>(new long[] { 1 }, Shape.Create(1, 1));
         using var dcos = Rotary(1, c.RotaryDimension, false);

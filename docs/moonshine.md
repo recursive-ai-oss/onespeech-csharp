@@ -60,6 +60,11 @@ The streaming architecture follows the publisher's *Moonshine Streaming*
 paper, §§3.1–3.4: 80-sample frames, per-frame population CMVN with variance
 regularizer 1e-6, learned asinh compression, linear/SiLU, two causal
 kernel-5/stride-2 convolutions. Only the first convolution has a following SiLU.
+For an incomplete 80-sample frame, the released feature extractor pads the
+waveform and the public model masks that entire frame before convolution.
+We retain the padded frame count and zero the incomplete frame, as confirmed
+by frontend and first-logit comparisons on 321 samples; silently reducing
+the encoder frame count would give different output.
 The encoder is position-free; learned positions and an optional projection
 adapt its output to the decoder.
 

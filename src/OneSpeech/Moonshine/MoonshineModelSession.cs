@@ -19,9 +19,12 @@ internal sealed class MoonshineModelSession : IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         var c = Configuration;
-        int count = c.Streaming ? audio.FrameCount / 80 * 80 : audio.FrameCount;
+        // Released public outputs retain the padded frame count but mask an incomplete
+        // 80-sample frame in its entirety before the frontend convolutions.
+        int count = c.Streaming ? (audio.FrameCount + 79) / 80 * 80 : audio.FrameCount;
         int frames = c.Streaming ? (count / 80 + 3) / 4 : (((count - 127) / 64 + 1 - 7) / 3 + 1 - 3) / 2 + 1;
-        using var input = Tensor.FromSpan<float>(audio.Samples.Span[..count], Shape.Create(1, 1, count));
+        using var input = Tensor.Zeros(DType.F32, Shape.Create(1, 1, count));
+        audio.Samples.Span[..(c.Streaming ? audio.FrameCount / 80 * 80 : audio.FrameCount)].CopyTo(input.MutableData<float>());
         using var cos = Rotary(frames, c.RotaryDimension, false);
         using var sin = Rotary(frames, c.RotaryDimension, true);
         using var local = LocalMask(frames, 3);

@@ -22,7 +22,7 @@ internal sealed class MoonshineStreamingState : IIncrementalUtteranceRecognizer
         if (language is not (null or "en")) throw new CapabilityNotSupportedException("Moonshine streaming checkpoints support English only.");
         var runtime = recognizer.Runtime;
         var c = runtime.Configuration;
-        int frames = (audio.FrameCount / 80 + 3) / 4;
+        int frames = ((audio.FrameCount + 79) / 80 + 3) / 4;
         if (frames == 0) return new Transcript { Text = "", Duration = audio.Duration, Language = "en", Models = [recognizer.Model] };
         if (frames > 4096) throw new UnsupportedAudioException("A Moonshine streaming utterance cannot exceed 4096 encoder frames; use bounded VAD endpointing.");
         if (frames < previousFrames) frozenFrames = 0;

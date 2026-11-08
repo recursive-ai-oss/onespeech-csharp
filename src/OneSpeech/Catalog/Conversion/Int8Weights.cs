@@ -6,14 +6,16 @@ namespace OneSpeech.Catalog.Conversion;
 // No activation statistics or evaluation audio are used during conversion.
 internal static class Int8Weights
 {
-    internal static (byte[] Values, byte[] Scales) Transpose(float[] weights, int outputs, int inputs)
+    internal static (byte[] Values, byte[] Scales) Transpose(float[] weights, int outputs, int inputs, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (outputs <= 0 || inputs <= 0 || weights.Length != checked(outputs * inputs))
             throw new ModelIntegrityException("Expected a nonempty rank-two linear weight.");
         byte[] values = new byte[weights.Length];
         byte[] scales = new byte[checked(outputs * 4)];
         for (int o = 0; o < outputs; o++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             float maximum = 0;
             for (int i = 0; i < inputs; i++)
             {

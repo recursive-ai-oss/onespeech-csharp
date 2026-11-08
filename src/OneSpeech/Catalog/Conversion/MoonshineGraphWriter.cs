@@ -6,7 +6,7 @@ using OneSpeech.Moonshine;
 namespace OneSpeech.Catalog.Conversion;
 
 // The graph follows Jeffries et al. 2024 §3.1, with names taken only from published tensor data.
-internal sealed partial class MoonshineGraphWriter(SafeTensorFile weights, bool diagnostics = false, int compressionMode = 0, int frontendActivation = 1, float frontendEpsilon = 1e-6f, int frontendNorm = 0, bool int8 = false)
+internal sealed partial class MoonshineGraphWriter(SafeTensorFile weights, bool diagnostics = false, int compressionMode = 0, int frontendActivation = 1, float frontendEpsilon = 1e-6f, int frontendNorm = 0, bool int8 = false, CancellationToken conversionCancellation = default)
 {
     private sealed record Value(string Name, int Dtype, object[] Shape);
     private sealed record Initializer(string Name, int Dtype, long[] Shape, byte[]? Bytes, string? Weight, long Offset, long Length);
@@ -71,7 +71,7 @@ internal sealed partial class MoonshineGraphWriter(SafeTensorFile weights, bool 
         {
             var shape = weights.Tensors[weight].Shape;
             if (shape.Length != 2) throw new ModelIntegrityException("Expected rank-two linear weight.");
-            var quantized = Int8Weights.Transpose(weights.ReadFloat32(weight, CancellationToken.None), checked((int)shape[0]), checked((int)shape[1]));
+            var quantized = Int8Weights.Transpose(weights.ReadFloat32(weight, conversionCancellation), checked((int)shape[0]), checked((int)shape[1]), conversionCancellation);
             packed = (AddTensor(weight + ".int8", 3, [shape[1], shape[0]], quantized.Values, null),
                 AddTensor(weight + ".scale", 1, [shape[0]], quantized.Scales, null));
             quantizedWeights.Add(weight, packed);

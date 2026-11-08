@@ -61,9 +61,11 @@ speaker and other non-timing fields are retained by the transcript overload.
 A call is bounded to 60 seconds; longer input is refused with a typed capability
 error and must be split with its corresponding written words. File input is
 bounded while decoding, before a model download, and is downmixed to mono.
-Explicit calls to `Speech.Align` use this model by default, downloading and
-verifying publisher files and reproducing the catalog's converted hash on first
-use. The string overload splits on whitespace. The transcript overload uses
+`Speech.Align` tries Qwen3-ForcedAligner first for its eleven declared languages,
+then this model for remaining untimed words. Omitted language uses CTC unless the
+supplied transcript declares a covered language. An explicit model ID selects only
+that aligner. First use downloads and verifies the selected publisher files and
+reproduces the catalog's converted hashes. The string overload splits on whitespace. The transcript overload uses
 `Words` in order without splitting them again. Corresponding segment word lists
 are projected when they have the same written-word partition. Written text and
 word boundaries are never reconstructed from the CTC hypothesis.
@@ -72,9 +74,16 @@ word boundaries are never reconstructed from the CTC hypothesis.
 aligners. Native timestamps win. Compatible forced aligners are tried in order
 (for example Qwen3 before CTC); failed words retain existing DTW as the final
 fallback. Compatibility requires `Capabilities.ForcedAlignment` and a matching
-declared language. The default file transcription pipeline registers CTC. This
-ordering is a fixed policy, not a claim that CTC has measured better boundary
-error than DTW. Timing floors against external alignment truth remain necessary.
+declared language. Whole-file transcription uses native timings first, then
+Qwen3-ForcedAligner for zh/en/yue/fr/de/it/ja/ko/pt/ru/es, then CTC, then existing
+DTW. Models are loaded lazily after the chunk's language is known; CTC is not
+loaded if Qwen times every word. Failed or out-of-window alignment cannot invent
+a boundary. Unsupported-audio and capability failures advance to the next method;
+cancellation, corrupt models and I/O errors propagate. Successful words retain
+per-word timing provenance. A lower-priority method never overwrites a successful
+higher-priority timing. Qwen accepts more than 200 samples through 300 seconds;
+CTC accepts at most 60 seconds. File recognition chunks remain bounded to 30
+seconds; public file alignment retains its 60-second input bound.
 
 Encoded-stream twins (`Speech.AlignAsync`) leave the caller's stream open. They
 perform asynchronous bounded I/O to a temporary seekable file, capped at 512 MiB

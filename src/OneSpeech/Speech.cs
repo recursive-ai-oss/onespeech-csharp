@@ -15,7 +15,7 @@ public static class Speech
     /// <summary>Listens with explicit cancellation. Cancellation or early enumeration disposal discards pending speech and releases model resources. Input and errors follow Listen.</summary>
     public static IAsyncEnumerable<LiveEvent> Listen(IAsyncEnumerable<AudioBuffer> source, CancellationToken cancellationToken, string? language = null, string? model = null) =>
         Pipeline.SpeechServices.Listen(source, language, model, cancellationToken);
-    /// <summary>Aligns written text to a local audio file of at most 60 seconds, downmixed and resampled to mono 16 kHz. Downloads the tier-1 CTC model on first use. Unalignable words have null times. Throws typed capability/model/audio errors or IOException for filesystem failures.</summary>
+    /// <summary>Aligns written text to a local audio file of at most 60 seconds, downmixed and resampled to mono 16 kHz. By default tries Qwen3-ForcedAligner for its covered language, then CTC; downloads only needed tier-1 models on first use. An explicit model ID selects only that aligner. Unalignable words have null times. Throws typed capability/model/audio errors or IOException for filesystem failures.</summary>
     public static Transcript Align(string path, string text, string? language = null, string? model = null) =>
         Align(path, text, CancellationToken.None, language, model);
     /// <summary>Aligns written text with explicit cancellation, checked at audio blocks, graph calls and trellis frames. File length is limited to 60 seconds. Throws OperationCanceledException on cancellation; model, audio and capability errors remain typed.</summary>
@@ -24,7 +24,7 @@ public static class Speech
         ArgumentNullException.ThrowIfNull(text);
         return Pipeline.SpeechServices.Align(path, text, null, language, model, cancellationToken);
     }
-    /// <summary>Aligns an existing document's Words in order, preserving written text and non-timing word fields. File length is limited to 60 seconds. Downloads the tier-1 CTC model on first use. Unalignable words keep null times. Errors follow the text overload.</summary>
+    /// <summary>Aligns an existing document's Words in order, preserving written text and non-timing word fields. File length is limited to 60 seconds. By default tries Qwen3-ForcedAligner for its covered language, then CTC; downloads only needed tier-1 models on first use. An explicit model ID selects only that aligner. Unalignable words keep null times. Errors follow the text overload.</summary>
     public static Transcript Align(string path, Transcript transcript, string? language = null, string? model = null) =>
         Align(path, transcript, CancellationToken.None, language, model);
     /// <summary>Aligns existing written words with explicit cancellation. No word re-splitting or document-schema change is performed. File length is limited to 60 seconds; errors and cancellation follow the text overload.</summary>

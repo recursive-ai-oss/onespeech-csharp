@@ -36,6 +36,7 @@ public sealed class ModelCatalog
             builder.Add(entry);
         }
         Entries = builder.ToImmutable();
+        if (Entries.SelectMany(e => e.DefaultRoles).GroupBy(r => r, StringComparer.Ordinal).Any(g => g.Count() > 1)) Fail("Duplicate role default.");
         if (Entries.Where(e => e.IsDefault).GroupBy(e => e.Family, StringComparer.Ordinal).Any(g => g.Count() > 1)) Fail("Duplicate family default.");
     }
 
@@ -46,6 +47,10 @@ public sealed class ModelCatalog
     /// <summary>Finds the one declared tier-1 default for a family, or throws ModelNotFoundException. Tier 2 is never eligible.</summary>
     public CatalogEntry GetDefault(string family) => Entries.FirstOrDefault(e => e.Family == family && e.IsDefault && e.Tier == ModelTier.Tier1)
         ?? throw new ModelNotFoundException($"No default is declared for family '{family}'; select a model ID explicitly.");
+
+    /// <summary>Finds the declared ungated tier-1 default for a role, independent of model family; throws ModelNotFoundException if absent.</summary>
+    public CatalogEntry GetRoleDefault(string role) => Entries.FirstOrDefault(e => e.DefaultRoles.Contains(role, StringComparer.Ordinal))
+        ?? throw new ModelNotFoundException($"No default is declared for role '{role}'; select a model ID explicitly.");
 
     /// <summary>Reads UTF-8 JSON, bounded to 8 MiB, depth 32, 256 items per array, and 64 KiB strings before allocation. Throws InvalidModelCatalogException.</summary>
     public static ModelCatalog FromJson(ReadOnlySpan<byte> json)
@@ -103,6 +108,10 @@ public sealed class ModelCatalog
             entry.Files.IsDefaultOrEmpty || entry.Files.Length > 64 || entry.Capabilities.Languages.IsDefault || entry.Capabilities.Languages.Length > 256 || entry.ConvertedFiles.IsDefault || entry.ConvertedFiles.Length > 64)
             Fail("Missing or invalid model metadata.");
         var e = entry!;
+        if (e.DefaultRoles.IsDefault || e.DefaultRoles.Length > 16 || e.DefaultRoles.Distinct(StringComparer.Ordinal).Count() != e.DefaultRoles.Length ||
+            e.DefaultRoles.Any(r => r is not { Length: > 0 and <= 64 } || !r.All(c => char.IsAsciiLetterLower(c) || c == '-')))
+            Fail($"Invalid default roles for '{e.Id}' (uninitialized: {e.DefaultRoles.IsDefault}).");
+        if (!e.DefaultRoles.IsEmpty && (e.Tier != ModelTier.Tier1 || e.Gated)) Fail("Role defaults require ungated tier 1.");
         if (e.Tier == ModelTier.Tier1)
         {
             if (e.Gated || e.License is not ("MIT" or "Apache-2.0" or "BSD-2-Clause" or "BSD-3-Clause")) Fail("Tier 1 requires an ungated permissive licence.");

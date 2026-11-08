@@ -14,7 +14,7 @@ internal static class SpeechServices
         cancellationToken.ThrowIfCancellationRequested();
         using (AudioFileSource.Open(path, cancellationToken)) { }
         var store = ModelStore.Default;
-        using var recognizer = await ResolveAsync(store, model, cancellationToken).ConfigureAwait(false);
+        using var recognizer = await ResolveAsync(store, model, cancellationToken, withQwenTiming: true).ConfigureAwait(false);
         using var vad = ResolveVad(store, cancellationToken);
         using var session = recognizer.CreateLiveSession(vad, language);
         using var source = AudioFileSource.Open(path, cancellationToken);
@@ -46,7 +46,7 @@ internal static class SpeechServices
         ArgumentNullException.ThrowIfNull(source);
         cancellationToken.ThrowIfCancellationRequested();
         var store = ModelStore.Default;
-        using var recognizer = await ResolveAsync(store, model ?? store.Catalog.GetDefault("moonshine").Id, cancellationToken).ConfigureAwait(false);
+        using var recognizer = await ResolveAsync(store, model ?? store.Catalog.GetDefault("moonshine").Id, cancellationToken, withQwenTiming: true).ConfigureAwait(false);
         using var vad = ResolveVad(store, cancellationToken);
         using var session = recognizer.CreateLiveSession(vad, language);
         using var embedder = await ResolveEmbedderAsync(store, language, cancellationToken).ConfigureAwait(false);
@@ -64,12 +64,33 @@ internal static class SpeechServices
         return new OneSpeech.Alignment.OmniAsrAligner(Path.Combine(resolved.Directory, "ctc-fp32.onemodel"), Path.Combine(resolved.Directory, "omniASR_tokenizer.model"), resolved.Info, cancellationToken: cancellationToken);
     }
 
+    private sealed class AlignerLease(Aligner aligner) : Aligner, IDisposable
+    {
+        public override ModelInfo Model => aligner.Model;
+        public override Capabilities Capabilities => aligner.Capabilities;
+        public override Transcript Align(AudioBuffer audio, string text, string? language, CancellationToken cancellationToken) => aligner.Align(audio, text, language, cancellationToken);
+        public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken) => aligner.Align(audio, transcript, language, cancellationToken);
+        public void Dispose() => ((IDisposable)aligner).Dispose();
+    }
+
+    private static async ValueTask<AlignerLease> ResolvePublicAlignerAsync(ModelStore store, string? model, CancellationToken cancellationToken)
+    {
+        if (model is null) return new(new OrderedTimingAligner(store, realign: true));
+        var entry = store.Catalog.Get(model);
+        if (entry.Family == "qwen3-aligner")
+        {
+            var resolved = await store.PullAsync(model, cancellationToken: cancellationToken).ConfigureAwait(false);
+            return new(OneSpeech.Qwen3.Qwen3ForcedAligner.Load(resolved.Directory, cancellationToken: cancellationToken));
+        }
+        return new(await ResolveAlignerAsync(store, model, cancellationToken).ConfigureAwait(false));
+    }
+
     internal static Transcript Align(string path, string? text, Transcript? transcript, string? language, string? model, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var source = AudioFileSource.Open(path, cancellationToken);
         var audio = ReadAlignmentAudio(source, cancellationToken);
-        using var aligner = ResolveAlignerAsync(ModelStore.Default, model, cancellationToken).AsTask().GetAwaiter().GetResult();
+        using var aligner = ResolvePublicAlignerAsync(ModelStore.Default, model, cancellationToken).AsTask().GetAwaiter().GetResult();
         return transcript is null ? aligner.Align(audio, text!, language, cancellationToken) : aligner.Align(audio, transcript, language, cancellationToken);
     }
 
@@ -91,7 +112,7 @@ internal static class SpeechServices
         spool.Position = 0;
         using var source = AudioFileSource.Open(spool, true, cancellationToken);
         var audio = ReadAlignmentAudio(source, cancellationToken);
-        using var aligner = await ResolveAlignerAsync(ModelStore.Default, model, cancellationToken).ConfigureAwait(false);
+        using var aligner = await ResolvePublicAlignerAsync(ModelStore.Default, model, cancellationToken).ConfigureAwait(false);
         return transcript is null ? aligner.Align(audio, text!, language, cancellationToken) : aligner.Align(audio, transcript, language, cancellationToken);
     }
 
@@ -121,10 +142,10 @@ internal static class SpeechServices
         return OneSpeech.Qwen3.Qwen3ForcedAligner.Load(model.Directory, cancellationToken: cancellationToken);
     }
 
-    private static async ValueTask<RecognizerLease> ResolveAsync(ModelStore store, string? model, CancellationToken cancellationToken)
+    private static async ValueTask<RecognizerLease> ResolveAsync(ModelStore store, string? model, CancellationToken cancellationToken, bool withQwenTiming = false)
     {
         if (model is not null && model.StartsWith("moonshine-ai/", StringComparison.Ordinal)) _ = Moonshine.MoonshineProvenance.Get(model);
-        var entry = model is null ? store.Catalog.GetDefault("whisper") : store.Catalog.Get(model);
+        var entry = model is null ? store.Catalog.GetRoleDefault("transcription") : store.Catalog.Get(model);
         if (entry.Family == "parakeet-tdt")
         {
             var resolvedParakeet = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -135,10 +156,12 @@ internal static class SpeechServices
         {
             var qwenModel = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
             var recognition = OneSpeech.Qwen3.Qwen3Recognizer.Load(qwenModel.Directory, cancellationToken: cancellationToken);
+            if (!withQwenTiming) return new RecognizerLease(recognition, recognition);
+            // Live utterances cannot replay a file after releasing recognition state.
             try
             {
-                var alignmentModel = await store.PullAsync("Qwen/Qwen3-ForcedAligner-0.6B", cancellationToken: cancellationToken).ConfigureAwait(false);
-                var alignment = OneSpeech.Qwen3.Qwen3ForcedAligner.Load(alignmentModel.Directory, cancellationToken: cancellationToken);
+                var aligned = await store.PullAsync("Qwen/Qwen3-ForcedAligner-0.6B", cancellationToken: cancellationToken).ConfigureAwait(false);
+                var alignment = OneSpeech.Qwen3.Qwen3ForcedAligner.Load(aligned.Directory, cancellationToken: cancellationToken);
                 recognition.WordAligner = alignment;
                 return new RecognizerLease(recognition, recognition, alignment);
             }
@@ -163,7 +186,8 @@ internal static class SpeechServices
         public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken) => recognizer.TranscribeStream(audio, language, cancellationToken);
         public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken) => recognizer.DetectLanguage(audio, cancellationToken);
         public override LiveSession CreateLiveSession(SileroVad detector, string? language = null) => recognizer.CreateLiveSession(detector, language);
-        public void Dispose() { owner.Dispose(); alignment?.Dispose(); }
+        private bool disposed;
+        public void Dispose() { if (disposed) return; disposed = true; owner.Dispose(); alignment?.Dispose(); }
     }
 
     private static async ValueTask<CampPlusEmbedder> ResolveEmbedderAsync(ModelStore store, string? language, CancellationToken cancellationToken)
@@ -214,9 +238,21 @@ internal static class SpeechServices
         using (AudioFileSource.Open(path, cancellationToken)) { }
         var store = ModelStore.Default;
         using var recognizer = ResolveAsync(store, model, cancellationToken).AsTask().GetAwaiter().GetResult();
-        using var timing = recognizer.Capabilities.NativeTimestamps ? null : ResolveAlignerAsync(store, null, cancellationToken).AsTask().GetAwaiter().GetResult();
+        using var timing = recognizer.Capabilities.NativeTimestamps ? null : new OrderedTimingAligner(store);
         using var vad = ResolveVad(store, cancellationToken);
-        var transcript = new VadTranscriptionPipeline(recognizer, vad) { TimingAligners = timing is null ? [] : [timing] }.Transcribe(path, language, cancellationToken);
+        var deferred = timing is null ? null : new DeferredTiming();
+        var transcript = new VadTranscriptionPipeline(recognizer, vad)
+        {
+            RecognizedChunk = deferred is null ? null : deferred.Add
+        }.Transcribe(path, language, cancellationToken);
+        recognizer.Dispose();
+        if (deferred is not null && timing is not null)
+        {
+            using var replay = AudioFileSource.Open(path, cancellationToken);
+            using var replayVad = ResolveVad(store, cancellationToken);
+            transcript = deferred.Apply(VadChunker.Blocks(replay, cancellationToken), replayVad, transcript, timing, cancellationToken);
+        }
+        timing?.Dispose();
         using var source = AudioFileSource.Open(path, cancellationToken);
         return DiarizeAsync(source, transcript, language, store, cancellationToken).AsTask().GetAwaiter().GetResult();
     }
@@ -228,7 +264,7 @@ internal static class SpeechServices
         if (!stream.CanRead) throw new ArgumentException("Input stream must be readable.", nameof(stream));
         var store = ModelStore.Default;
         using var recognizer = await ResolveAsync(store, model, cancellationToken).ConfigureAwait(false);
-        using var timing = recognizer.Capabilities.NativeTimestamps ? null : await ResolveAlignerAsync(store, null, cancellationToken).ConfigureAwait(false);
+        using var timing = recognizer.Capabilities.NativeTimestamps ? null : new OrderedTimingAligner(store);
         using var vad = ResolveVad(store, cancellationToken);
         // Retain only encoded input so recognition can select a language before the diarization pass.
         string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -236,9 +272,22 @@ internal static class SpeechServices
         await stream.CopyToAsync(spool, cancellationToken).ConfigureAwait(false);
         await spool.FlushAsync(cancellationToken).ConfigureAwait(false);
         spool.Position = 0;
+        var deferred = timing is null ? null : new DeferredTiming();
         Transcript transcript;
         using (var recognitionSource = AudioFileSource.Open(spool, true, cancellationToken))
-            transcript = new VadTranscriptionPipeline(recognizer, vad) { TimingAligners = timing is null ? [] : [timing] }.TranscribeBlocks(VadChunker.Blocks(recognitionSource, cancellationToken), language, cancellationToken);
+            transcript = new VadTranscriptionPipeline(recognizer, vad)
+            {
+                RecognizedChunk = deferred is null ? null : deferred.Add
+            }.TranscribeBlocks(VadChunker.Blocks(recognitionSource, cancellationToken), language, cancellationToken);
+        recognizer.Dispose();
+        if (deferred is not null && timing is not null)
+        {
+            spool.Position = 0;
+            using var replay = AudioFileSource.Open(spool, true, cancellationToken);
+            using var replayVad = ResolveVad(store, cancellationToken);
+            transcript = deferred.Apply(VadChunker.Blocks(replay, cancellationToken), replayVad, transcript, timing, cancellationToken);
+        }
+        timing?.Dispose();
         spool.Position = 0;
         using var source = AudioFileSource.Open(spool, true, cancellationToken);
         return await DiarizeAsync(source, transcript, language, store, cancellationToken).ConfigureAwait(false);

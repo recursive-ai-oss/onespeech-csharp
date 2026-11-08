@@ -18,6 +18,8 @@ if (copy.Text != original.Text || copy.Words[0] != word || copy.Duration != orig
 if (OneSpeech.Catalog.ModelCatalog.Default.Get("openai/whisper-tiny").Revision != "169d4a4341b33bc18d8881c4b69c2e104e1cc0af" ||
     OneSpeech.Catalog.ModelCatalog.Default.Get("iic/speech_campplus_sv_en_voxceleb_16k").ConvertedFiles[0].Sha256 != "f333a00d5d66b9bf3d7e7abf35f36ff4a01e6e8a0df235b89a125e9fbe3cc15c")
     throw new InvalidOperationException("Embedded catalog pins failed.");
+if (OneSpeech.Catalog.ModelCatalog.Default.GetRoleDefault("transcription").Id != "openai/whisper-large-v3-turbo")
+    throw new InvalidOperationException("Catalog transcription role default failed.");
 Console.WriteLine("Embedded catalog NativeAOT parsing passed.");
 using var vad = new OneSpeech.Vad.SileroVad();
 if (!vad.Detect(new AudioBuffer(new float[16000], 16000), CancellationToken.None).IsEmpty)

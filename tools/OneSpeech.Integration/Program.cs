@@ -7,6 +7,12 @@ using OneSpeech;
 using OneSpeech.Catalog;
 using OneSpeech.Evaluation;
 
+if (args is ["comparison-summary", var summaryRoot]) { Summary.Write(summaryRoot); return 0; }
+if (args is ["comparison-clips", var clipInput, var clipOutput]) return FileComparison.PrepareClips(clipInput, clipOutput);
+if (args is ["comparison-earnings", var earningsRoot, var earningsManifest]) return FileComparison.PrepareEarnings(earningsRoot, earningsManifest);
+if (args is ["comparison-manifest", var corpus, var manifest]) return FileComparison.Prepare(corpus, manifest);
+if (args.Length == 6 && args[0] is "comparison" or "comparison-greedy" or "comparison-speed") return FileComparison.Run(args);
+
 using var cancellation = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
 string? sourceRoot = Environment.GetEnvironmentVariable("ONESPEECH_INTEGRATION_SOURCE");

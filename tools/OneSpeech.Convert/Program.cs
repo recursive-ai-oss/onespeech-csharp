@@ -2,6 +2,16 @@ using System.Security.Cryptography;
 using OneSpeech.Catalog.Conversion;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
+if (args is ["onemodel-allocation-repro", var reproOutput])
+{
+    MoonshineAllocationProfile.Run(null, reproOutput);
+    return 0;
+}
+if (args is ["moonshine-allocation-profile", var profileModel, var profileOutput])
+{
+    MoonshineAllocationProfile.Run(profileModel, profileOutput);
+    return 0;
+}
 if (args is ["weight-hash", var hashPath])
 {
     using var input = File.OpenRead(hashPath);

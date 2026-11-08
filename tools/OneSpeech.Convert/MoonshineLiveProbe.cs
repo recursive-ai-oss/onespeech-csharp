@@ -30,6 +30,8 @@ internal static class MoonshineLiveProbe
 
     internal static void Batch(string directory, string split, string output, int begin, int count, int chunk)
     {
+        // At most one decode/final can occur per push below the 250 ms speech minimum.
+        if (chunk is < 1 or > 1600) throw new ArgumentOutOfRangeException(nameof(chunk), "Token-traced probes support pushes up to 100 ms.");
         using var recognizer = MoonshineRecognizer.Load(directory, new MoonshineOptions { IntraOpThreads = 2 });
         using var vad = new SileroVad();
         Directory.CreateDirectory(output);
@@ -40,17 +42,21 @@ internal static class MoonshineLiveProbe
             var clip = OneAudio.Audio.Load(file, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
             using var session = recognizer.CreateLiveSession(vad, "en");
             var finals = new List<FinalEvent>();
+            var finalIds = new List<int[]>();
+            int[] latestIds = [];
+            recognizer.TokenTrace = value => latestIds = value;
             int partials = 0;
             for (int start = 0; start < clip.Samples.Length; start += chunk)
                 foreach (var update in session.Push(new AudioBuffer(clip.Samples.Slice(start, Math.Min(chunk, clip.Samples.Length - start)), 16000)))
-                { if (update is FinalEvent final) finals.Add(final); if (update is PartialEvent) partials++; }
-            foreach (var update in session.Complete()) if (update is FinalEvent final) finals.Add(final);
+                { if (update is FinalEvent final) { finals.Add(final); finalIds.Add(latestIds); } if (update is PartialEvent) partials++; }
+            foreach (var update in session.Complete()) if (update is FinalEvent final) { finals.Add(final); finalIds.Add(latestIds); }
             using (var stream = File.Create(path + ".part")) using (var json = new Utf8JsonWriter(stream))
             {
                 json.WriteStartObject(); json.WriteString("id", id); json.WriteString("text", string.Join(" ", finals.Select(f => f.Segment.Text))); json.WriteNumber("chunkSamples", chunk); json.WriteNumber("partials", partials); json.WriteStartArray("finals");
-                foreach (var final in finals)
+                for (int index = 0; index < finals.Count; index++)
                 {
-                    json.WriteStartObject(); json.WriteString("text", final.Segment.Text); json.WriteNumber("available", final.AudioTime.TotalSeconds);
+                    var final = finals[index];
+                    json.WriteStartObject(); json.WriteStartArray("ids"); foreach (int idValue in finalIds[index]) json.WriteNumberValue(idValue); json.WriteEndArray(); json.WriteString("text", final.Segment.Text); json.WriteNumber("available", final.AudioTime.TotalSeconds);
                     if (final.Segment.Start is { } start) json.WriteNumber("start", start.TotalSeconds);
                     if (final.Segment.End is { } end) json.WriteNumber("end", end.TotalSeconds);
                     json.WriteEndObject();

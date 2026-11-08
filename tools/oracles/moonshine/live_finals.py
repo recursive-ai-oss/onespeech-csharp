@@ -30,13 +30,18 @@ try:
         if rate != 16000 or audio.ndim != 1:
             raise ValueError("Expected mono 16kHz")
         texts = []
+        final_ids = []
         for segment in data["finals"]:
             start, end = round(segment["start"] * rate), round(segment["end"] * rate)
             retained = audio[start:end]
             inputs = processor(retained, sampling_rate=rate, return_tensors="pt")
             ids = model.generate(**inputs, do_sample=False, max_new_tokens=max(1, int(len(retained) / rate * 6.5)))
+            token_ids = ids[0].tolist()
+            if "ids" in segment and segment["ids"] != token_ids:
+                raise ValueError("Final token mismatch for " + file.stem)
+            final_ids.append(token_ids)
             texts.append(processor.decode(ids[0], skip_special_tokens=True))
-        row = {"id": file.stem, "text": " ".join(texts), "oracle": "transformers5.22.2", "precision": "fp32", "comparison": "same final VAD intervals; not a vendor streaming endpoint reference"}
+        row = {"id": file.stem, "text": " ".join(texts), "final_ids": final_ids, "oracle": "transformers5.22.2", "precision": "fp32", "comparison": "same final VAD intervals; not a vendor streaming endpoint reference"}
         dest.write_text(json.dumps(row, ensure_ascii=False) + "\n")
         print(file.stem, flush=True)
 except Exception as error:

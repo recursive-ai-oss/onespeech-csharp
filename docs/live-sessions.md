@@ -77,3 +77,13 @@ Neither streaming entry point retains the whole recording's PCM.
 Moonshine streaming checkpoints add session-local encoder caches and replacing
 partials; see [Moonshine](moonshine.md). Input samples must be finite. Silero
 states reuse their output tensors through OneModel's span-based inference API.
+
+## Allocation accounting
+
+Live working-state allocation and immutable emitted payload allocation are
+reported separately. A snapshot includes its event object, result array,
+segment, text and words; the caller may retain it indefinitely. These objects
+are not pooled. Zero working-state allocation must not be presented as zero
+total allocation if a model backend still allocates. Measurements name the
+backend version, chunk size and partial cadence, and include backend allocation
+separately. A chunk that emits nothing has no payload exemption.

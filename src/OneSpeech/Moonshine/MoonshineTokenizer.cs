@@ -123,6 +123,38 @@ public sealed class MoonshineTokenizer
             else foreach (byte b in Encoding.UTF8.GetBytes(unit)) output.Add(vocabulary["<0x" + b.ToString("X2", CultureInfo.InvariantCulture) + ">"]);
         }
     }
+    internal int MaximumPieceCharacters => pieces.Max(p => p?.Length ?? 0);
+
+    // Caller owns bounded scratch; only the final string handed to the caller is allocated.
+    internal int DecodeInto(ReadOnlySpan<int> ids, Span<char> text, Span<byte> bytes)
+    {
+        int length = 0, pending = 0;
+        foreach (int id in ids)
+        {
+            if ((uint)id >= pieces.Length || pieces[id] is not { } piece) throw new ArgumentOutOfRangeException(nameof(ids));
+            if (specialIds.Contains(id)) continue;
+            if (piece.Length == 6 && piece.StartsWith("<0x", StringComparison.Ordinal) && piece[^1] == '>' && byte.TryParse(piece.AsSpan(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte b))
+            { bytes[pending++] = b; continue; }
+            length += FlushBytes(bytes[..pending], text[length..]); pending = 0;
+            foreach (char c in piece) text[length++] = c == '▁' ? ' ' : c;
+        }
+        length += FlushBytes(bytes[..pending], text[length..]);
+        if (length > 0 && text[0] == ' ') { text.Slice(1, --length).CopyTo(text); }
+        return length;
+    }
+    private static int FlushBytes(ReadOnlySpan<byte> bytes, Span<char> text)
+    {
+        if (bytes.IsEmpty) return 0;
+        int offset = 0;
+        while (offset < bytes.Length)
+        {
+            if (Rune.DecodeFromUtf8(bytes[offset..], out _, out int used) != System.Buffers.OperationStatus.Done)
+            { text[..bytes.Length].Fill('\uFFFD'); return bytes.Length; }
+            offset += used;
+        }
+        return Encoding.UTF8.GetChars(bytes, text);
+    }
+
     /// <summary>Decodes valid vocabulary IDs, skipping special tokens by default. Replaces every byte in an invalid UTF-8 fallback run with U+FFFD. Removes one leading space per the tokenizer's Strip decoder. Throws ArgumentOutOfRangeException for missing/out-of-range IDs.</summary>
     public string Decode(ReadOnlySpan<int> ids, bool skipSpecialTokens = true, CancellationToken cancellationToken = default)
     {

@@ -35,6 +35,8 @@ internal static class RuntimeConversion
                 var graph = new MoonshineGraphWriter(weights);
                 if (file.Name == "encoder.onemodel") graph.Encoder(configuration);
                 else if (file.Name == "decoder.onemodel") graph.Decoder(configuration);
+                else if (file.Name == "decoder-project.onemodel" && configuration.Streaming) graph.DecoderProject(configuration);
+                else if (file.Name == "decoder-step.onemodel" && configuration.Streaming) graph.DecoderStep(configuration);
                 else throw new ModelIntegrityException("Unknown Moonshine runtime artifact.");
                 graph.Save(Path.Combine(output, file.Name), cancellationToken);
             }

@@ -39,9 +39,9 @@ internal sealed class SpeakerGraph
     internal string Reshape(string x, params long[] shape) => Op("Reshape", [x, Long(shape)]);
     internal string Mean(string x, params long[] axes) => Op("ReduceMean", [x], Is("axes", axes), I("keepdims", 1));
     internal string Concat(params string[] x) => Op("Concat", x, I("axis", 1));
-    internal void Save(string path, string output, int dimension)
+    internal void Save(string path, string output, int dimension, string inputName = "features", object[]? inputShape = null, string outputName = "embedding", object[]? outputShape = null)
     {
-        nodes.Add(new("embedding", "Identity", [output], []));
+        nodes.Add(new(outputName, "Identity", [output], []));
         long cursor = 0;
         using var manifest = new MemoryStream();
         using (var writer = new Utf8JsonWriter(manifest))
@@ -49,9 +49,9 @@ internal sealed class SpeakerGraph
             writer.WriteStartObject(); writer.WriteString("format", "onemodel"); writer.WriteNumber("version", 1); writer.WriteNumber("ir_version", 8);
             writer.WriteString("producer_name", "OneSpeech");
             writer.WriteStartArray("opsets"); writer.WriteStartObject(); writer.WriteString("domain", ""); writer.WriteNumber("version", 17); writer.WriteEndObject(); writer.WriteEndArray();
-            writer.WriteStartObject("graph"); writer.WriteString("name", "SpeakerEmbedding");
-            writer.WriteStartArray("inputs"); Typed(writer, "features", [1, 80, "frames"]); writer.WriteEndArray();
-            writer.WriteStartArray("outputs"); Typed(writer, "embedding", [1, dimension]); writer.WriteEndArray();
+            writer.WriteStartObject("graph"); writer.WriteString("name", inputName == "waveform" ? "OmniAsrCtc" : "SpeakerEmbedding");
+            writer.WriteStartArray("inputs"); Typed(writer, inputName, inputShape ?? [1, 80, "frames"]); writer.WriteEndArray();
+            writer.WriteStartArray("outputs"); Typed(writer, outputName, outputShape ?? [1, dimension]); writer.WriteEndArray();
             writer.WriteStartArray("initializers");
             foreach (var c in constants)
             {

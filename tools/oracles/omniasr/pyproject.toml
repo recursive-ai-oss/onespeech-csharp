@@ -1,0 +1,29 @@
+[project]
+name = "onespeech-omniasr-oracle"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "omnilingual-asr==0.2.0",
+  "fairseq2==0.6.0",
+  "fairseq2n==0.6+cpu",
+  "torch==2.8.0+cpu",
+  "torchaudio==2.8.0+cpu",
+  "numpy==1.26.4",
+  "pyarrow==20.0.0",
+  "soundfile==0.13.1",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
+fairseq2n = { index = "fairseq2-cpu" }
+
+[[tool.uv.index]]
+name = "fairseq2-cpu"
+url = "https://fair.pkg.atmeta.com/fairseq2/whl/pt2.8.0/cpu"
+explicit = true

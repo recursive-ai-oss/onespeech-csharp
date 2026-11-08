@@ -114,3 +114,17 @@ and `mean_var_norm_emb.ckpt` (1,921 bytes, SHA-256
 publisher-declared Apache-2.0 licence at revision `0f99f2d0ebe89ac095bcc5903c4dd8f72b367286`.
 These files are used only by the separate evaluation oracle; no classifier or global-embedding
 normalization weights are included in OneSpeech's converted embedding graph or package.
+
+## Omnilingual ASR checkpoint and character vocabulary
+
+Copyright 2025 Meta Platforms, Inc. and affiliates.
+
+The optional `facebook/omniASR-CTC-300M` checkpoint and vocabulary are published
+by Meta AI / the Omnilingual ASR Team under Apache License 2.0, reproduced in
+`LICENSE-APACHE`. Source:
+https://huggingface.co/facebook/omniASR-CTC-300M/tree/8e35f0cc28fa6099e0c14d56db85ce0423baa691
+
+OneSpeech converts the published tensors to its runtime format without training
+or fine-tuning. Weights are downloaded separately; they are not embedded in the
+core package. Retain the licence and these attribution notices when
+redistributing the model or converted weights.

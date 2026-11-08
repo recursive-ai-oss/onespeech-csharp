@@ -2,6 +2,59 @@ using System.Security.Cryptography;
 using OneSpeech.Catalog.Conversion;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
+if (args is ["weight-hash", var hashPath])
+{
+    using var input = File.OpenRead(hashPath);
+    Console.WriteLine($"{input.Length} {Convert.ToHexStringLower(SHA256.HashData(input))}");
+    return 0;
+}
+if (args is ["mfa-fetch", var mfaDirectory])
+{
+    await MfaAssets.FetchAsync(mfaDirectory, CancellationToken.None);
+    return 0;
+}
+if (args is ["omni-parity", var parityData, var parityNative, var parityReference, var parityOutput])
+{
+    OmniParity.Score(parityData, parityNative, parityReference, parityOutput);
+    return 0;
+}
+if (args is ["omni-batch", var batchGraph, var batchTokenizer, var batchDirectory, var batchDestination, var batchCount])
+{
+    OmniProbe.RunBatch(batchGraph, batchTokenizer, batchDirectory, batchDestination, int.Parse(batchCount, System.Globalization.CultureInfo.InvariantCulture));
+    return 0;
+}
+if (args is ["omni-probe", var probeGraph, var probeTokenizer, var probeAudio])
+{
+    OmniProbe.Run(probeGraph, probeTokenizer, probeAudio);
+    return 0;
+}
+if (args is ["omni-convert", var omniInput, var omniOutput])
+{
+    using var input = File.OpenRead(omniInput);
+    new OmniAsrConverter(TensorCheckpoint.Read(input, largeModel: true)).Save(omniOutput);
+    using var converted = File.OpenRead(omniOutput);
+    Console.WriteLine($"{converted.Length} {Convert.ToHexStringLower(SHA256.HashData(converted))}");
+    return 0;
+}
+if (args is ["omni-tokenizer", var omniTokenizer])
+{
+    var data = OneSpeech.Text.SentencePieceProto.ReadFile(omniTokenizer);
+    Console.WriteLine($"type={data.ModelType} pieces={data.Pieces.Length} normalizer={data.NormalizerName} charsmap={data.Charsmap.Length} dummy={data.AddDummyPrefix} strip={data.RemoveExtraWhitespaces} escape={data.EscapeWhitespaces} unk={data.UnkId}");
+    for (int i = 0; i < Math.Min(40, data.Pieces.Length); i++) Console.WriteLine($"{i}: {data.Pieces[i]} type={data.Types[i]}");
+    return 0;
+}
+if (args is ["omni-fetch", var omniRoot])
+{
+    await OmniTools.FetchAsync(omniRoot, CancellationToken.None);
+    return 0;
+}
+if (args is ["omni-inspect", var omniCheckpoint])
+{
+    using var input = File.OpenRead(omniCheckpoint);
+    foreach (var pair in TensorCheckpoint.Read(input, largeModel: true))
+        Console.WriteLine($"{pair.Key} [{string.Join(",", pair.Value.Shape)}]");
+    return 0;
+}
 if (args is ["speaker-extract-ecapa", var ecapaGraph, var ecapaData, var ecapaIds, var ecapaDestination, var ecapaStart, var ecapaCount])
 {
     SpeakerBatch.Extract(ecapaGraph, ecapaData, ecapaIds, ecapaDestination, int.Parse(ecapaStart, System.Globalization.CultureInfo.InvariantCulture), int.Parse(ecapaCount, System.Globalization.CultureInfo.InvariantCulture), 192, ecapa: true);

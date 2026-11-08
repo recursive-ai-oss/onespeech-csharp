@@ -9,6 +9,64 @@ namespace OneSpeech.Pipeline;
 
 internal static class SpeechServices
 {
+    internal static async ValueTask<OneSpeech.Alignment.OmniAsrAligner> ResolveAlignerAsync(ModelStore store, string? model, CancellationToken cancellationToken)
+    {
+        var entry = model is null ? store.Catalog.GetDefault("omniasr-ctc") : store.Catalog.Get(model);
+        if (entry.Family != "omniasr-ctc" || !entry.Capabilities.ForcedAlignment)
+            throw new CapabilityNotSupportedException($"'{entry.Id}' is not a registered forced aligner.");
+        var resolved = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return new OneSpeech.Alignment.OmniAsrAligner(Path.Combine(resolved.Directory, "ctc-fp32.onemodel"), Path.Combine(resolved.Directory, "omniASR_tokenizer.model"), resolved.Info, cancellationToken: cancellationToken);
+    }
+
+    internal static Transcript Align(string path, string? text, Transcript? transcript, string? language, string? model, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var source = AudioFileSource.Open(path, cancellationToken);
+        var audio = ReadAlignmentAudio(source, cancellationToken);
+        using var aligner = ResolveAlignerAsync(ModelStore.Default, model, cancellationToken).AsTask().GetAwaiter().GetResult();
+        return transcript is null ? aligner.Align(audio, text!, language, cancellationToken) : aligner.Align(audio, transcript, language, cancellationToken);
+    }
+
+    internal static async ValueTask<Transcript> AlignAsync(Stream stream, string? text, Transcript? transcript, string? language, string? model, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!stream.CanRead) throw new ArgumentException("Input stream must be readable.", nameof(stream));
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        await using var spool = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 65536, FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+        byte[] buffer = new byte[65536];
+        long total = 0; int count;
+        while ((count = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) != 0)
+        {
+            total += count;
+            if (total > 512L * 1024 * 1024) throw new CapabilityNotSupportedException("Encoded alignment streams are limited to 512 MiB. Use a local file for larger encoded inputs.");
+            await spool.WriteAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
+        }
+        spool.Position = 0;
+        using var source = AudioFileSource.Open(spool, true, cancellationToken);
+        var audio = ReadAlignmentAudio(source, cancellationToken);
+        using var aligner = await ResolveAlignerAsync(ModelStore.Default, model, cancellationToken).ConfigureAwait(false);
+        return transcript is null ? aligner.Align(audio, text!, language, cancellationToken) : aligner.Align(audio, transcript, language, cancellationToken);
+    }
+
+    private static AudioBuffer ReadAlignmentAudio(AudioFileSource source, CancellationToken cancellationToken)
+    {
+        float[] samples = new float[60 * 16000];
+        float[] block = new float[4096 * source.Channels];
+        int length = 0, frames;
+        while ((frames = source.Read(block, cancellationToken)) != 0)
+        {
+            if (length + frames > samples.Length) throw new CapabilityNotSupportedException("File alignment is limited to 60 seconds. Split audio with its corresponding written words.");
+            for (int frame = 0; frame < frames; frame++)
+            {
+                double sum = 0;
+                for (int channel = 0; channel < source.Channels; channel++) sum += block[frame * source.Channels + channel];
+                samples[length++] = (float)(sum / source.Channels);
+            }
+        }
+        return new AudioBuffer(samples.AsMemory(0, length), 16000);
+    }
+
     private static async ValueTask<WhisperRecognizer> ResolveAsync(ModelStore store, string? model, CancellationToken cancellationToken)
     {
         var entry = model is null ? store.Catalog.GetDefault("whisper") : store.Catalog.Get(model);
@@ -40,10 +98,11 @@ internal static class SpeechServices
         using (AudioFileSource.Open(path, cancellationToken)) { }
         var store = ModelStore.Default;
         using var recognizer = ResolveAsync(store, model, cancellationToken).AsTask().GetAwaiter().GetResult();
+        using var timing = ResolveAlignerAsync(store, null, cancellationToken).AsTask().GetAwaiter().GetResult();
         using var vad = ResolveVad(store, cancellationToken);
         using var embedder = ResolveEmbedderAsync(store, cancellationToken).AsTask().GetAwaiter().GetResult();
         var diarizer = new ClusteringDiarizer(embedder, vad);
-        return new VadTranscriptionPipeline(recognizer, vad, null, null, diarizer).Transcribe(path, language, cancellationToken);
+        return new VadTranscriptionPipeline(recognizer, vad, null, null, diarizer) { TimingAligners = [timing] }.Transcribe(path, language, cancellationToken);
     }
 
     internal static async ValueTask<Transcript> TranscribeAsync(Stream stream, string? language, string? model, CancellationToken cancellationToken)
@@ -53,10 +112,11 @@ internal static class SpeechServices
         if (!stream.CanRead) throw new ArgumentException("Input stream must be readable.", nameof(stream));
         var store = ModelStore.Default;
         using var recognizer = await ResolveAsync(store, model, cancellationToken).ConfigureAwait(false);
+        using var timing = await ResolveAlignerAsync(store, null, cancellationToken).ConfigureAwait(false);
         using var vad = ResolveVad(store, cancellationToken);
         using var embedder = await ResolveEmbedderAsync(store, cancellationToken).ConfigureAwait(false);
         var diarizer = new ClusteringDiarizer(embedder, vad);
-        return await new VadTranscriptionPipeline(recognizer, vad, null, null, diarizer).TranscribeAsync(stream, language, cancellationToken).ConfigureAwait(false);
+        return await new VadTranscriptionPipeline(recognizer, vad, null, null, diarizer) { TimingAligners = [timing] }.TranscribeAsync(stream, language, cancellationToken).ConfigureAwait(false);
     }
 
     internal static string DetectLanguage(string path, string? language, string? model, CancellationToken cancellationToken)

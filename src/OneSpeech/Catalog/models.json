@@ -1188,7 +1188,59 @@
       "capabilities": {
         "languages": []
       }
+    },
+    {
+      "id": "facebook/omniASR-CTC-300M",
+      "family": "omniasr-ctc",
+      "source": "https://huggingface.co/facebook/omniASR-CTC-300M",
+      "revision": "8e35f0cc28fa6099e0c14d56db85ce0423baa691",
+      "files": [
+        {
+          "name": "omniASR-CTC-300M.pt",
+          "size": 1302113892,
+          "sha256": "4d31c6a7725a03e90cf26080c67361928755a9f43d322dd574145fbe91c76aec",
+          "upstreamUrl": "https://huggingface.co/facebook/omniASR-CTC-300M/resolve/8e35f0cc28fa6099e0c14d56db85ce0423baa691/omniASR-CTC-300M.pt",
+          "mirrorUrl": null
+        },
+        {
+          "name": "omniASR_tokenizer.model",
+          "size": 87562,
+          "sha256": "b954cc166b0c9e0271b953fa226fa27ca706a25b7029e84579fe2c60a2b451fe",
+          "upstreamUrl": "https://huggingface.co/facebook/omniASR-CTC-300M/resolve/8e35f0cc28fa6099e0c14d56db85ce0423baa691/omniASR_tokenizer.model",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "ctc-fp32.onemodel",
+          "size": 1302172624,
+          "sha256": "68de1b359aca88f025dbaeec5801d845900941b9a6548ba02e50dd0ec0987870",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/omniasr-ctc-68de1b359aca88f0.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "isDefault": true,
+      "tier": "Tier1",
+      "license": "Apache-2.0",
+      "attribution": "Omnilingual ASR — Meta AI / Omnilingual ASR Team. Copyright 2025 Meta Platforms, Inc. and affiliates. Apache-2.0. Retain the Apache-2.0 licence and upstream notices. OneSpeech runs the published checkpoint without training or fine-tuning.",
+      "gated": false,
+      "capabilities": {
+        "forcedAlignment": true,
+        "languages": [
+          "en",
+          "eng_Latn",
+          "fr",
+          "de",
+          "es",
+          "it",
+          "pt",
+          "ru",
+          "zh",
+          "ja",
+          "ko",
+          "ar"
+        ]
+      }
     }
-
   ]
 }

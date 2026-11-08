@@ -15,18 +15,19 @@ internal sealed class TensorCheckpoint
     private const int MaxItems = 200000;
     private const long MaxBytes = 256L * 1024 * 1024;
 
-    internal static Dictionary<string, Tensor> Read(Stream stream)
+    internal static Dictionary<string, Tensor> Read(Stream stream, bool largeModel = false)
     {
         ArgumentNullException.ThrowIfNull(stream);
-        try { return ReadCore(stream); }
+        try { return ReadCore(stream, largeModel); }
         catch (OverflowException e) { throw new InvalidDataException("Checkpoint integer overflow.", e); }
         catch (DecoderFallbackException e) { throw new InvalidDataException("Invalid checkpoint UTF-8.", e); }
         catch (EndOfStreamException e) { throw new InvalidDataException("Truncated checkpoint entry.", e); }
     }
 
-    private static Dictionary<string, Tensor> ReadCore(Stream stream)
+    private static Dictionary<string, Tensor> ReadCore(Stream stream, bool largeModel)
     {
-        if (!stream.CanSeek || stream.Length > MaxBytes || stream.Length < 22) throw Bad("Checkpoint size or stream.");
+        long maxBytes = largeModel ? 1536L * 1024 * 1024 : MaxBytes;
+        if (!stream.CanSeek || stream.Length > maxBytes || stream.Length < 22) throw Bad("Checkpoint size or stream.");
         CheckDirectory(stream);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
         if (archive.Entries.Count > 20000) throw Bad("Too many ZIP entries.");
@@ -35,7 +36,7 @@ internal sealed class TensorCheckpoint
         foreach (var entry in archive.Entries)
         {
             total = checked(total + entry.Length);
-            if (entry.FullName.Length > 1024 || entry.Length > MaxBytes || total > MaxBytes || !entries.TryAdd(entry.FullName, entry)) throw Bad("ZIP bounds or duplicate.");
+            if (entry.FullName.Length > 1024 || entry.Length > maxBytes || total > maxBytes || !entries.TryAdd(entry.FullName, entry)) throw Bad("ZIP bounds or duplicate.");
         }
         var indices = archive.Entries.Where(e => e.FullName.EndsWith("/data.pkl", StringComparison.Ordinal)).ToArray();
         if (indices.Length != 1) throw Bad("Expected one tensor index.");
@@ -44,6 +45,8 @@ internal sealed class TensorCheckpoint
         var root = new Parser(Bytes(pickle, 8 * 1024 * 1024)).Run();
         if (entries.TryGetValue(prefix + "byteorder", out var byteOrder) && Utf8.GetString(Bytes(byteOrder, 16)) != "little") throw Bad("Only little-endian storage is supported.");
         if (root is not Dictionary<string, object?> map) throw Bad("Expected state dictionary.");
+        if (largeModel && map.TryGetValue("model", out var nested))
+            map = nested as Dictionary<string, object?> ?? throw Bad("Invalid model tensor dictionary.");
         var storages = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         var result = new Dictionary<string, Tensor>(StringComparer.Ordinal);
         long outputBytes = 0;
@@ -51,12 +54,12 @@ internal sealed class TensorCheckpoint
         {
             if (pair.Value is not View view) throw Bad("Only named tensor values are supported.");
             int width = view.Storage.Type switch { "FloatStorage" => 4, "LongStorage" => 8, "DoubleStorage" => 8, "HalfStorage" => 2, _ => throw Bad("Unsupported storage type.") };
-            if (view.Storage.Count < 0 || view.Storage.Count > MaxBytes / width) throw Bad("Storage bounds.");
+            if (view.Storage.Count < 0 || view.Storage.Count > maxBytes / width) throw Bad("Storage bounds.");
             long storageLength = view.Storage.Count * width;
             if (!storages.TryGetValue(view.Storage.Key, out var raw))
             {
                 if (!entries.TryGetValue(prefix + "data/" + view.Storage.Key, out var entry) || entry.Length != storageLength) throw Bad("Storage length mismatch.");
-                raw = Bytes(entry, (int)MaxBytes);
+                raw = Bytes(entry, (int)maxBytes);
                 storages.Add(view.Storage.Key, raw);
             }
             if (raw.LongLength != storageLength || view.Shape.Length != view.Strides.Length || view.Shape.Length > 8 || view.Offset < 0) throw Bad("Invalid tensor view.");
@@ -64,15 +67,15 @@ internal sealed class TensorCheckpoint
             var shape = new int[view.Shape.Length];
             for (int i = 0; i < shape.Length; i++)
             {
-                if (view.Shape[i] < 0 || view.Shape[i] > 10000000 || view.Strides[i] < 0 || view.Strides[i] > MaxBytes) throw Bad("Tensor dimension bounds.");
+                if (view.Shape[i] < 0 || view.Shape[i] > 10000000 || view.Strides[i] < 0 || view.Strides[i] > maxBytes) throw Bad("Tensor dimension bounds.");
                 count = checked(count * view.Shape[i]);
                 maximum = checked(maximum + Math.Max(0, view.Shape[i] - 1) * view.Strides[i]);
                 shape[i] = (int)view.Shape[i];
-                if (count > MaxBytes / 4) throw Bad("Tensor allocation bound.");
+                if (count > maxBytes / 4) throw Bad("Tensor allocation bound.");
             }
             if ((count > 0 && maximum >= view.Storage.Count) || (count == 0 && view.Offset > view.Storage.Count)) throw Bad("Tensor outside storage.");
             outputBytes = checked(outputBytes + count * 4);
-            if (outputBytes > MaxBytes) throw Bad("Total tensor allocation bound.");
+            if (outputBytes > maxBytes) throw Bad("Total tensor allocation bound.");
             var values = new float[(int)count];
             for (int i = 0; i < values.Length; i++)
             {

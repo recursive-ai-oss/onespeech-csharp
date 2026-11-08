@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup><ProjectReference Include="../../src/OneSpeech/OneSpeech.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../eval/OneSpeech.Eval/OneSpeech.Eval.csproj" /></ItemGroup>
+  <ItemGroup><Compile Include="../oracles/mfa/MfaAssets.cs" Link="MfaAssets.cs" /></ItemGroup>
 </Project>

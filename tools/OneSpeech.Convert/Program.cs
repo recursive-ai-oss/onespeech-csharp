@@ -194,6 +194,11 @@ if (args is ["moonshine-edges", var meOutput])
     MoonshineProbe.Edges(meOutput);
     return 0;
 }
+if (args is ["moonshine-bakeoff-metrics", var bakeModel, var bakeClip, var bakeOutput, var bakeThreads])
+{
+    MoonshineLiveMetrics.Run(bakeModel, bakeClip, bakeOutput, int.Parse(bakeThreads, System.Globalization.CultureInfo.InvariantCulture), sixtySeconds: true);
+    return 0;
+}
 if (args is ["moonshine-indicative", var indicativeDirectory, var indicativeAudio, var indicativeOutput])
 {
     MoonshineIndicative.Run(indicativeDirectory, indicativeAudio, indicativeOutput);

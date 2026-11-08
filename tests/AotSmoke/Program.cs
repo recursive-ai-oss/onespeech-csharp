@@ -55,6 +55,7 @@ if (tinyDirectory is not null && clipPath is not null)
     var transcript = recognizer.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", CancellationToken.None);
     if (transcript.Text != " Stuffed into you, his belly, cowtled him." || transcript.Words.Length == 0) throw new InvalidOperationException("Whisper tiny NativeAOT transcription failed.");
     Console.WriteLine("Whisper tiny NativeAOT transcription passed.");
+    await LiveSmoke.Run(vad, recognizer, clipPath);
     using var beam = OneSpeech.Whisper.WhisperRecognizer.Load(tinyDirectory, new OneSpeech.Whisper.WhisperOptions { BeamSize = 1, Temperatures = [0], WordTimestamps = false });
     if (beam.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", CancellationToken.None).Text != transcript.Text) throw new InvalidOperationException("Whisper beam-width-one smoke failed.");
     Console.WriteLine("Whisper beam NativeAOT smoke passed.");

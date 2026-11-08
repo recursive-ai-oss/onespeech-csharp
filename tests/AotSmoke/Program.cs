@@ -11,3 +11,6 @@ using var vad = new OneSpeech.Vad.SileroVad();
 if (!vad.Detect(new AudioBuffer(new float[16000], 16000), CancellationToken.None).IsEmpty)
     throw new InvalidOperationException("Silero VAD reported speech on silence.");
 Console.WriteLine("Transcript JSON and embedded Silero VAD NativeAOT smoke passed.");
+
+SpeakerSmoke.Run();
+Console.WriteLine("Speaker arithmetic and in-memory registry NativeAOT smoke passed.");

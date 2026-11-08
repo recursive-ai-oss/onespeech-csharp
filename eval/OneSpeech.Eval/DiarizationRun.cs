@@ -23,6 +23,7 @@ internal static class DiarizationRun
 
     internal static int Run(string[] args)
     {
+        if (args.Length > 0 && args[0] == "activity") return ActivityAblation.Run(args[1..]);
         if (args is ["speech-excerpt" or "speech-excerpt-score", var rootPath, var meeting, var destination, var model]) { SpeechExcerpt.Run(rootPath, meeting, destination, model, args[0] == "speech-excerpt-score"); return 0; }
         if (args.Length == 2 && args[0] == "select") { Select(args[1]); return 0; }
         if (args.Length == 2 && args[0] == "summary") { DiarizationSummary.Run(args[1]); return 0; }
@@ -147,7 +148,7 @@ internal static class DiarizationRun
     { internal ClusteringOptions Options => new() { Method = Method, MaxLandmarks = Landmarks, AgglomerativeThreshold = Threshold, WindowSeconds = 1.5, ShiftSeconds = 0.25, MinSpeakers = 1, MaxSpeakers = 8, MaxWindows = 100000 }; }
     private sealed record DevelopmentRow(string Profile, string Id, double Reference, double Error, double JerSum, int Speakers);
 
-    private static string PcmHash(AudioBuffer audio)
+    internal static string PcmHash(AudioBuffer audio)
     {
         byte[] bytes = ArrayPool<byte>.Shared.Rent(audio.Samples.Length * 4);
         try { for (int i = 0; i < audio.Samples.Length; i++) BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(i * 4), audio.Samples.Span[i]); return Convert.ToHexStringLower(SHA256.HashData(bytes.AsSpan(0, audio.Samples.Length * 4))); }

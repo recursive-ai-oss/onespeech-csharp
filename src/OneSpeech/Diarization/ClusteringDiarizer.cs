@@ -64,12 +64,12 @@ public sealed class ClusteringDiarizer : BlockDiarizer
             foreach (var region in regions)
             {
                 int first = windows.Count;
-                // Landini et al. §3.2: discard sub-100 ms speech; 1.5 s windows, 0.25 s stride by default.
+                // Landini et al. §3.2: 100 ms minimum; the internal diagnostic can ablate this cutoff.
                 for (int start = region.Start; start < region.End; start += shift)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     int length = Math.Min(windowLength, region.End - start);
-                    if (length < 1600) break;
+                    if (length < (int)Math.Round(options.MinimumSegmentSeconds * 16000)) break;
                     if (windows.Count == options.MaxWindows) throw new CapabilityNotSupportedException("Diarization exceeded MaxWindows. Increase ClusteringOptions.MaxWindows within its documented bound or split the input explicitly.");
                     var vector = new float[embedder.Dimension];
                     embedder.Embed(new AudioBuffer(mono.Slice(start, length), 16000), vector, cancellationToken);

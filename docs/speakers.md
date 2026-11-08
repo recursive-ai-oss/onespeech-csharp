@@ -5,7 +5,7 @@ checkpoint and licence; `Dimension` fixes output length and `SampleRate` fixes m
 `Embed` writes into caller-owned storage and accepts cancellation. Input must be nonempty,
 mono, and already resampled. Implementations return finite, nonzero vectors and reject unsupported
 input rather than silently changing channels. Callers dispose model resources after consumers stop.
-No checkpoint implementation is included yet.
+`CampPlusEmbedder` loads a locally converted CAM++ graph; see below.
 
 ## Arithmetic
 
@@ -92,3 +92,70 @@ Multi-disk and ZIP64-only directory records are not supported. Invalid data thro
 `InvalidDataException`; ordinary stream I/O failures remain I/O errors. Inspection is a developer
 tool, not the shipped model-loading API. No embedding model implementation or parity claim is
 provided by checkpoint inspection.
+
+## CAM++ inference
+
+`OneSpeech.Embedders.CampPlusEmbedder` implements `SpeakerEmbedder` over a locally converted
+OneModel graph. Construct it with an explicit graph path, truthful checkpoint `ModelInfo`, and
+embedding dimension (512 for the English VoxCeleb checkpoint; 192 for the Chinese common
+checkpoint). The default is one CPU thread. It never downloads, trains, saves embeddings, or
+selects a default model. Input is mono 16 kHz float PCM, 45 ms through 60 s; destination storage belongs to the caller.
+Inference calls and disposal are serialized per instance. Cancellation is checked during feature
+extraction and before graph inference; OneModel's synchronous graph call itself is not interruptible.
+
+`SpeakerFbank` computes 80 natural-log mel energies on complete 400-sample windows at 160-sample
+hops. It uses unscaled float PCM, removes each window's DC component, applies 0.97 preemphasis
+(with the first sample repeated), a symmetric Povey window, and a zero-padded 512-point power FFT.
+Mel triangles span 20 Hz through 8 kHz on the mel scale. Energies are floored at float machine
+epsilon before taking natural logs. Each feature dimension has its utterance mean removed.
+Output is planar `[mel, frame]`, not interleaved frames. These settings were observed by a
+pass-through capture at the documented public fbank API invoked by ModelScope 1.40.2. The wrapper
+returned all values unchanged; no implementation source was inspected. The extractor is deterministic,
+requires finite samples, and accepts 25 ms through 60 s. A partial final window is not padded.
+
+The converter implements Wang et al. (2023), Sections 2.1–2.4: frequency-downsampling residual
+FCM, densely connected TDNN blocks of 12/24/16 layers with growth 32 and dilations 1/2/2, and
+context-aware masks combining global and consecutive 100-frame segment means. An incomplete last
+segment is divided by its actual frame count. All nonlinear normalization stages use BN then ReLU.
+Statistics pooling concatenates the mean and unbiased standard deviation before the final projection
+and non-affine batch normalization. Architecture details left unstated by the paper were settled by
+black-box numerical probes with identical input features. All neural operators run in OneModel;
+there is no native inference dependency.
+
+```sh
+dotnet run --project tools/OneSpeech.Convert -- speaker-convert-camp checkpoint.bin camp.onemodel
+```
+
+The checkpoint must already have been verified against its publisher pin. Conversion does not
+execute pickle objects or load Python. The graph and weights stay outside the repository.
+No corpus-quality or default-selection claim follows from successful conversion alone.
+
+## Verification slice
+
+`tools/scripts/generate-speaker-trials.sh TEST_CLEAN TEST_OTHER trials.tsv 1729` constructs ID-only
+trials from separately fetched LibriSpeech test-clean/test-other data. Sort IDs ordinally, group by
+speaker, and retain the first 20 utterances per speaker. A seeded .NET 10 PRNG selects speakers
+uniformly and utterances uniformly within speakers; reject identical utterances and duplicate unordered
+pairs. Same-speaker and different-speaker classes contain 10,000 unique pairs each. Trials are finally
+sorted by their two IDs. No audio or embeddings are included in the trial file. This is an open-data
+verification slice, not VoxCeleb1-O and not an estimate of a deployment prior.
+
+`speaker-score trials.tsv OUR_EMBEDDING_DIR REFERENCE_EMBEDDING_DIR result.json` applies the same
+cosine scorer to both embeddings, grouping equal scores at ROC thresholds. EER linearly interpolates
+at the false-accept/miss crossing. Minimum DCF uses target prior 0.01, miss and false-alarm costs 1,
+and normalization by the always-reject cost (0.01); it includes the always-reject operating point.
+The paired bootstrap uses 1,000 resamples, seed 1729, independently sampling trials with replacement
+within each same/different class while keeping our/reference scores paired. Percentile endpoints use
+linear quantiles at 0.025 and 0.975. Confidence intervals describe the score difference conditional on
+the fixed utterance/speaker set, not uncertainty over independent unseen speakers; trials sharing
+speakers are not independent samples of a speaker population. No normalization or score calibration
+is applied to these evaluation rows.
+
+The English VoxCeleb checkpoint at revision `032b8131a7ad812f87061955ca974c99060c5a03` was checked
+against ModelScope 1.40.2 (torch/torchaudio 2.11.0 CPU, float32) on the 50 IDs in
+`eval/manifests/librispeech-speaker-parity50.txt`. Feature maximum absolute error was 0.000597 and
+mean absolute error 0.00000624; the documented float32 feature tolerance is max 0.001 on these
+probes. Embedding minimum/mean cosine were 0.999999999957/0.999999999985, above the 0.999 target.
+This is numeric parity on a fixed probe set, not a speaker-verification quality claim. The converted
+English graph is 29,414,032 bytes, SHA-256
+`f333a00d5d66b9bf3d7e7abf35f36ff4a01e6e8a0df235b89a125e9fbe3cc15c`.

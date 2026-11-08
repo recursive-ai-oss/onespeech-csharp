@@ -36,7 +36,10 @@ internal static class Fixtures
         string[] files = Directory.GetFiles(corpus, "*.flac", SearchOption.AllDirectories).Order(StringComparer.Ordinal).ToArray();
         if (files.Length == 0) throw new ArgumentException("No LibriSpeech FLACs found.");
         var sources = new HashSet<string>(StringComparer.Ordinal);
-        Write("warm.wav", 10, files);
+        Write("warm.wav", 10, files.Reverse().ToArray());
+        string last = Path.GetFileNameWithoutExtension(files[^1]);
+        string warmText = File.ReadLines(Directory.GetFiles(Path.GetDirectoryName(files[^1])!, "*.trans.txt").Single()).Single(l => l.StartsWith(last + " ", StringComparison.Ordinal));
+        File.WriteAllText(Path.Combine(directory, "warm-align.txt"), warmText[(last.Length + 1)..]);
         Write("clip60.wav", 60, files);
         Write("clip600.wav", 600, files);
         Write("long.wav", 3600, files);

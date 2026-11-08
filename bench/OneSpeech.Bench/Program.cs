@@ -13,6 +13,7 @@ using OneSpeech.Embedders;
 using OneSpeech.Moonshine;
 using OneSpeech.Vad;
 
+if (args is ["--self-test"]) { MemorySamples.CheckSlope(); Console.WriteLine("Slope checks passed."); return 0; }
 if (args is ["--prepare-data", var corpus, var meeting, var destination])
 {
     Fixtures.Prepare(corpus, meeting, destination);
@@ -50,34 +51,37 @@ foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
 {
     string file = Path.Combine(data, name switch { "turbo600" => "clip600.wav", "long" => "long.wav", "diarize" => "ami.wav", _ => "clip60.wav" });
     double duration = Fixtures.Duration(file);
-    string id = name switch { "small" => "openai/whisper-small", "qwen" => "Qwen/Qwen3-ASR-1.7B", "live" => "moonshine-ai/moonshine-streaming-tiny", "align" => "facebook/omniASR-CTC-300M", "diarize" => "iic/speech_campplus_sv_en_voxceleb_16k", _ => "openai/whisper-large-v3-turbo" };
+    string id = name switch { "long" => "openai/whisper-tiny", "small" => "openai/whisper-small", "qwen" => "Qwen/Qwen3-ASR-1.7B", "live" => "moonshine-ai/moonshine-streaming-tiny", "align" => "facebook/omniASR-CTC-300M", "diarize" => "iic/speech_campplus_sv_en_voxceleb_16k", _ => "openai/whisper-large-v3-turbo" };
     var load = Stopwatch.StartNew();
     // Pull before either pass: network/conversion are never throughput measurements.
     var resolved = await ModelStore.Default.PullAsync(id);
-    if (name is "turbo60" or "turbo600" or "long" or "small" or "qwen")
-    {
-        await ModelStore.Default.PullAsync("Qwen/Qwen3-ForcedAligner-0.6B");
-        await ModelStore.Default.PullAsync("iic/speech_campplus_sv_en_voxceleb_16k");
-    }
+    using var workload = name == "live" ? null : await LoadedWorkload.LoadAsync(name, id, threads);
     load.Stop();
-    // Warm the path and shape plans with the same short input, not a second long-file pass.
-    if (name is "turbo60" or "turbo600" or "long" or "small" or "qwen")
-        _ = Speech.Transcribe(Path.Combine(data, "warm.wav"), language: "en", model: name is "turbo60" or "turbo600" or "long" ? null : id);
-    var sampler = new MemorySamples(Path.Combine(output, $"{name}-{threads}.memory.csv"));
+    double modelLoadSeconds = workload?.LoadSeconds ?? 0;
+    double prepareSeconds = load.Elapsed.TotalSeconds - modelLoadSeconds;
+    var warmClock = Stopwatch.StartNew();
+    if (workload is not null) _ = workload.Run(Path.Combine(data, "warm.wav"), File.ReadAllText(Path.Combine(data, "warm-align.txt")));
+    warmClock.Stop();
+    double warmupSeconds = warmClock.Elapsed.TotalSeconds;
+    var sampler = new MemorySamples(Path.Combine(output, $"{name}-{threads}.memory.csv"), () => workload?.Phase ?? "live");
     string beforeLoad = Machine.Load();
     GraphTiming.Reset();
     long allocated = GC.GetTotalAllocatedBytes(precise: true);
     long start = Stopwatch.GetTimestamp();
     long ourLiveBytes = 0, liveChunks = 0, nonemittingBytes = 0, nonemittingChunks = 0;
     double setupSeconds = 0;
+    Transcript? document = null;
     if (name == "live")
     {
         long setup = Stopwatch.GetTimestamp();
         using var recognizer = MoonshineRecognizer.Load(resolved.Directory, new() { IntraOpThreads = threads });
         using var vad = new SileroVad();
+        modelLoadSeconds = Stopwatch.GetElapsedTime(setup).TotalSeconds;
         var audio = Fixtures.ReadMono(file);
-        // Warm model plans and owned workspaces; the measured session still has fresh state.
-        using (var warm = recognizer.CreateLiveSession(vad, "en")) Push(warm, audio, false);
+        var warmAudio = Fixtures.ReadMono(Path.Combine(data, "warm.wav"));
+        warmClock.Restart();
+        using (var warm = recognizer.CreateLiveSession(vad, "en")) Push(warm, warmAudio, false);
+        warmClock.Stop(); warmupSeconds = warmClock.Elapsed.TotalSeconds;
         using var session = recognizer.CreateLiveSession(vad, "en");
         setupSeconds = Stopwatch.GetElapsedTime(setup).TotalSeconds;
         GraphTiming.Reset();
@@ -104,23 +108,14 @@ foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
             _ = session.Complete();
         }
     }
-    else if (name == "diarize")
-    {
-        using var embedder = new CampPlusEmbedder(Path.Combine(resolved.Directory, "campplus-en-fp32.onemodel"), resolved.Info, threads: threads);
-        using var vad = new SileroVad(SileroVadOptions.Diarization);
-        using var source = AudioFileSource.Open(file, default);
-        _ = new ClusteringDiarizer(embedder, vad).DiarizeBlocks(VadChunker.Blocks(source, default), default);
-    }
-    else if (name == "align")
-        _ = Speech.Align(file, File.ReadAllText(Path.Combine(data, "align.txt")), language: "en", model: id);
-    else
-        _ = Speech.Transcribe(file, language: "en", model: name is "turbo60" or "turbo600" or "long" ? null : id);
+    else document = workload!.Run(file, File.ReadAllText(Path.Combine(data, "align.txt")));
     double seconds = Stopwatch.GetElapsedTime(start).TotalSeconds;
     long bytesAllocated = GC.GetTotalAllocatedBytes(precise: true) - allocated;
     var graphs = GraphTiming.Snapshot();
     var phases = GraphTiming.PhaseSnapshot();
     var costTicks = GraphTiming.CostSnapshot();
     sampler.Dispose();
+    GC.KeepAlive(document);
     double graphSeconds = graphs.Sum(x => x.Ticks) / (double)Stopwatch.Frequency;
     if (graphSeconds <= 0) throw new InvalidOperationException("No graph calls were recorded; the row is invalid.");
     if (costTicks.Sum() / (double)Stopwatch.Frequency > seconds - graphSeconds + 0.01)
@@ -130,11 +125,13 @@ foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
     using (var json = new Utf8JsonWriter(stream, new() { Indented = true }))
     {
         json.WriteStartObject();
-        json.WriteNumber("measurementVersion", 3);
+        json.WriteNumber("measurementVersion", 4);
         json.WriteString("kind", "indicative"); json.WriteString("row", name); json.WriteString("model", id);
         json.WriteString("revision", resolved.Info.Revision); json.WriteString("precision", "fp32"); json.WriteNumber("threads", threads);
         json.WriteString("inputSha256", Fixtures.Hash(file)); json.WriteNumber("audioSeconds", duration);
-        json.WriteNumber("prepareSeconds", load.Elapsed.TotalSeconds); json.WriteNumber("liveSetupSeconds", setupSeconds);
+        json.WriteNumber("prepareSeconds", prepareSeconds); json.WriteNumber("modelLoadSeconds", modelLoadSeconds); json.WriteNumber("warmupSeconds", warmupSeconds); json.WriteNumber("liveSetupSeconds", setupSeconds);
+        json.WriteString("warmupInputSha256", Fixtures.Hash(Path.Combine(data, "warm.wav")));
+        sampler.WriteSlopes(json);
         json.WriteNumber("endToEndSeconds", seconds); json.WriteNumber("graphSeconds", graphSeconds);
         if (graphSeconds > 0) json.WriteNumber("ratio", seconds / graphSeconds); else json.WriteNull("ratio");
         json.WriteNumber("rtf", seconds / duration); json.WriteNumber("processAllocatedBytes", bytesAllocated);
@@ -158,9 +155,9 @@ foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
         Machine.Write(json, beforeLoad, sampler.Loads);
         json.WriteEndObject();
     }
-    string line = FormattableString.Invariant($"{name},{threads},{duration:F3},{seconds:F6},{graphSeconds:F6},{seconds / graphSeconds:F6},{seconds / duration:F6},{sampler.Peak},{sampler.SteadyMin},{sampler.SteadyMax},{ourLiveBytes},{liveChunks}");
-    File.WriteAllText(stem + ".csv", "row,threads,audio_s,e2e_s,graph_s,ratio,rtf,peak_bytes,steady_min_bytes,steady_max_bytes,live_working_bytes,live_chunks\n" + line + "\n");
-    File.WriteAllText(stem + ".md", "| Row | Threads | E2E s | Graph s | Ratio | RTF | Peak MB |\n|---|---:|---:|---:|---:|---:|---:|\n" + FormattableString.Invariant($"| {name} | {threads} | {seconds:F2} | {graphSeconds:F2} | {seconds / graphSeconds:F3} | {seconds / duration:F3} | {sampler.Peak / 1e6:F0} |\n"));
+    string line = FormattableString.Invariant($"{name},{threads},{duration:F3},{modelLoadSeconds:F6},{seconds:F6},{graphSeconds:F6},{seconds / graphSeconds:F6},{seconds / duration:F6},{sampler.Peak},{sampler.SteadyMin},{sampler.SteadyMax},{ourLiveBytes},{liveChunks}");
+    File.WriteAllText(stem + ".csv", "row,threads,audio_s,load_s,e2e_s,graph_s,ratio,rtf,peak_bytes,steady_min_bytes,steady_max_bytes,live_working_bytes,live_chunks\n" + line + "\n");
+    File.WriteAllText(stem + ".md", "| Row | Threads | Load s | E2E s | Graph s | Ratio | RTF | Peak MB |\n|---|---:|---:|---:|---:|---:|---:|---:|\n" + FormattableString.Invariant($"| {name} | {threads} | {modelLoadSeconds:F2} | {seconds:F2} | {graphSeconds:F2} | {seconds / graphSeconds:F3} | {seconds / duration:F3} | {sampler.Peak / 1e6:F0} |\n"));
     Console.WriteLine(line);
 }
 return 0;
@@ -188,43 +185,6 @@ internal static class Payload
         Word[] words = segment.Words.IsEmpty ? [] : new Word[segment.Words.Length];
         for (int i = 0; i < words.Length; i++) words[i] = segment.Words[i] with { Text = new string(segment.Words[i].Text.AsSpan()) };
         return segment with { Text = new string(segment.Text.AsSpan()), Words = words.Length == 0 ? [] : ImmutableCollectionsMarshal.AsImmutableArray(words) };
-    }
-}
-
-internal sealed class MemorySamples : IDisposable
-{
-    private readonly StreamWriter writer;
-    private readonly Timer timer;
-    private readonly Stopwatch clock = Stopwatch.StartNew();
-    private readonly Process process = Process.GetCurrentProcess();
-    internal long Peak { get; private set; }
-    internal long ProcessPeak { get; private set; }
-    internal long SteadyMin { get; private set; } = long.MaxValue;
-    internal long SteadyMax { get; private set; }
-    internal List<string> Loads { get; } = [];
-    internal MemorySamples(string file)
-    {
-        writer = new StreamWriter(file) { AutoFlush = true };
-        writer.WriteLine("elapsed_s,working_set_bytes,load");
-        Sample();
-        timer = new Timer(_ => { lock (writer) Sample(); }, null, 5000, 5000);
-    }
-    private void Sample()
-    {
-        process.Refresh(); long bytes = process.WorkingSet64;
-        Peak = Math.Max(Peak, bytes);
-        if (clock.Elapsed.TotalSeconds >= 30) { SteadyMin = Math.Min(SteadyMin, bytes); SteadyMax = Math.Max(SteadyMax, bytes); }
-        string load = Machine.Load(); Loads.Add(load);
-        writer.WriteLine(FormattableString.Invariant($"{clock.Elapsed.TotalSeconds:F3},{bytes},\"{load.Replace("\"", "\"\"", StringComparison.Ordinal)}\""));
-    }
-    public void Dispose()
-    {
-        using var done = new ManualResetEvent(false);
-        timer.Dispose(done); done.WaitOne();
-        Sample();
-        ProcessPeak = process.PeakWorkingSet64;
-        if (SteadyMin == long.MaxValue) SteadyMin = SteadyMax = Peak;
-        writer.Dispose(); process.Dispose();
     }
 }
 

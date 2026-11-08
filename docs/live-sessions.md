@@ -73,3 +73,7 @@ the decoder and models. Unlike whole-file `Transcribe`, it does not run a
 whole-file diarization pass or invent speaker labels. The lower-level `VadTranscriptionPipeline` remains available with its own
 chunking policy; whole-file `Transcribe` continues to use that pipeline.
 Neither streaming entry point retains the whole recording's PCM.
+
+Moonshine streaming checkpoints add session-local encoder caches and replacing
+partials; see [Moonshine](moonshine.md). Input samples must be finite. Silero
+states reuse their output tensors through OneModel's span-based inference API.

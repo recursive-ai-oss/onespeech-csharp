@@ -25,6 +25,20 @@ internal static class RuntimeConversion
                 graph.Save(Path.Combine(output, file.Name), cancellationToken);
             }
         }
+        else if (entry.Family == "moonshine")
+        {
+            _ = Moonshine.MoonshineProvenance.Get(entry.Id);
+            var configuration = Moonshine.MoonshineConfiguration.Load(input);
+            using var weights = new SafeTensorFile(File.OpenRead(Path.Combine(input, "model.safetensors")));
+            foreach (var file in entry.ConvertedFiles)
+            {
+                var graph = new MoonshineGraphWriter(weights);
+                if (file.Name == "encoder.onemodel") graph.Encoder(configuration);
+                else if (file.Name == "decoder.onemodel") graph.Decoder(configuration);
+                else throw new ModelIntegrityException("Unknown Moonshine runtime artifact.");
+                graph.Save(Path.Combine(output, file.Name), cancellationToken);
+            }
+        }
         else if (entry.Id == "iic/speech_campplus_sv_en_voxceleb_16k")
         {
             using var checkpoint = File.OpenRead(Path.Combine(input, "campplus_voxceleb.bin"));
@@ -46,7 +60,7 @@ internal static class RuntimeConversion
 
     internal static void WriteProvenance(CatalogEntry entry, string directory)
     {
-        if (entry.Family != "whisper") return;
+        if (entry.Family is not ("whisper" or "moonshine")) return;
         string sha = entry.Files.Single(f => f.Name == "model.safetensors").Sha256;
         string path = Path.Combine(directory, "upstream.txt");
         string text = $"{entry.Id}\n{entry.Revision}\n{sha}\n";

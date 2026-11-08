@@ -1,13 +1,13 @@
 namespace OneSpeech;
 
-/// <summary>Thin file-input entry points over the VAD transcription pipeline.</summary>
+/// <summary>Thin audio-input entry points over registered recognizers and VAD pipelines.</summary>
 public static class Speech
 {
-    /// <summary>Yields final segments from a file in bounded VAD-first chunks, without a whole-file diarization pass. Enumeration owns the decoder and models, including on early disposal. Downloads missing models on first enumeration. Optional language/model select the language and catalog ID; errors follow Transcribe.</summary>
-    public static IEnumerable<Segment> TranscribeStream(string path, string? language = null, string? model = null) =>
+    /// <summary>Awaits model I/O and yields final segments from a file in bounded VAD-first chunks, without a whole-file diarization pass. Enumeration owns the decoder and models, including on early disposal. Downloads missing models on first enumeration. Optional language/model select the language and catalog ID; errors follow Transcribe.</summary>
+    public static IAsyncEnumerable<Segment> TranscribeStream(string path, string? language = null, string? model = null) =>
         TranscribeStream(path, CancellationToken.None, language, model);
     /// <summary>Streams final file segments with cancellation at each chunk. Speaker assignment is not performed; no speaker IDs or word timings are invented. Errors follow Transcribe.</summary>
-    public static IEnumerable<Segment> TranscribeStream(string path, CancellationToken cancellationToken, string? language = null, string? model = null) =>
+    public static IAsyncEnumerable<Segment> TranscribeStream(string path, CancellationToken cancellationToken, string? language = null, string? model = null) =>
         Pipeline.SpeechServices.TranscribeStream(path, language, model, cancellationToken);
     /// <summary>Awaits mono 16 kHz PCM and yields live events. Offline families emit VAD-endpointed finals only; streaming families may emit replacing partials. Owns models and session during enumeration, not the source. Normal end flushes pending speech; early disposal does not. Downloads missing models on first enumeration. No capture, devices or speaker assignment. Errors follow Transcribe, plus UnsupportedAudioException for other PCM formats.</summary>
     public static IAsyncEnumerable<LiveEvent> Listen(IAsyncEnumerable<AudioBuffer> source, string? language = null, string? model = null) =>

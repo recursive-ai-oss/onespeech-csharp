@@ -18,13 +18,15 @@ public abstract class LiveSession : IDisposable
     /// <summary>Accepted audio duration, computed from integer samples at 16000 Hz. Starts at zero.</summary>
     public TimeSpan AudioTime => TimeSpan.FromSeconds(frames / 16000d);
 
-    /// <summary>Consumes borrowed PCM before returning immutable event snapshots. Empty input is a no-op. Throws UnsupportedAudioException for non-mono/non-16-kHz input, InvalidOperationException after completion/failure, ObjectDisposedException after disposal, or OperationCanceledException on cancellation. Input validation/cancellation before processing leaves the session usable; processing failures fault it.</summary>
+    /// <summary>Consumes borrowed PCM before returning immutable event snapshots. Empty input is a no-op. Throws UnsupportedAudioException for non-mono/non-16-kHz or nonfinite input, InvalidOperationException after completion/failure, ObjectDisposedException after disposal, or OperationCanceledException on cancellation. Input validation/cancellation before processing leaves the session usable; processing failures fault it.</summary>
     public ImmutableArray<LiveEvent> Push(AudioBuffer audio, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(audio);
         EnsureOpen();
         cancellationToken.ThrowIfCancellationRequested();
         if (audio.SampleRate != 16000 || audio.Channels != 1) throw new UnsupportedAudioException("Live sessions require mono PCM at 16000 Hz. Resample and downmix with OneAudio before pushing.");
+        foreach (float sample in audio.Samples.Span)
+            if (!float.IsFinite(sample)) throw new UnsupportedAudioException("Live sessions require finite PCM samples.");
         if (audio.FrameCount == 0) return [];
         frames = checked(frames + audio.FrameCount);
         try { Process(audio, cancellationToken); return Drain(); }

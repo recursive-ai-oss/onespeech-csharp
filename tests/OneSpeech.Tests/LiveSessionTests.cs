@@ -94,10 +94,13 @@ public sealed class LiveSessionTests
     }
 
     [Fact]
-    public void FileStreamingIsLazyAndRefusesCancellationBeforeLoadingModels()
+    public async Task FileStreamingIsLazyAndRefusesCancellationBeforeLoadingModels()
     {
         var segments = Speech.TranscribeStream("not-opened", new CancellationToken(true));
-        Assert.Throws<OperationCanceledException>(() => segments.ToArray());
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var _ in segments) { }
+        });
     }
 
     [Fact]
@@ -107,6 +110,7 @@ public sealed class LiveSessionTests
         Assert.Throws<UnsupportedAudioException>(() => session.Push(new AudioBuffer(new float[10], 8000), TestContext.Current.CancellationToken));
         Assert.Throws<UnsupportedAudioException>(() => session.Push(new AudioBuffer(new float[10], 16000, 2), TestContext.Current.CancellationToken));
         Assert.Throws<OperationCanceledException>(() => session.Push(new AudioBuffer(new float[10], 16000), new CancellationToken(true)));
+        Assert.Throws<UnsupportedAudioException>(() => session.Push(new AudioBuffer(new[] { float.NaN }, 16000), TestContext.Current.CancellationToken));
         Assert.Equal(TimeSpan.Zero, session.AudioTime);
         Assert.Empty(session.Push(new AudioBuffer(new float[512], 16000), TestContext.Current.CancellationToken));
     }

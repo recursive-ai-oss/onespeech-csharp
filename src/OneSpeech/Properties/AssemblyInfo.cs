@@ -8,3 +8,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("OneSpeech.CheckpointFuzz")]
 
 [assembly: InternalsVisibleTo("onespeech-eval")]
+[assembly: InternalsVisibleTo("OneSpeech.MoonshineFuzz")]

@@ -50,7 +50,7 @@ internal static class MoonshineLiveMetrics
         }
         using var file = File.Create(output); using var json = new Utf8JsonWriter(file, new JsonWriterOptions { Indented = true });
         json.WriteStartObject(); json.WriteString("status", "indicative; immutable emitted payload excluded; actual VAD runtime allocation measured separately");
-        json.WriteString("runtime", Environment.Version.ToString()); json.WriteString("oneModel", "1.2.0-preview.2"); json.WriteString("oneAudio", "1.7.2"); json.WriteNumber("processorCount", Environment.ProcessorCount);
+        json.WriteString("runtime", Environment.Version.ToString()); json.WriteString("oneModel", "1.2.0"); json.WriteString("oneAudio", "1.7.2"); json.WriteNumber("processorCount", Environment.ProcessorCount);
         json.WriteNumber("inferenceThreads", threads); json.WriteBoolean("streaming", streaming); json.WriteNumber("convertedBytes", Directory.EnumerateFiles(directory, "*.onemodel").Sum(p => new FileInfo(p).Length));
         json.WriteStartArray("repetitions");
         for (int i = 0; i < (sixtySeconds ? 1 : 3); i++)

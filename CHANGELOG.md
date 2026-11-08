@@ -14,6 +14,7 @@ All notable changes are documented here, following Keep a Changelog.
 - `TranscriptJsonConverter`, so plain System.Text.Json writes the documented schema-1 shape; value equality for `Transcript`, `Segment`, `Turn` and `ModelInfo`.
 
 ### Changed
+- Requires RecursiveAI.OneModel 1.2.0.
 - One language-tag rule for every entry point; unsupported languages are refused, and `Align` no longer returns untimed words when no aligner applies.
 - The role base classes implement `IDisposable`. Wrappers and sessions borrow, and never dispose, the models they use.
 - `CreateLiveSession` accepts any `VoiceActivityDetector`.

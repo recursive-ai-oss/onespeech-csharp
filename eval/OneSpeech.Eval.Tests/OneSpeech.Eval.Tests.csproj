@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><IsTestProject>true</IsTestProject></PropertyGroup>
   <ItemGroup><ProjectReference Include="../OneSpeech.Eval/OneSpeech.Eval.csproj" /><PackageReference Include="xunit.v3" /><PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" /><PackageReference Include="Microsoft.NET.Test.Sdk" /></ItemGroup>
+  <ItemGroup><Compile Include="../../tools/OneSpeech.TimingFloor/Summary.cs" Link="TimingFloorSummary.cs" /></ItemGroup>
 </Project>

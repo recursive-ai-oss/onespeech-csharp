@@ -2719,6 +2719,527 @@
         "nativeTimestamps": true,
         "streaming": true
       }
+    },
+    {
+      "id": "openai/whisper-small-int8",
+      "family": "whisper",
+      "source": "https://huggingface.co/openai/whisper-small",
+      "revision": "973afd24965f72e36ca33b3055d56a652f456b4d",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 966995080,
+          "sha256": "1d7734884874f1a1513ed9aa760a4f8e97aaa02fd6d93a3a85d27b2ae9ca596b",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "config.json",
+          "size": 1967,
+          "sha256": "e6a2b489da1b5aed65a8eb8d1e7466fa867ad5643a8bc138ba708bd56b2875c4",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "generation_config.json",
+          "size": 3868,
+          "sha256": "71565b8ef50d0bf7a1193ed4bbed195b94e70c18894d81bba2f1233dcec3ab53",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/generation_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "preprocessor_config.json",
+          "size": 184990,
+          "sha256": "9b5cd03a36fbb8a627c64d98a5b5b126ead95a77720723944487311f0110b666",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/preprocessor_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 2480466,
+          "sha256": "27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/tokenizer.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer_config.json",
+          "size": 282683,
+          "sha256": "2a4c4281cf9f51ac6ccc406fdc711a087afe6530f671fa7b80953edc498275ce",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/tokenizer_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "special_tokens_map.json",
+          "size": 2194,
+          "sha256": "e67ae3a0aaa99abcd9f187138e12db1f65c16a14761c50ef10eef2c174a7a691",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/special_tokens_map.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "vocab.json",
+          "size": 835550,
+          "sha256": "8f680bba319e01a653d2e8a5dbc17a9157179e0576e6ce74ce0c06356c6e24f9",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/vocab.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "merges.txt",
+          "size": 493869,
+          "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/merges.txt",
+          "mirrorUrl": null
+        },
+        {
+          "name": "added_tokens.json",
+          "size": 34604,
+          "sha256": "9715fd2243b6f06a5858b5e32950d2853f73dd5bc201aafcf76f5082a2d8acd1",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/added_tokens.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "normalizer.json",
+          "size": 52666,
+          "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/normalizer.json",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "encoder.onemodel",
+          "size": 112580256,
+          "sha256": "7b0a3f147facaeb0c20ee5a43f3ac395505c5374cbf76b43336bf9d1ee543400",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-small-int8-encoder-7b0a3f147facaeb0.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 301036097,
+          "sha256": "b608b66519ea1621b2b9911df8989169553172a908a144e4ed3b5146a37da329",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-small-int8-decoder-b608b66519ea1621.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "Apache-2.0",
+      "attribution": "Whisper — OpenAI. MIT License\n\nCopyright (c) 2022 OpenAI\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
+      "gated": false,
+      "capabilities": {
+        "translation": true,
+        "biasing": true,
+        "languages": [
+          "af",
+          "am",
+          "ar",
+          "as",
+          "az",
+          "ba",
+          "be",
+          "bg",
+          "bn",
+          "bo",
+          "br",
+          "bs",
+          "ca",
+          "cs",
+          "cy",
+          "da",
+          "de",
+          "el",
+          "en",
+          "es",
+          "et",
+          "eu",
+          "fa",
+          "fi",
+          "fo",
+          "fr",
+          "gl",
+          "gu",
+          "haw",
+          "ha",
+          "he",
+          "hi",
+          "hr",
+          "ht",
+          "hu",
+          "hy",
+          "id",
+          "is",
+          "it",
+          "ja",
+          "jw",
+          "ka",
+          "kk",
+          "km",
+          "kn",
+          "ko",
+          "la",
+          "lb",
+          "ln",
+          "lo",
+          "lt",
+          "lv",
+          "mg",
+          "mi",
+          "mk",
+          "ml",
+          "mn",
+          "mr",
+          "ms",
+          "mt",
+          "my",
+          "ne",
+          "nl",
+          "nn",
+          "no",
+          "oc",
+          "pa",
+          "pl",
+          "ps",
+          "pt",
+          "ro",
+          "ru",
+          "sa",
+          "sd",
+          "si",
+          "sk",
+          "sl",
+          "sn",
+          "so",
+          "sq",
+          "sr",
+          "su",
+          "sv",
+          "sw",
+          "ta",
+          "te",
+          "tg",
+          "th",
+          "tk",
+          "tl",
+          "tr",
+          "tt",
+          "uk",
+          "ur",
+          "uz",
+          "vi",
+          "yi",
+          "yo",
+          "zh"
+        ]
+      },
+      "isDefault": false
+    },
+    {
+      "id": "openai/whisper-large-v3-turbo-int8",
+      "family": "whisper",
+      "source": "https://huggingface.co/openai/whisper-large-v3-turbo",
+      "revision": "41f01f3fe87f28c78e2fbf8b568835947dd65ed9",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 1617824864,
+          "sha256": "542566a422ae4f3fd23f1ba11add198fca01bbf82e66e6a2857b3f608b1eb9d1",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-large-v3-turbo/resolve/41f01f3fe87f28c78e2fbf8b568835947dd65ed9/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "config.json",
+          "size": 1256,
+          "sha256": "c5b526b3e3cd64cd8940dabb45e8ba726629e22d8ed389c29b552f9140daf04a",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-large-v3-turbo/resolve/41f01f3fe87f28c78e2fbf8b568835947dd65ed9/config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "generation_config.json",
+          "size": 3772,
+          "sha256": "cce11bfe3aaa6ae9e072ea2637caaec8795e68d9b67e655a5af16ee509681a4c",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-large-v3-turbo/resolve/41f01f3fe87f28c78e2fbf8b568835947dd65ed9/generation_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "preprocessor_config.json",
+          "size": 340,
+          "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-large-v3-turbo/resolve/41f01f3fe87f28c78e2fbf8b568835947dd65ed9/preprocessor_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 2710337,
+          "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-large-v3-turbo/resolve/41f01f3fe87f28c78e2fbf8b568835947dd65ed9/tokenizer.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer_config.json",
+          "size": 282843,
+          "sha256": "844b642c73a91359722f47b35705f7174686df33d252695d8572cf9ac03a6389",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-large-v3-turbo/resolve/41f01f3fe87f28c78e2fbf8b568835947dd65ed9/tokenizer_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "special_tokens_map.json",
+          "size": 2186,
+          "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-large-v3-turbo/resolve/41f01f3fe87f28c78e2fbf8b568835947dd65ed9/special_tokens_map.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "vocab.json",
+          "size": 1036558,
+          "sha256": "e2aa043ef015641d363d8288e7c241c85e36a5c761fb303598e0710233344387",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-large-v3-turbo/resolve/41f01f3fe87f28c78e2fbf8b568835947dd65ed9/vocab.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "merges.txt",
+          "size": 493869,
+          "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-large-v3-turbo/resolve/41f01f3fe87f28c78e2fbf8b568835947dd65ed9/merges.txt",
+          "mirrorUrl": null
+        },
+        {
+          "name": "added_tokens.json",
+          "size": 34648,
+          "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-large-v3-turbo/resolve/41f01f3fe87f28c78e2fbf8b568835947dd65ed9/added_tokens.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "normalizer.json",
+          "size": 52666,
+          "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+          "upstreamUrl": "https://huggingface.co/openai/whisper-large-v3-turbo/resolve/41f01f3fe87f28c78e2fbf8b568835947dd65ed9/normalizer.json",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "encoder.onemodel",
+          "size": 675446560,
+          "sha256": "f55bb8aae17f3edb020c4116b454ff0ed7a743e5a7e7023ff4663c65a6810a28",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-large-v3-turbo-int8-encoder-f55bb8aae17f3edb.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 426824833,
+          "sha256": "1237f819ad86de16b1e7693fdf5f2ca3b4f3cc585aed12628906f9e8825ec047",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-large-v3-turbo-int8-decoder-1237f819ad86de16.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "MIT",
+      "attribution": "Whisper — OpenAI. MIT License\n\nCopyright (c) 2022 OpenAI\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
+      "gated": false,
+      "capabilities": {
+        "translation": true,
+        "biasing": true,
+        "languages": [
+          "af",
+          "am",
+          "ar",
+          "as",
+          "az",
+          "ba",
+          "be",
+          "bg",
+          "bn",
+          "bo",
+          "br",
+          "bs",
+          "ca",
+          "cs",
+          "cy",
+          "da",
+          "de",
+          "el",
+          "en",
+          "es",
+          "et",
+          "eu",
+          "fa",
+          "fi",
+          "fo",
+          "fr",
+          "gl",
+          "gu",
+          "haw",
+          "ha",
+          "he",
+          "hi",
+          "hr",
+          "ht",
+          "hu",
+          "hy",
+          "id",
+          "is",
+          "it",
+          "ja",
+          "jw",
+          "ka",
+          "kk",
+          "km",
+          "kn",
+          "ko",
+          "la",
+          "lb",
+          "ln",
+          "lo",
+          "lt",
+          "lv",
+          "mg",
+          "mi",
+          "mk",
+          "ml",
+          "mn",
+          "mr",
+          "ms",
+          "mt",
+          "my",
+          "ne",
+          "nl",
+          "nn",
+          "no",
+          "oc",
+          "pa",
+          "pl",
+          "ps",
+          "pt",
+          "ro",
+          "ru",
+          "sa",
+          "sd",
+          "si",
+          "sk",
+          "sl",
+          "sn",
+          "so",
+          "sq",
+          "sr",
+          "su",
+          "sv",
+          "sw",
+          "ta",
+          "te",
+          "tg",
+          "th",
+          "tk",
+          "tl",
+          "tr",
+          "tt",
+          "uk",
+          "ur",
+          "uz",
+          "vi",
+          "yi",
+          "yo",
+          "yue",
+          "zh"
+        ]
+      },
+      "isDefault": false
+    },
+    {
+      "id": "moonshine-ai/moonshine-streaming-tiny-int8",
+      "family": "moonshine",
+      "source": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny",
+      "revision": "f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 176237308,
+          "sha256": "0ab3443dabd95a4afb35f0a26155428c03b7c3c450fa6923ffdac4510ba3d040",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "config.json",
+          "size": 1421,
+          "sha256": "166861753adaf928ae99b3709bfb1da47cb76319be58f37c6f9b7a539ce371f0",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 1676069,
+          "sha256": "28bbc54a47dfa33673affa26010f23ac452685b18c76e81451d9b3ea25a54d54",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/tokenizer.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "preprocessor_config.json",
+          "size": 195,
+          "sha256": "859e62520a4e44be5bf9559205898ec7adfd2952bdc4f4e62ea724ac6ba460eb",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/preprocessor_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "generation_config.json",
+          "size": 167,
+          "sha256": "ff376268d9f8176da72ae0a3ca993778eb972a2f13a4ba0a914dbc3d6c832abe",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/generation_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer_config.json",
+          "size": 172,
+          "sha256": "93bb19c92de5c3d03e4a424ba033b2a81a32bdca6dc6f6dba176934dd8a9c6be",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/tokenizer_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "special_tokens_map.json",
+          "size": 96,
+          "sha256": "7755e8a96f77dea5458262fb120decdd6a654be977f3540bc781a0a3443f5974",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/special_tokens_map.json",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "encoder.onemodel",
+          "size": 15785284,
+          "sha256": "12a5791750ed888d037038441b7ee208f3def0466fb18f5c9192805bcd257ba1",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-int8-encoder-12a5791750ed888d.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 70452033,
+          "sha256": "cb1dee81174adb112e440c05f50ab739b308c4df660b9a40b4b6c812946bad88",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-int8-decoder-cb1dee81174adb11.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder-project.onemodel",
+          "size": 6503136,
+          "sha256": "bf55b2de7d60c183d1c04be507d641bdf7868ce06201a65098662d47fc45b33c",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-int8-decoder-project-bf55b2de7d60c183.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder-step.onemodel",
+          "size": 63973313,
+          "sha256": "d11a0bd8ddb0c61a9d549614e39af5312fc586ab450c0fb2711e678799d46caa",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-int8-decoder-step-d11a0bd8ddb0c61a.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "MIT",
+      "attribution": "MIT License\n\nCopyright (c) 2025 Useful Sensors, Inc. (dba Moonshine AI)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.",
+      "gated": false,
+      "isDefault": false,
+      "capabilities": {
+        "languages": [
+          "en"
+        ],
+        "streaming": true
+      }
     }
   ]
 }

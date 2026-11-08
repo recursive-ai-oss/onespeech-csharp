@@ -105,6 +105,18 @@ if (happyPathClip is not null)
     Console.WriteLine("Speech.Transcribe tiny NativeAOT happy path passed.");
 }
 
+string? int8WhisperDirectory = Environment.GetEnvironmentVariable("ONESPEECH_WHISPER_INT8");
+if (int8WhisperDirectory is not null && clipPath is not null)
+{
+    var clip = OneAudio.Audio.Load(clipPath, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
+    using var model = OneSpeech.Whisper.WhisperRecognizer.Load(int8WhisperDirectory,
+        new OneSpeech.Whisper.WhisperOptions { Temperatures = [0], WordTimestamps = false });
+    var result = model.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", CancellationToken.None);
+    if (string.IsNullOrWhiteSpace(result.Text) || !result.Models[0].Id.EndsWith("-int8", StringComparison.Ordinal))
+        throw new InvalidOperationException("Whisper int8 NativeAOT transcription failed.");
+    Console.WriteLine("Whisper int8 NativeAOT transcription passed.");
+}
+
 internal sealed class SmokeEmbedder(ModelInfo model) : SpeakerEmbedder
 {
     public override ModelInfo Model => model;

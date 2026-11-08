@@ -25,6 +25,11 @@ internal static class RuntimeConversion
                 graph.Save(Path.Combine(output, file.Name), cancellationToken);
             }
         }
+        else if (entry.Family is "qwen3-asr" or "qwen3-aligner")
+        {
+            QwenConverter.Convert(input, output, cancellationToken);
+            if (entry.Family == "qwen3-asr") QwenConverter.Convert(input, output, cancellationToken, OneSpeech.Qwen3.Qwen3Precision.BFloat16);
+        }
         else if (entry.Family == "moonshine")
         {
             _ = Moonshine.MoonshineProvenance.Get(entry.Id);
@@ -62,8 +67,8 @@ internal static class RuntimeConversion
 
     internal static void WriteProvenance(CatalogEntry entry, string directory)
     {
-        if (entry.Family is not ("whisper" or "moonshine")) return;
-        string sha = entry.Files.Single(f => f.Name == "model.safetensors").Sha256;
+        if (entry.Family is not ("whisper" or "moonshine" or "qwen3-asr" or "qwen3-aligner")) return;
+        string sha = entry.Files.First(f => f.Name.EndsWith(".safetensors", StringComparison.Ordinal)).Sha256;
         string path = Path.Combine(directory, "upstream.txt");
         string text = $"{entry.Id}\n{entry.Revision}\n{sha}\n";
         if (File.Exists(path) && new FileInfo(path).Length <= 1024 && File.ReadAllText(path) == text) return;

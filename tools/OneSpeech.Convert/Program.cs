@@ -31,6 +31,86 @@ if (args is ["moonshine-live-metrics", var metricsModel, var metricsClip, var me
     MoonshineLiveMetrics.Run(metricsModel, metricsClip, metricsOutput);
     return 0;
 }
+if (args is ["qwen-precision-repro", var precisionRepro]) { QwenPrecisionProbe.Run(precisionRepro); return 0; }
+if (args is ["qwen-cache-paths", var cachePathsRoot]) { QwenTools.CachePaths(cachePathsRoot); return 0; }
+if (args is ["qwen-e2e", var e2eCache, var e2eAudio, var e2eJson]) { QwenTools.EndToEnd(e2eCache, e2eAudio, e2eJson); return 0; }
+if (args is ["qwen-audio", var canonicalInput, var canonicalOutput]) { QwenTools.CanonicalAudio(canonicalInput, canonicalOutput); return 0; }
+if (args is ["qwen-long", var longModel, var longAudio, var longJson, var longPrecision]) { QwenTools.LongForm(longModel, longAudio, longJson, longPrecision == "bf16"); return 0; }
+if (args is ["qwen-rebuild", var rebuildModel, var rebuildPrecision])
+{
+    QwenTools.Rebuild(rebuildModel, rebuildPrecision == "bf16");
+    return 0;
+}
+if (args is ["qwen-reproduce", var reproductionModel, var reproductionPrecision])
+{
+    QwenTools.Reproduce(reproductionModel, reproductionPrecision == "bf16");
+    return 0;
+}
+if (args is ["qwen-batch-bf16", var bfBatchModel, var bfBatchRoot, var bfBatchSplit, var bfBatchOutput, var bfBatchBegin, var bfBatchCount])
+{
+    QwenTools.Batch(bfBatchModel, bfBatchRoot, bfBatchSplit, bfBatchOutput, int.Parse(bfBatchBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(bfBatchCount, System.Globalization.CultureInfo.InvariantCulture), OneSpeech.Qwen3.Qwen3Precision.BFloat16);
+    return 0;
+}
+if (args is ["qwen-probe-decode-bf16", var bfProbeModel, var bfProbeData])
+{
+    QwenTools.ProbeDecoder(bfProbeModel, bfProbeData, true);
+    return 0;
+}
+if (args is ["qwen-convert-bf16", var bf16Input, var bf16Output])
+{
+    OneSpeech.Catalog.Conversion.QwenConverter.Convert(bf16Input, bf16Output, CancellationToken.None, OneSpeech.Qwen3.Qwen3Precision.BFloat16);
+    return 0;
+}
+if (args is ["qwen-convert", var convertQwenInput, var convertQwenOutput])
+{
+    OneSpeech.Catalog.Conversion.QwenConverter.Convert(convertQwenInput, convertQwenOutput, CancellationToken.None);
+    return 0;
+}
+if (args is ["qwen-catalog", var catalogModel, var catalogJson])
+{
+    QwenTools.Catalog(catalogModel, catalogJson);
+    return 0;
+}
+if (args is ["qwen-align-batch", var alignmentModel, var alignmentRoot, var alignmentSplit, var alignmentOutput, var alignmentBegin, var alignmentCount])
+{
+    QwenTools.AlignBatch(alignmentModel, alignmentRoot, alignmentSplit, alignmentOutput, int.Parse(alignmentBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(alignmentCount, System.Globalization.CultureInfo.InvariantCulture));
+    return 0;
+}
+if (args is ["qwen-decode-ids", var tokenDirectory, var tokenIds])
+{
+    QwenTools.DecodeIds(tokenDirectory, tokenIds);
+    return 0;
+}
+if (args is ["qwen-batch", var batchModel, var batchRoot, var batchSplit, var batchOutput, var batchBegin, var batchCount])
+{
+    QwenTools.Batch(batchModel, batchRoot, batchSplit, batchOutput, int.Parse(batchBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(batchCount, System.Globalization.CultureInfo.InvariantCulture));
+    return 0;
+}
+if (args is ["qwen-probe-decode", var decodeModel, var decodeProbe])
+{
+    QwenTools.ProbeDecoder(decodeModel, decodeProbe);
+    return 0;
+}
+if (args is ["qwen-probe-encoder", var probeModel, var encoderProbe])
+{
+    QwenTools.ProbeEncoder(probeModel, encoderProbe);
+    return 0;
+}
+if (args is ["qwen-convert-encoder", var qwenInput])
+{
+    QwenTools.ConvertEncoder(qwenInput);
+    return 0;
+}
+if (args is ["qwen-positions", var positionProbe])
+{
+    QwenTools.Positions(positionProbe);
+    return 0;
+}
+if (args is ["qwen-fetch", var qwenName, var qwenDirectory])
+{
+    await QwenTools.FetchAsync(qwenName, qwenDirectory, CancellationToken.None).ConfigureAwait(false);
+    return 0;
+}
 if (args is ["onemodel-allocation-repro", var reproOutput])
 {
     MoonshineAllocationProfile.Run(null, reproOutput);
@@ -57,9 +137,9 @@ if (args is ["omni-parity", var parityData, var parityNative, var parityReferenc
     OmniParity.Score(parityData, parityNative, parityReference, parityOutput);
     return 0;
 }
-if (args is ["omni-batch", var batchGraph, var batchTokenizer, var batchDirectory, var batchDestination, var batchCount])
+if (args is ["omni-batch", var batchGraph, var batchTokenizer, var batchDirectory, var batchDestination, var omniBatchCount])
 {
-    OmniProbe.RunBatch(batchGraph, batchTokenizer, batchDirectory, batchDestination, int.Parse(batchCount, System.Globalization.CultureInfo.InvariantCulture));
+    OmniProbe.RunBatch(batchGraph, batchTokenizer, batchDirectory, batchDestination, int.Parse(omniBatchCount, System.Globalization.CultureInfo.InvariantCulture));
     return 0;
 }
 if (args is ["omni-probe", var probeGraph, var probeTokenizer, var probeAudio])

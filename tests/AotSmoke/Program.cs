@@ -1,4 +1,5 @@
 using OneSpeech;
+TransducerSmoke.Run();
 
 var ctc = OneSpeech.Decoding.CtcTrellis.Align([-9, 0, 0, -9, -9, 0], 3, 2, [1, 1]);
 if (!ctc.Succeeded || ctc.Tokens.Length != 2 || ctc.Tokens[1].StartFrame != 2)
@@ -34,6 +35,8 @@ if (clustering.Diarize(new AudioBuffer(new float[3200], 16000), CancellationToke
 Console.WriteLine("Clustering NativeAOT smoke passed.");
 
 SpeakerSmoke.Run();
+OnlineSpeakerSmoke.Run();
+Qwen3Smoke.Run();
 Console.WriteLine("Speaker arithmetic and in-memory registry NativeAOT smoke passed.");
 
 if (args is ["--camp" or "--camp-zh", var campGraph, var campAudio])

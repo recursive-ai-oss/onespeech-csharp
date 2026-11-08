@@ -18,7 +18,9 @@ internal sealed class QwenModelSession : IDisposable
     {
         bfloat16 = precision == Qwen3Precision.BFloat16;
         Configuration = QwenConfiguration.Load(directory);
-        var options = new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 2 };
+        // Every autoregressive step changes the KV length, so an older shape is not reusable.
+        // Retaining it also retains its activation slab until eviction.
+        var options = new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 1 };
         var loaded = new List<Session>();
         Session Load(string name)
         {

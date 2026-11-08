@@ -7,6 +7,27 @@ using OneSpeech;
 using OneSpeech.Catalog;
 using OneSpeech.Evaluation;
 
+if (args is ["align-order-smoke", var orderClip, var orderDocument])
+{
+    var original = Transcript.FromJson(File.ReadAllText(orderDocument));
+    var written = original with { Words = [.. original.Words.Select(w => w with { Start = null, End = null, TimingMethod = TimingMethod.None })] };
+    var chosen = Speech.Align(orderClip, written, language: "en");
+    if (!chosen.Words.Any(w => w.TimingMethod == TimingMethod.ForcedAligner)) throw new InvalidDataException("Default alignment did not select Qwen.");
+    var explicitCtc = Speech.Align(orderClip, written, language: "en", model: "facebook/omniASR-CTC-300M");
+    if (!explicitCtc.Words.Any(w => w.TimingMethod == TimingMethod.CtcAligner)) throw new InvalidDataException("Explicit CTC was not selected.");
+    await using var encoded = File.OpenRead(orderClip);
+    var streamed = await Speech.AlignAsync(encoded, written, CancellationToken.None, language: "en");
+    if (!chosen.Words.SequenceEqual(streamed.Words)) throw new InvalidDataException("Path and encoded-stream alignment differ.");
+    Console.WriteLine("Alignment priority, explicit selection and encoded-stream equivalence passed.");
+    return 0;
+}
+if (args is ["retime", var retimeManifest, var retimeInput, var retimeOutput, var retimeBegin, var retimeCount])
+    return RetimingProbe.Run(retimeManifest, retimeInput, retimeOutput, int.Parse(retimeBegin, CultureInfo.InvariantCulture), int.Parse(retimeCount, CultureInfo.InvariantCulture));
+if (args is ["retime-score", var scoreManifest, var truthRoot, var timingBefore, var timingAfter]) return RetimingProbe.Score(scoreManifest, truthRoot, timingBefore, timingAfter);
+if (args is ["compare-recognition", var recognitionBefore, var recognitionAfter]) return QwenMemoryProbe.Compare(recognitionBefore, recognitionAfter);
+if (args is ["qwen-memory-repro", var memoryRepro]) return QwenMemoryProbe.Synthetic(memoryRepro);
+if (args is ["qwen-memory-load", var memoryDirectory]) return QwenMemoryProbe.LoadGraphs(memoryDirectory);
+if (args is ["qwen-memory-slice", var sliceDirectory, var sliceCorpus, var sliceOutput]) return QwenMemoryProbe.Slice(sliceDirectory, sliceCorpus, sliceOutput);
 if (args is ["comparison-summary", var summaryRoot]) { Summary.Write(summaryRoot); return 0; }
 if (args is ["comparison-clips", var clipInput, var clipOutput]) return FileComparison.PrepareClips(clipInput, clipOutput);
 if (args is ["comparison-earnings", var earningsRoot, var earningsManifest]) return FileComparison.PrepareEarnings(earningsRoot, earningsManifest);

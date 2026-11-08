@@ -4,6 +4,16 @@ All notable changes are documented here, following Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.2.0-preview.1]
+
+### Added
+- Live sessions with one event model (`PartialEvent`, `FinalEvent`, `EndpointEvent`, `SpeakerTurnEvent`): finals are immutable, partials carry a revision, and all events share one audio clock. `Speech.Listen` and `Speech.TranscribeStream`; utterance mode (voice-activity endpointed finals) for offline recognizers.
+- Chinese speech uses the Chinese CAM++ speaker embedder for diarization; other languages use the English one.
+- A diarization speech-activity profile fitted on development meetings.
+
+### Fixed
+- Transcript JSON writes times exactly at 100-ns resolution instead of rounding through binary floating point.
+
 ## [0.1.0-preview.1]
 
 ### Added

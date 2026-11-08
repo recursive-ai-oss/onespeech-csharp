@@ -82,6 +82,198 @@ if (args is ["qwen-fetch", var qwenName, var qwenDirectory])
     await QwenTools.FetchAsync(qwenName, qwenDirectory, CancellationToken.None).ConfigureAwait(false);
     return 0;
 }
+if (args is ["onemodel-allocation-repro", var reproOutput])
+{
+    MoonshineAllocationProfile.Run(null, reproOutput);
+    return 0;
+}
+if (args is ["moonshine-allocation-profile", var profileModel, var profileOutput])
+{
+    MoonshineAllocationProfile.Run(profileModel, profileOutput);
+    return 0;
+}
+if (args is ["weight-hash", var hashPath])
+{
+    using var input = File.OpenRead(hashPath);
+    Console.WriteLine($"{input.Length} {Convert.ToHexStringLower(SHA256.HashData(input))}");
+    return 0;
+}
+if (args is ["mfa-fetch", var mfaDirectory])
+{
+    await MfaAssets.FetchAsync(mfaDirectory, CancellationToken.None);
+    return 0;
+}
+if (args is ["omni-parity", var parityData, var parityNative, var parityReference, var parityOutput])
+{
+    OmniParity.Score(parityData, parityNative, parityReference, parityOutput);
+    return 0;
+}
+if (args is ["omni-batch", var batchGraph, var batchTokenizer, var batchDirectory, var batchDestination, var omniBatchCount])
+{
+    OmniProbe.RunBatch(batchGraph, batchTokenizer, batchDirectory, batchDestination, int.Parse(omniBatchCount, System.Globalization.CultureInfo.InvariantCulture));
+    return 0;
+}
+if (args is ["omni-probe", var probeGraph, var probeTokenizer, var probeAudio])
+{
+    OmniProbe.Run(probeGraph, probeTokenizer, probeAudio);
+    return 0;
+}
+if (args is ["omni-convert", var omniInput, var omniOutput])
+{
+    using var input = File.OpenRead(omniInput);
+    new OmniAsrConverter(TensorCheckpoint.Read(input, largeModel: true)).Save(omniOutput);
+    using var converted = File.OpenRead(omniOutput);
+    Console.WriteLine($"{converted.Length} {Convert.ToHexStringLower(SHA256.HashData(converted))}");
+    return 0;
+}
+if (args is ["omni-tokenizer", var omniTokenizer])
+{
+    var data = OneSpeech.Text.SentencePieceProto.ReadFile(omniTokenizer);
+    Console.WriteLine($"type={data.ModelType} pieces={data.Pieces.Length} normalizer={data.NormalizerName} charsmap={data.Charsmap.Length} dummy={data.AddDummyPrefix} strip={data.RemoveExtraWhitespaces} escape={data.EscapeWhitespaces} unk={data.UnkId}");
+    for (int i = 0; i < Math.Min(40, data.Pieces.Length); i++) Console.WriteLine($"{i}: {data.Pieces[i]} type={data.Types[i]}");
+    return 0;
+}
+if (args is ["omni-fetch", var omniRoot])
+{
+    await OmniTools.FetchAsync(omniRoot, CancellationToken.None);
+    return 0;
+}
+if (args is ["omni-inspect", var omniCheckpoint])
+{
+    using var input = File.OpenRead(omniCheckpoint);
+    foreach (var pair in TensorCheckpoint.Read(input, largeModel: true))
+        Console.WriteLine($"{pair.Key} [{string.Join(",", pair.Value.Shape)}]");
+    return 0;
+}
+if (args is ["moonshine-service-smoke", var publisherDirectory, var freshCache, var smokeAudio])
+{
+    await MoonshineServiceSmoke.Run(publisherDirectory, freshCache, smokeAudio);
+    return 0;
+}
+if (args is ["moonshine-refresh-incomplete", var refreshModel, var refreshSplit, var refreshOutput])
+{
+    MoonshineBatch.Run(refreshModel, refreshSplit, refreshOutput, 0, 200, refreshIncomplete: true);
+    return 0;
+}
+if (args is ["moonshine-validate-saved", var savedModel, var savedOurs, var savedReference])
+{
+    MoonshineBatch.ValidateSaved(savedModel, savedOurs, savedReference);
+    return 0;
+}
+if (args is ["moonshine-edges", var meOutput])
+{
+    MoonshineProbe.Edges(meOutput);
+    return 0;
+}
+if (args is ["moonshine-indicative", var indicativeDirectory, var indicativeAudio, var indicativeOutput])
+{
+    MoonshineIndicative.Run(indicativeDirectory, indicativeAudio, indicativeOutput);
+    return 0;
+}
+if (args is ["moonshine-export-slice", var esRoot, var esOurs, var esReference, var esPrefix, var esCount])
+{
+    MoonshineBatch.Export(esRoot, esOurs, esReference, esPrefix, int.Parse(esCount, System.Globalization.CultureInfo.InvariantCulture));
+    return 0;
+}
+if (args is ["moonshine-latency", var latencyHypotheses, var latencyTiming, var latencyOutput])
+{
+    MoonshineLatency.Run(latencyHypotheses, latencyTiming, latencyOutput);
+    return 0;
+}
+if (args is ["moonshine-tokenizer-corpus", var tcDirectory, var tcPath])
+{
+    MoonshineTools.TokenizerCorpus(tcDirectory, tcPath);
+    return 0;
+}
+if (args is ["moonshine-live-probe", var mlDirectory, var mlAudio])
+{
+    MoonshineLiveProbe.Check(mlDirectory, mlAudio);
+    return 0;
+}
+if (args is ["moonshine-live-batch", var mlModel, var mlSplit, var mlOutput, var mlBegin, var mlCount, var mlChunk])
+{
+    MoonshineLiveProbe.Batch(mlModel, mlSplit, mlOutput, int.Parse(mlBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(mlCount, System.Globalization.CultureInfo.InvariantCulture), int.Parse(mlChunk, System.Globalization.CultureInfo.InvariantCulture));
+    return 0;
+}
+if (args is ["moonshine-reproduce", var mrCatalog, var mrRoot])
+{
+    MoonshineTools.Reproduce(mrCatalog, mrRoot);
+    return 0;
+}
+if (args is ["moonshine-catalog", var mcRoot, var mcOutput])
+{
+    MoonshineTools.Catalog(mcRoot, mcOutput);
+    return 0;
+}
+if (args is ["moonshine-batch", var mbModel, var mbSplit, var mbOutput, var mbBegin, var mbCount])
+{
+    MoonshineBatch.Run(mbModel, mbSplit, mbOutput, int.Parse(mbBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(mbCount, System.Globalization.CultureInfo.InvariantCulture));
+    return 0;
+}
+if (args is ["moonshine-export", var mxRoot, var mxOurs, var mxReference, var mxPrefix])
+{
+    MoonshineBatch.Export(mxRoot, mxOurs, mxReference, mxPrefix);
+    return 0;
+}
+if (args is ["moonshine-frontend-probe", var frontendDirectory, var frontendReference])
+{
+    MoonshineFrontendProbe.Run(frontendDirectory, frontendReference);
+    return 0;
+}
+if (args is ["moonshine-tokenizer", var mtDirectory])
+{
+    var mt = new OneSpeech.Moonshine.MoonshineTokenizer(mtDirectory);
+    foreach (string text in new[] { "", " hello world", "a  b\nC", "café e\u0301", "中文 🙂", "<s></s>" })
+    {
+        var ids = mt.Encode(text);
+        Console.WriteLine(string.Join(",", ids) + " | " + mt.Decode(ids, false));
+    }
+    return 0;
+}
+if (args is ["moonshine-transcribe", var moonshineModel, var moonshineAudio])
+{
+    using var mr = OneSpeech.Moonshine.MoonshineRecognizer.Load(moonshineModel);
+    mr.TokenTrace = ids => Console.WriteLine(string.Join(",", ids));
+    var ma = OneAudio.Audio.Load(moonshineAudio, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
+    Console.WriteLine(mr.Transcribe(new OneSpeech.AudioBuffer(ma.Samples, 16000), "en", CancellationToken.None).Text);
+    return 0;
+}
+if (args is ["moonshine-attention-probe", var attentionDirectory, var attentionReference])
+{
+    MoonshineAttentionProbe.Run(attentionDirectory, attentionReference);
+    return 0;
+}
+if (args is ["moonshine-probe", var moonshineGraphDirectory, var moonshineProbeDirectory])
+{
+    MoonshineProbe.Run(moonshineGraphDirectory, moonshineProbeDirectory);
+    return 0;
+}
+if (args.Length is 2 or 3 && args[0] is "moonshine-convert" or "moonshine-convert-debug")
+{
+    string moonshineSource = args[1];
+    string moonshineDestination = args.Length == 3 ? args[2] : moonshineSource;
+    Directory.CreateDirectory(moonshineDestination);
+    if (moonshineSource != moonshineDestination) File.Copy(Path.Combine(moonshineSource, "config.json"), Path.Combine(moonshineDestination, "config.json"), overwrite: true);
+    _ = OneSpeech.Moonshine.MoonshineProvenance.Verify(moonshineSource, converted: false, CancellationToken.None);
+    var mc = OneSpeech.Moonshine.MoonshineConfiguration.Load(moonshineSource);
+    using var mi = File.OpenRead(Path.Combine(moonshineSource, "model.safetensors"));
+    using var mw = new SafeTensorFile(mi);
+    var me = new MoonshineGraphWriter(mw, diagnostics: args[0].EndsWith("debug", StringComparison.Ordinal));
+    me.Encoder(mc); me.Save(Path.Combine(moonshineDestination, "encoder.onemodel"), CancellationToken.None);
+    var md = new MoonshineGraphWriter(mw, diagnostics: args[0].EndsWith("debug", StringComparison.Ordinal));
+    md.Decoder(mc); md.Save(Path.Combine(moonshineDestination, "decoder.onemodel"), CancellationToken.None);
+    return 0;
+}
+if (args is ["moonshine-fetch", var moonshineName, var moonshineDirectory])
+{
+    await MoonshineTools.FetchAsync(moonshineName, moonshineDirectory, CancellationToken.None).ConfigureAwait(false);
+    return 0;
+}
+if (args is ["moonshine-inspect", var moonshineInput])
+{
+    MoonshineTools.Inspect(moonshineInput);
+    return 0;
+}
 if (args is ["speaker-extract-ecapa", var ecapaGraph, var ecapaData, var ecapaIds, var ecapaDestination, var ecapaStart, var ecapaCount])
 {
     SpeakerBatch.Extract(ecapaGraph, ecapaData, ecapaIds, ecapaDestination, int.Parse(ecapaStart, System.Globalization.CultureInfo.InvariantCulture), int.Parse(ecapaCount, System.Globalization.CultureInfo.InvariantCulture), 192, ecapa: true);

@@ -30,10 +30,34 @@ internal static class RuntimeConversion
             QwenConverter.Convert(input, output, cancellationToken);
             if (entry.Family == "qwen3-asr") QwenConverter.Convert(input, output, cancellationToken, OneSpeech.Qwen3.Qwen3Precision.BFloat16);
         }
+        else if (entry.Family == "moonshine")
+        {
+            _ = Moonshine.MoonshineProvenance.Get(entry.Id);
+            var configuration = Moonshine.MoonshineConfiguration.Load(input);
+            using var weights = new SafeTensorFile(File.OpenRead(Path.Combine(input, "model.safetensors")));
+            foreach (var file in entry.ConvertedFiles)
+            {
+                var graph = new MoonshineGraphWriter(weights);
+                if (file.Name == "encoder.onemodel") graph.Encoder(configuration);
+                else if (file.Name == "decoder.onemodel") graph.Decoder(configuration);
+                else throw new ModelIntegrityException("Unknown Moonshine runtime artifact.");
+                graph.Save(Path.Combine(output, file.Name), cancellationToken);
+            }
+        }
         else if (entry.Id == "iic/speech_campplus_sv_en_voxceleb_16k")
         {
             using var checkpoint = File.OpenRead(Path.Combine(input, "campplus_voxceleb.bin"));
             new CampPlusConverter(TensorCheckpoint.Read(checkpoint)).Save(Path.Combine(output, "campplus-en-fp32.onemodel"));
+        }
+        else if (entry.Id == "iic/speech_campplus_sv_zh-cn_16k-common")
+        {
+            using var checkpoint = File.OpenRead(Path.Combine(input, "campplus_cn_common.bin"));
+            new CampPlusConverter(TensorCheckpoint.Read(checkpoint)).Save(Path.Combine(output, "campplus-zh-fp32.onemodel"));
+        }
+        else if (entry.Id == "facebook/omniASR-CTC-300M")
+        {
+            using var checkpoint = File.OpenRead(Path.Combine(input, "omniASR-CTC-300M.pt"));
+            new OmniAsrConverter(TensorCheckpoint.Read(checkpoint, largeModel: true)).Save(Path.Combine(output, "ctc-fp32.onemodel"));
         }
         else throw new CapabilityNotSupportedException($"No local converter is registered for '{entry.Id}'.");
         cancellationToken.ThrowIfCancellationRequested();
@@ -41,7 +65,7 @@ internal static class RuntimeConversion
 
     internal static void WriteProvenance(CatalogEntry entry, string directory)
     {
-        if (entry.Family is not ("whisper" or "qwen3-asr" or "qwen3-aligner")) return;
+        if (entry.Family is not ("whisper" or "moonshine" or "qwen3-asr" or "qwen3-aligner")) return;
         string sha = entry.Files.First(f => f.Name.EndsWith(".safetensors", StringComparison.Ordinal)).Sha256;
         string path = Path.Combine(directory, "upstream.txt");
         string text = $"{entry.Id}\n{entry.Revision}\n{sha}\n";

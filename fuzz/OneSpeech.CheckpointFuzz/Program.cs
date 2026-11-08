@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using SharpFuzz;
+using OneSpeech.Text;
 
 if (args is ["seed", var directory])
 {
@@ -32,8 +33,9 @@ Fuzzer.LibFuzzer.Run(data =>
 {
     try
     {
+        if (Environment.GetEnvironmentVariable("ONESPEECH_SENTENCEPIECE") == "1") { _ = SentencePieceProto.Read(data); return; }
         using var stream = pickleMode ? Wrap(data) : new MemoryStream(data.ToArray(), writable: false);
-        _ = TensorCheckpoint.Read(stream);
+        _ = TensorCheckpoint.Read(stream, largeModel: Environment.GetEnvironmentVariable("ONESPEECH_CHECKPOINT_LARGE") == "1");
     }
     catch (InvalidDataException) { }
     catch (IOException) { }

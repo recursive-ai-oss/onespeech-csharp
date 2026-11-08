@@ -149,12 +149,13 @@ internal sealed class SecondsConverter : JsonConverter<TimeSpan>
 {
     public override TimeSpan Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        if (reader.TokenType != JsonTokenType.Number || !reader.TryGetDouble(out double seconds) || !double.IsFinite(seconds) || seconds < 0)
+        if (reader.TokenType != JsonTokenType.Number || !reader.TryGetDecimal(out decimal seconds) || seconds < 0)
             throw new JsonException("Expected finite nonnegative seconds.");
-        try { return TimeSpan.FromSeconds(seconds); }
+        // Decimal seconds preserve the schema's 100-ns values without binary-float truncation.
+        try { return TimeSpan.FromTicks(checked((long)decimal.Round(seconds * TimeSpan.TicksPerSecond, 0, MidpointRounding.ToEven))); }
         catch (OverflowException e) { throw new JsonException("Seconds exceed TimeSpan range.", e); }
     }
-    public override void Write(Utf8JsonWriter writer, TimeSpan value, JsonSerializerOptions options) => writer.WriteNumberValue(value.TotalSeconds);
+    public override void Write(Utf8JsonWriter writer, TimeSpan value, JsonSerializerOptions options) => writer.WriteNumberValue((decimal)value.Ticks / TimeSpan.TicksPerSecond);
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,

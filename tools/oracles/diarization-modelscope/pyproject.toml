@@ -1,0 +1,14 @@
+[project]
+name = "onespeech-diarization-modelscope-oracle"
+version = "0.0.0"
+requires-python = ">=3.13,<3.14"
+dependencies = ["modelscope==1.40.2", "torch==2.11.0", "torchaudio==2.11.0", "numpy==2.5.4", "soundfile==0.14.0", "addict==2.4.0", "datasets==3.6.0", "simplejson==3.20.2", "sortedcontainers==2.4.0", "pillow==13.0.0", "scipy==1.18.1", "hdbscan==0.8.44", "umap-learn==0.5.12", "scikit-learn==1.9.1", "funasr==1.4.24"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }

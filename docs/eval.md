@@ -119,3 +119,30 @@ RTTM input is strict UTF-8 and accepts blank lines, `#` comment lines and ten-fi
 Either input may instead be a version-1 `Transcript` JSON file (extension `.json`). Assigned turns become RTTM-style channel-1 segments, ignoring turn text and words; `Unassigned` turns are omitted. Set `--recording meeting-id` to identify the transcript when comparing JSON to RTTM. Default ID is `recording`; JSON-vs-JSON inputs therefore share a clock by default. A transcript has no channel field, so a multi-channel RTTM must be converted explicitly rather than silently conflated.
 
 `fuzz/run-rttm-smoke.sh <absolute-scratch-directory> [seconds]` exercises the bounded RTTM reader through SharpFuzz/libFuzzer, with the same pinned development tools as the other reader smoke scripts; maximum duration 300 seconds.
+
+## CAM++ diarization development and floor runner
+
+`onespeech-eval diarize` runs the fixed meeting slices with a SHA-verified converted CAM++ English graph. Paths below are caller-selected caches/result directories outside git. Fetch/prepare datasets first with the scripts in `tools/scripts/`; `fetch-ami-dev-channels.sh` adds only the four development headset files for channel-layout calibration.
+
+```
+onespeech-eval diarize dev GRAPH AMI_ROOT ES2011a RESULTS
+onespeech-eval diarize dev GRAPH AMI_ROOT ES2011b RESULTS
+onespeech-eval diarize select RESULTS
+onespeech-eval diarize channels AMI_ROOT RESULTS
+onespeech-eval diarize holdout GRAPH AMI_ROOT ES2004a RESULTS S128 A64-0.15
+onespeech-eval diarize holdout GRAPH AMI_ROOT ES2004b RESULTS S128 A64-0.15
+onespeech-eval diarize holdout GRAPH ALI_ROOT R8001_M8004_MS801 RESULTS S128 A64-0.15
+onespeech-eval diarize holdout GRAPH ALI_ROOT R8003_M8001_MS801 RESULTS S128 A64-0.15
+onespeech-eval diarize summary RESULTS
+onespeech-eval diarize excerpt GRAPH AMI_ROOT ES2004a RESULTS/excerpt S128
+```
+
+Development commands refuse other IDs or non-development manifest entries. Selection requires the complete 57-profile grid on both development meetings, minimizing pooled DER, then speaker-macro JER, then ordinal profile ID. Freeze `selection.json` and `channel-selection.json` by SHA-256 before running holdouts; do not choose parameters from holdout scores. The example profile IDs are the measured selection in [diarization](diarization.md), not an instruction to select them using a new holdout set. The holdout command accepts only the four named held-out IDs and explicitly supplied profile names. Completed meeting score files are not silently overwritten; a new experiment uses a new result root. Per-meeting completion makes runs resumable without combining partial meetings.
+
+Only the first profile for a meeting runs embedding/VAD inference; subsequent clustering profiles replay in-RAM outputs after verifying identical PCM hashes and sequence lengths. Model weights are never fitted, caches are discarded at the meeting boundary, and no embeddings are written. All rows record input/reference/manifest SHA-256, checkpoint revision, converted SHA, precision, threads, VAD settings, clustering settings, reference speaker-seconds, miss/FA/confusion, DER/JER, speaker/window counts and hypothesis RTTM path. No collar; overlaps scored; no text normalizer. `summary` pools error counts rather than averaging meeting DER and reports reference-speaker-macro JER. Its descriptive 95% intervals resample the two meeting rows 1,000 times with seeded .NET Random(1729), with floor/ceiling percentile indices as in the scoring method; they are not intervals over a new independent speaker population. Individual-meeting CIs are unavailable.
+
+Channel calibration uses ten correlated layout proxies from AMI dev headset 0/1: physical separated microphones and 1% statistical leakage are positives, 25%/50% leakage and dual mono negatives. For original per-frame energies X,Y and cross-energy C, symmetric leakage alpha gives energies `(X+2*alpha*C+alpha²*Y)/(1+alpha)²` and its channel-swapped counterpart, and cross-energy `(alpha*(X+Y)+(1+alpha²)*C)/(1+alpha)²`. No modified speech waveform is generated. Search 10/15/20/25/30 dB and normalized-dot limits 0.2/0.3/0.4/0.5/0.6; minimize balanced error, then distance from the initial 20 dB/0.3, then higher dB/lower dot limit. Three dominant frames and energy floor1e-8 remain fixed. This proxy fit is not a telephony accuracy estimate.
+
+The excerpt command uses the real diarizer but a **generated word-timing fixture**, because ASR integration is separate. It saves a ≤300-second derived WAV in the dataset cache and emits a Transcript JSON plus an explicit fixture summary, including assigned/unassigned counts and JSON timing quantization. It is not an ASR hypothesis, WER or word-alignment evaluation. See [diarization](diarization.md) for measured floors and limitations.
+
+`tools/oracles/speaker-modelscope/diarize.py` probes the released ModelScope public pipeline using only the approved English checkpoint already present locally, on CPU, with network disabled. It never opens installed implementation files or prints dependency exception frames. A registry failure or need for unchecked auxiliary models is reported as unavailable, not as a scored reference. The existing locked oracle environment supplies dependencies; no repository recipe is executed.

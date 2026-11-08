@@ -65,7 +65,10 @@ public sealed class SileroVadState : IDisposable
     private readonly Tensor input;
     private readonly Tensor state;
     private readonly Tensor rate;
-    private readonly Dictionary<string, Tensor> inputs;
+    private static readonly string[] InputNames = ["input", "state", "sr"];
+    private static readonly string[] OutputNames = ["stateN", "output"];
+    private readonly Tensor[] inputs;
+    private readonly Tensor[] outputs;
     private readonly int context;
 
     internal SileroVadState(Session graph, int sampleRate)
@@ -77,7 +80,8 @@ public sealed class SileroVadState : IDisposable
         input = Tensor.Zeros(DType.F32, Shape.Create(1, FrameSamples + context));
         state = Tensor.Zeros(DType.F32, Shape.Create(2, 1, 128));
         rate = Tensor.Scalar((long)sampleRate);
-        inputs = new() { ["input"] = input, ["state"] = state, ["sr"] = rate };
+        inputs = [input, state, rate];
+        outputs = [Tensor.Zeros(DType.F32, Shape.Create(2, 1, 128)), Tensor.Zeros(DType.F32, Shape.Create(1, 1))];
     }
 
     /// <summary>Required mono frame size in samples: 512 at 16 kHz, 256 at 8 kHz.</summary>
@@ -89,10 +93,10 @@ public sealed class SileroVadState : IDisposable
         if (frame.Length != FrameSamples) throw new ArgumentException("Expected one complete 32 ms frame.", nameof(frame));
         cancellationToken.ThrowIfCancellationRequested();
         frame.CopyTo(input.MutableData<float>()[context..]);
-        using var result = graph.Run(inputs);
-        result["stateN"].Data<float>().CopyTo(state.MutableData<float>());
+        graph.Run(InputNames, inputs, OutputNames, outputs);
+        outputs[0].Data<float>().CopyTo(state.MutableData<float>());
         frame[^context..].CopyTo(input.MutableData<float>());
-        return result["output"].Data<float>()[0];
+        return outputs[1].Data<float>()[0];
     }
 
     /// <summary>Resets recurrence and the previous-frame context before a new recording.</summary>
@@ -102,6 +106,6 @@ public sealed class SileroVadState : IDisposable
         state.MutableData<float>().Clear();
     }
 
-    /// <summary>Returns the three owned tensors. Does not dispose the shared graph.</summary>
-    public void Dispose() { input.Dispose(); state.Dispose(); rate.Dispose(); }
+    /// <summary>Releases owned input and output tensors. Does not dispose the shared graph.</summary>
+    public void Dispose() { foreach (var output in outputs) output.Dispose(); input.Dispose(); state.Dispose(); rate.Dispose(); }
 }

@@ -1188,6 +1188,451 @@
       }
     },
     {
+      "id": "facebook/omniASR-CTC-300M",
+      "family": "omniasr-ctc",
+      "source": "https://huggingface.co/facebook/omniASR-CTC-300M",
+      "revision": "8e35f0cc28fa6099e0c14d56db85ce0423baa691",
+      "files": [
+        {
+          "name": "omniASR-CTC-300M.pt",
+          "size": 1302113892,
+          "sha256": "4d31c6a7725a03e90cf26080c67361928755a9f43d322dd574145fbe91c76aec",
+          "upstreamUrl": "https://huggingface.co/facebook/omniASR-CTC-300M/resolve/8e35f0cc28fa6099e0c14d56db85ce0423baa691/omniASR-CTC-300M.pt",
+          "mirrorUrl": null
+        },
+        {
+          "name": "omniASR_tokenizer.model",
+          "size": 87562,
+          "sha256": "b954cc166b0c9e0271b953fa226fa27ca706a25b7029e84579fe2c60a2b451fe",
+          "upstreamUrl": "https://huggingface.co/facebook/omniASR-CTC-300M/resolve/8e35f0cc28fa6099e0c14d56db85ce0423baa691/omniASR_tokenizer.model",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "ctc-fp32.onemodel",
+          "size": 1302172624,
+          "sha256": "68de1b359aca88f025dbaeec5801d845900941b9a6548ba02e50dd0ec0987870",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/omniasr-ctc-68de1b359aca88f0.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "isDefault": true,
+      "tier": "Tier1",
+      "license": "Apache-2.0",
+      "attribution": "Omnilingual ASR — Meta AI / Omnilingual ASR Team. Copyright 2025 Meta Platforms, Inc. and affiliates. Apache-2.0. Retain the Apache-2.0 licence and upstream notices. OneSpeech runs the published checkpoint without training or fine-tuning.",
+      "gated": false,
+      "capabilities": {
+        "forcedAlignment": true,
+        "languages": [
+          "en",
+          "eng_Latn",
+          "fr",
+          "de",
+          "es",
+          "it",
+          "pt",
+          "ru",
+          "zh",
+          "ja",
+          "ko",
+          "ar"
+        ]
+      }
+    },
+    {
+      "id": "moonshine-ai/moonshine-tiny",
+      "family": "moonshine",
+      "source": "https://huggingface.co/moonshine-ai/moonshine-tiny",
+      "revision": "390624ed33d594443aa4aa221f5b9f283b545b5a",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 108389192,
+          "sha256": "867cd2215804859c55aa972d740bd5002be149b4e7526328c895d2408848c736",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-tiny/resolve/390624ed33d594443aa4aa221f5b9f283b545b5a/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "config.json",
+          "size": 897,
+          "sha256": "47a43777a14e17b1ffd5f533e021d4d18c3c475cbb96de0947ce409e16444ded",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-tiny/resolve/390624ed33d594443aa4aa221f5b9f283b545b5a/config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 1985530,
+          "sha256": "6579793438bc4fbafffacf699169ff53e3769c5a0a0f5e71cdee8853e8130deb",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-tiny/resolve/390624ed33d594443aa4aa221f5b9f283b545b5a/tokenizer.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "preprocessor_config.json",
+          "size": 215,
+          "sha256": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-tiny/resolve/390624ed33d594443aa4aa221f5b9f283b545b5a/preprocessor_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "generation_config.json",
+          "size": 189,
+          "sha256": "a8e1437432c3ba7d0fca84ced5b3a254bf0c42b8e75fc336497cdcb56675e303",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-tiny/resolve/390624ed33d594443aa4aa221f5b9f283b545b5a/generation_config.json",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "encoder.onemodel",
+          "size": 30803008,
+          "sha256": "bbbc8f801f3fc1db9d11c3baa930f0d9fea8214d6af7dea85856117dcc3c0064",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-tiny-encoder.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 77747328,
+          "sha256": "572c480a5ac2abdfbeef24a53add4d9f56a4712affc62bd75dc0887501ad3267",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-tiny-decoder.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "MIT",
+      "attribution": "MIT License\n\nCopyright (c) 2025 Useful Sensors, Inc. (dba Moonshine AI)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.",
+      "gated": false,
+      "isDefault": false,
+      "capabilities": {
+        "languages": [
+          "en"
+        ],
+        "streaming": false
+      }
+    },
+    {
+      "id": "moonshine-ai/moonshine-base",
+      "family": "moonshine",
+      "source": "https://huggingface.co/moonshine-ai/moonshine-base",
+      "revision": "7a73d8d55ac0ba2ef3ae761593f6784b51f96dcf",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 246079928,
+          "sha256": "e020c79d0a979a7ec099f718ff1cd2f19e92aead230d69654bca5975a8e1b862",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-base/resolve/7a73d8d55ac0ba2ef3ae761593f6784b51f96dcf/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "config.json",
+          "size": 976,
+          "sha256": "f2073049d85ebf3d02825a35e6355004d59310568a1098779e4421b01333a2b1",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-base/resolve/7a73d8d55ac0ba2ef3ae761593f6784b51f96dcf/config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 1985530,
+          "sha256": "6579793438bc4fbafffacf699169ff53e3769c5a0a0f5e71cdee8853e8130deb",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-base/resolve/7a73d8d55ac0ba2ef3ae761593f6784b51f96dcf/tokenizer.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "preprocessor_config.json",
+          "size": 215,
+          "sha256": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-base/resolve/7a73d8d55ac0ba2ef3ae761593f6784b51f96dcf/preprocessor_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "generation_config.json",
+          "size": 189,
+          "sha256": "abf6644989715d3704713bf6e5542b433ddc891583b3a89ce31a7614d124c1aa",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-base/resolve/7a73d8d55ac0ba2ef3ae761593f6784b51f96dcf/generation_config.json",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "encoder.onemodel",
+          "size": 80714944,
+          "sha256": "64f56bc90b0b2644a8a45455b32992560ed08520d02f36dc55d68add1f173439",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-base-encoder.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 165578368,
+          "sha256": "7e1583c717f10cf47beb50bf60ff2c0590d543f96e5bcd24a0210680fc09afcf",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-base-decoder.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "MIT",
+      "attribution": "MIT License\n\nCopyright (c) 2025 Useful Sensors, Inc. (dba Moonshine AI)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.",
+      "gated": false,
+      "isDefault": false,
+      "capabilities": {
+        "languages": [
+          "en"
+        ],
+        "streaming": false
+      }
+    },
+    {
+      "id": "moonshine-ai/moonshine-streaming-tiny",
+      "family": "moonshine",
+      "source": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny",
+      "revision": "f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 176237308,
+          "sha256": "0ab3443dabd95a4afb35f0a26155428c03b7c3c450fa6923ffdac4510ba3d040",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "config.json",
+          "size": 1421,
+          "sha256": "166861753adaf928ae99b3709bfb1da47cb76319be58f37c6f9b7a539ce371f0",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 1676069,
+          "sha256": "28bbc54a47dfa33673affa26010f23ac452685b18c76e81451d9b3ea25a54d54",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/tokenizer.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "preprocessor_config.json",
+          "size": 195,
+          "sha256": "859e62520a4e44be5bf9559205898ec7adfd2952bdc4f4e62ea724ac6ba460eb",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/preprocessor_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "generation_config.json",
+          "size": 167,
+          "sha256": "ff376268d9f8176da72ae0a3ca993778eb972a2f13a4ba0a914dbc3d6c832abe",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/generation_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer_config.json",
+          "size": 172,
+          "sha256": "93bb19c92de5c3d03e4a424ba033b2a81a32bdca6dc6f6dba176934dd8a9c6be",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/tokenizer_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "special_tokens_map.json",
+          "size": 96,
+          "sha256": "7755e8a96f77dea5458262fb120decdd6a654be977f3540bc781a0a3443f5974",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-tiny/resolve/f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a/special_tokens_map.json",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "encoder.onemodel",
+          "size": 37888964,
+          "sha256": "8d97f1c44a189c3575d8f6653204b5f9e166f888a35b0bed1ed6f3c0067587a9",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-encoder.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 138476224,
+          "sha256": "0f6ea3d8dcf09bb7b06e3c268fcf9e040a76caa82affbab5f19b748a204c52d6",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-decoder.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "MIT",
+      "attribution": "MIT License\n\nCopyright (c) 2025 Useful Sensors, Inc. (dba Moonshine AI)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.",
+      "gated": false,
+      "isDefault": true,
+      "capabilities": {
+        "languages": [
+          "en"
+        ],
+        "streaming": true
+      }
+    },
+    {
+      "id": "moonshine-ai/moonshine-streaming-small",
+      "family": "moonshine",
+      "source": "https://huggingface.co/moonshine-ai/moonshine-streaming-small",
+      "revision": "2c036506f23a09c18df5a50057599ba6d9280999",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 560571228,
+          "sha256": "003635df57b9a47771fd94a6290ab517d7487d0026c165ca9f2ac90411802646",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-small/resolve/2c036506f23a09c18df5a50057599ba6d9280999/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "config.json",
+          "size": 1579,
+          "sha256": "9196efd60b559dc4dc4e9fab08a7b0fce3501d0373b995158c6c6d3ab9b58461",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-small/resolve/2c036506f23a09c18df5a50057599ba6d9280999/config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 1676069,
+          "sha256": "28bbc54a47dfa33673affa26010f23ac452685b18c76e81451d9b3ea25a54d54",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-small/resolve/2c036506f23a09c18df5a50057599ba6d9280999/tokenizer.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "preprocessor_config.json",
+          "size": 195,
+          "sha256": "859e62520a4e44be5bf9559205898ec7adfd2952bdc4f4e62ea724ac6ba460eb",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-small/resolve/2c036506f23a09c18df5a50057599ba6d9280999/preprocessor_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "generation_config.json",
+          "size": 167,
+          "sha256": "ff376268d9f8176da72ae0a3ca993778eb972a2f13a4ba0a914dbc3d6c832abe",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-small/resolve/2c036506f23a09c18df5a50057599ba6d9280999/generation_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer_config.json",
+          "size": 172,
+          "sha256": "93bb19c92de5c3d03e4a424ba033b2a81a32bdca6dc6f6dba176934dd8a9c6be",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-small/resolve/2c036506f23a09c18df5a50057599ba6d9280999/tokenizer_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "special_tokens_map.json",
+          "size": 96,
+          "sha256": "7755e8a96f77dea5458262fb120decdd6a654be977f3540bc781a0a3443f5974",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-small/resolve/2c036506f23a09c18df5a50057599ba6d9280999/special_tokens_map.json",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "encoder.onemodel",
+          "size": 205004548,
+          "sha256": "82bff7bea2ed8d2f34d88d1961318dce02d076705c9a91a586271e10f2f6f5f4",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-small-encoder.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 355778752,
+          "sha256": "ae1ac6fa5397522122167c070bba68a0677a7caab49b94642eda1f5e0be0cb69",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-small-decoder.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "MIT",
+      "attribution": "MIT License\n\nCopyright (c) 2025 Useful Sensors, Inc. (dba Moonshine AI)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.",
+      "gated": false,
+      "isDefault": false,
+      "capabilities": {
+        "languages": [
+          "en"
+        ],
+        "streaming": true
+      }
+    },
+    {
+      "id": "moonshine-ai/moonshine-streaming-medium",
+      "family": "moonshine",
+      "source": "https://huggingface.co/moonshine-ai/moonshine-streaming-medium",
+      "revision": "57b843633a8c183cadf6699ffa761377a933a866",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 1063634564,
+          "sha256": "1b431906c919f373c671ffe8516a0125a4e3ffca4a69255c7fd05782abf6a103",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-medium/resolve/57b843633a8c183cadf6699ffa761377a933a866/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "config.json",
+          "size": 1739,
+          "sha256": "a7dced612603dc81ee2604242ccc69cb81131077b92a9a32eef8d6976b5d0efa",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-medium/resolve/57b843633a8c183cadf6699ffa761377a933a866/config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 1676069,
+          "sha256": "28bbc54a47dfa33673affa26010f23ac452685b18c76e81451d9b3ea25a54d54",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-medium/resolve/57b843633a8c183cadf6699ffa761377a933a866/tokenizer.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "preprocessor_config.json",
+          "size": 195,
+          "sha256": "859e62520a4e44be5bf9559205898ec7adfd2952bdc4f4e62ea724ac6ba460eb",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-medium/resolve/57b843633a8c183cadf6699ffa761377a933a866/preprocessor_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "generation_config.json",
+          "size": 167,
+          "sha256": "ff376268d9f8176da72ae0a3ca993778eb972a2f13a4ba0a914dbc3d6c832abe",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-medium/resolve/57b843633a8c183cadf6699ffa761377a933a866/generation_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer_config.json",
+          "size": 172,
+          "sha256": "93bb19c92de5c3d03e4a424ba033b2a81a32bdca6dc6f6dba176934dd8a9c6be",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-medium/resolve/57b843633a8c183cadf6699ffa761377a933a866/tokenizer_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "special_tokens_map.json",
+          "size": 96,
+          "sha256": "7755e8a96f77dea5458262fb120decdd6a654be977f3540bc781a0a3443f5974",
+          "upstreamUrl": "https://huggingface.co/moonshine-ai/moonshine-streaming-medium/resolve/57b843633a8c183cadf6699ffa761377a933a866/special_tokens_map.json",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "encoder.onemodel",
+          "size": 422185604,
+          "sha256": "1ac65f2a6e5f4bc714a594f87e07186f6df261288c42a4229ff3fd95ab335302",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-medium-encoder.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 641744192,
+          "sha256": "5e865188d1109b1ffd7f88f289fd9159a8cf1ab921a8f1b5f8dd70eaa5a0c881",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-medium-decoder.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "MIT",
+      "attribution": "MIT License\n\nCopyright (c) 2025 Useful Sensors, Inc. (dba Moonshine AI)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.",
+      "gated": false,
+      "isDefault": false,
+      "capabilities": {
+        "languages": [
+          "en"
+        ],
+        "streaming": true
+      }
+    },
+    {
       "id": "Qwen/Qwen3-ASR-0.6B",
       "family": "qwen3-asr",
       "source": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B",

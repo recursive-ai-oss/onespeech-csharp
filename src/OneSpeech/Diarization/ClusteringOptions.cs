@@ -42,6 +42,8 @@ public sealed record ClusteringOptions
     public ClusteringMethod Method { get; init; }
     /// <summary>Embedding duration in seconds, default 1.5, range 0.1–10.</summary>
     public double WindowSeconds { get; init; } = 1.5;
+    // Internal ablation control. The public behavior retains the 100 ms minimum.
+    internal double MinimumSegmentSeconds { get; init; } = 0.1;
     /// <summary>Window stride in seconds, default 0.25, range 0.01–WindowSeconds.</summary>
     public double ShiftSeconds { get; init; } = 0.25;
     /// <summary>AHC stopping cosine similarity, default 0.65 in [-1,1], ignored for an exact count. Not dev-fitted.</summary>
@@ -56,6 +58,7 @@ public sealed record ClusteringOptions
         if (MinSpeakers < 1 || MaxSpeakers < MinSpeakers || MaxSpeakers > 32 ||
             NumSpeakers is {} n && (n < MinSpeakers || n > MaxSpeakers) ||
             Method is not (ClusteringMethod.Spectral or ClusteringMethod.Agglomerative) || !double.IsFinite(WindowSeconds) || WindowSeconds < 0.1 || WindowSeconds > 10 ||
+            !double.IsFinite(MinimumSegmentSeconds) || MinimumSegmentSeconds < 0.045 || MinimumSegmentSeconds > WindowSeconds ||
             !double.IsFinite(ShiftSeconds) || ShiftSeconds < 0.01 || ShiftSeconds > WindowSeconds ||
             !double.IsFinite(AgglomerativeThreshold) || AgglomerativeThreshold < -1 || AgglomerativeThreshold > 1 ||
             MaxWindows < 1 || MaxWindows > 1_000_000 || MaxLandmarks < Math.Max(16, MaxSpeakers) || MaxLandmarks > 256)
@@ -74,7 +77,7 @@ public sealed record EmbeddingWindow
     public required ReadOnlyMemory<float> Embedding { get; init; }
 }
 
-/// <summary>Optional post-clustering stage, for a compatible published resegmentation backend. No backend is installed by default.</summary>
+/// <summary>Optional post-clustering stage for algorithmic resegmentation or a compatible published backend. The low-level diarizer installs none by default.</summary>
 public abstract class EmbeddingResegmenter
 {
     /// <summary>Returns one nonnegative label per window, using only labels present in initialLabels. Called synchronously before turn construction.

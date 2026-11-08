@@ -1,9 +1,15 @@
 using OneSpeech;
 
+var ctc = OneSpeech.Decoding.CtcTrellis.Align([-9, 0, 0, -9, -9, 0], 3, 2, [1, 1]);
+if (!ctc.Succeeded || ctc.Tokens.Length != 2 || ctc.Tokens[1].StartFrame != 2)
+    throw new InvalidOperationException("CTC trellis NativeAOT smoke failed.");
+Console.WriteLine("CTC trellis NativeAOT smoke passed.");
+OmniSmoke.Run();
+
 var word = new Word { Text = "test", Start = TimeSpan.Zero, End = TimeSpan.FromSeconds(1), TimingMethod = TimingMethod.Native, Speaker = SpeakerLabel.Unassigned };
-var original = new Transcript { Text = "test", Duration = TimeSpan.FromSeconds(1), Words = [word] };
+var original = new Transcript { Text = "test", Duration = TimeSpan.FromTicks(2798640000), Words = [word] };
 var copy = Transcript.FromJson(original.ToJson());
-if (copy.Text != original.Text || copy.Words[0] != word) throw new InvalidOperationException("Transcript round-trip failed.");
+if (copy.Text != original.Text || copy.Words[0] != word || copy.Duration != original.Duration) throw new InvalidOperationException("Transcript round-trip failed.");
 
 if (OneSpeech.Catalog.ModelCatalog.Default.Get("openai/whisper-tiny").Revision != "169d4a4341b33bc18d8881c4b69c2e104e1cc0af" ||
     OneSpeech.Catalog.ModelCatalog.Default.Get("iic/speech_campplus_sv_en_voxceleb_16k").ConvertedFiles[0].Sha256 != "f333a00d5d66b9bf3d7e7abf35f36ff4a01e6e8a0df235b89a125e9fbe3cc15c")
@@ -22,7 +28,7 @@ Console.WriteLine("Diarization merge and channel detection NativeAOT smoke passe
 
 using var smokeEmbedder = new SmokeEmbedder(vad.Model);
 var clustering = new OneSpeech.Diarization.ClusteringDiarizer(smokeEmbedder, new SmokeVad(vad.Model),
-    new OneSpeech.Diarization.ClusteringOptions { NumSpeakers = 1 });
+    new OneSpeech.Diarization.ClusteringOptions { NumSpeakers = 1 }, new OneSpeech.Diarization.CosineResegmenter());
 if (clustering.Diarize(new AudioBuffer(new float[3200], 16000), CancellationToken.None).Length != 1)
     throw new InvalidOperationException("Clustering NativeAOT smoke failed.");
 Console.WriteLine("Clustering NativeAOT smoke passed.");
@@ -56,6 +62,7 @@ if (tinyDirectory is not null && clipPath is not null)
     var transcript = recognizer.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", CancellationToken.None);
     if (transcript.Text != " Stuffed into you, his belly, cowtled him." || transcript.Words.Length == 0) throw new InvalidOperationException("Whisper tiny NativeAOT transcription failed.");
     Console.WriteLine("Whisper tiny NativeAOT transcription passed.");
+    await LiveSmoke.Run(vad, recognizer, clipPath);
     using var beam = OneSpeech.Whisper.WhisperRecognizer.Load(tinyDirectory, new OneSpeech.Whisper.WhisperOptions { BeamSize = 1, Temperatures = [0], WordTimestamps = false });
     if (beam.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", CancellationToken.None).Text != transcript.Text) throw new InvalidOperationException("Whisper beam-width-one smoke failed.");
     Console.WriteLine("Whisper beam NativeAOT smoke passed.");
@@ -72,6 +79,13 @@ if (args is ["--ecapa", var ecapaGraph, var ecapaAudio])
     float[] vector = new float[192];
     model.Embed(new AudioBuffer(clip.Samples, 16000), vector, CancellationToken.None);
     Console.WriteLine("ECAPA real graph NativeAOT extraction passed.");
+}
+
+string? moonshineDirectory = Environment.GetEnvironmentVariable("ONESPEECH_MOONSHINE_STREAMING_TINY");
+if (moonshineDirectory is not null && clipPath is not null)
+{
+    using var moonshine = OneSpeech.Moonshine.MoonshineRecognizer.Load(moonshineDirectory);
+    await LiveSmoke.Run(vad, moonshine, clipPath, expectPartials: true);
 }
 
 string? happyPathClip = Environment.GetEnvironmentVariable("ONESPEECH_HAPPY_PATH_CLIP");

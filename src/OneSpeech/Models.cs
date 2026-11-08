@@ -50,6 +50,8 @@ public sealed record Capabilities
     public bool Translation { get; init; }
     /// <summary>Whether native word timestamps are supported; false by default.</summary>
     public bool NativeTimestamps { get; init; }
+    /// <summary>Whether an aligner can time a supplied target independently of recognition; false by default.</summary>
+    public bool ForcedAlignment { get; init; }
     /// <summary>Whether stateful live streaming is supported; false by default. File chunking alone does not imply this.</summary>
     public bool Streaming { get; init; }
     /// <summary>Whether contextual phrase biasing is supported; false by default.</summary>

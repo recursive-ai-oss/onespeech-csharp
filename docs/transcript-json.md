@@ -2,7 +2,7 @@
 
 UTF-8 JSON, written and read using a generated System.Text.Json context. The root object has required `schemaVersion` (integer major version, currently **1**) and required `transcript`. Every other major version is rejected. Unknown fields are rejected; a future additive schema needs an explicit compatibility decision. Duplicate properties follow System.Text.Json's last-value behavior. Property names are case-sensitive.
 
-All times are finite, nonnegative **seconds as JSON numbers**, relative to the beginning of the original input audio. Intervals are start-inclusive/end-exclusive; ends must not precede starts. Sub-tick precision rounds to .NET TimeSpan precision (100 ns); large floating-point numbers have their usual precision limits. Missing timing is represented by both `start` and `end` being null. No timing is inferred. Nulls are written explicitly. Text is preserved exactly.
+All times are finite, nonnegative **seconds as JSON numbers**, relative to the beginning of the original input audio. Intervals are start-inclusive/end-exclusive; ends must not precede starts. Sub-tick precision rounds to the nearest .NET TimeSpan tick (100 ns), ties to even. Writers emit decimal seconds computed from integer ticks, preserving every tick on round-trip, including long durations. Values outside the TimeSpan range are rejected. Missing timing is represented by both `start` and `end` being null. No timing is inferred. Nulls are written explicitly. Text is preserved exactly.
 
 ## Fields
 

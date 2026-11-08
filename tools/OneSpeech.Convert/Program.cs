@@ -2,6 +2,35 @@ using System.Security.Cryptography;
 using OneSpeech.Catalog.Conversion;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
+if (args is ["moonshine-live-compare", var liveBefore, var liveAfter])
+{
+    MoonshineLiveProbe.Compare(liveBefore, liveAfter);
+    return 0;
+}
+if (args is ["silero-operators"])
+{
+    MoonshineAllocationProfile.SileroOperators();
+    return 0;
+}
+if (args is ["moonshine-live-inspect", var inspectDirectory, var inspectOutput])
+{
+    MoonshineLiveMetrics.Inspect(inspectDirectory, inspectOutput);
+    return 0;
+}
+if (args is ["moonshine-cache-convert", var cacheSource])
+{
+    _ = OneSpeech.Moonshine.MoonshineProvenance.Verify(cacheSource, converted: false, CancellationToken.None);
+    var cc = OneSpeech.Moonshine.MoonshineConfiguration.Load(cacheSource);
+    using var ci = File.OpenRead(Path.Combine(cacheSource, "model.safetensors")); using var cw = new SafeTensorFile(ci);
+    var cp = new MoonshineGraphWriter(cw); cp.DecoderProject(cc); cp.Save(Path.Combine(cacheSource, "decoder-project.onemodel"), CancellationToken.None);
+    var cs = new MoonshineGraphWriter(cw); cs.DecoderStep(cc); cs.Save(Path.Combine(cacheSource, "decoder-step.onemodel"), CancellationToken.None);
+    return 0;
+}
+if (args is ["moonshine-live-metrics", var metricsModel, var metricsClip, var metricsOutput])
+{
+    MoonshineLiveMetrics.Run(metricsModel, metricsClip, metricsOutput);
+    return 0;
+}
 if (args is ["qwen-precision-repro", var precisionRepro]) { QwenPrecisionProbe.Run(precisionRepro); return 0; }
 if (args is ["qwen-cache-paths", var cachePathsRoot]) { QwenTools.CachePaths(cachePathsRoot); return 0; }
 if (args is ["qwen-e2e", var e2eCache, var e2eAudio, var e2eJson]) { QwenTools.EndToEnd(e2eCache, e2eAudio, e2eJson); return 0; }
@@ -262,6 +291,11 @@ if (args.Length is 2 or 3 && args[0] is "moonshine-convert" or "moonshine-conver
     me.Encoder(mc); me.Save(Path.Combine(moonshineDestination, "encoder.onemodel"), CancellationToken.None);
     var md = new MoonshineGraphWriter(mw, diagnostics: args[0].EndsWith("debug", StringComparison.Ordinal));
     md.Decoder(mc); md.Save(Path.Combine(moonshineDestination, "decoder.onemodel"), CancellationToken.None);
+    if (mc.Streaming)
+    {
+        var project = new MoonshineGraphWriter(mw); project.DecoderProject(mc); project.Save(Path.Combine(moonshineDestination, "decoder-project.onemodel"), CancellationToken.None);
+        var step = new MoonshineGraphWriter(mw); step.DecoderStep(mc); step.Save(Path.Combine(moonshineDestination, "decoder-step.onemodel"), CancellationToken.None);
+    }
     return 0;
 }
 if (args is ["moonshine-fetch", var moonshineName, var moonshineDirectory])

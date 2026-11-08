@@ -1,8 +1,8 @@
 namespace OneSpeech.Live;
 
-// Session-local caches; models are borrowed. Input is the growing retained utterance, not a new independent recording.
+// Session-local caches; models are borrowed. Returns only the immutable payload that will be emitted.
 internal interface IIncrementalUtteranceRecognizer : IDisposable
 {
-    Transcript Decode(AudioBuffer audio, string? language, bool final, CancellationToken cancellationToken);
+    Segment Decode(ReadOnlyMemory<float> audio, string? language, bool final, TimeSpan start, TimeSpan end, CancellationToken cancellationToken);
     void Reset();
 }

@@ -91,10 +91,26 @@ Encoder prefixes whose right context is complete are retained. Only a bounded
 suffix is re-encoded: its left context covers every layer's 15 past frames and
 three frontend frames, and its provisional suffix covers 12 lookahead frames.
 This does not repeatedly encode the growing whole utterance. A new endpoint
-resets session-local caches. The decoder regenerates each provisional
-hypothesis from BOS; decoder KV/cross-projection reuse is not implemented.
-Partial and final output objects, tokenization, tensor inputs/outputs and decoder
-workspaces can allocate. Zero steady-state allocation is not claimed.
+resets session-local caches. Each new audio hypothesis starts at BOS, because changed encoder memory can
+change earlier decoder states. Within that hypothesis, the decoder evaluates
+one token per call and retains each layer's self-attention keys and values.
+Cross-attention keys/values are projected once per audio hypothesis, not once
+per token. Cache planes are packed into one tensor to keep graph bindings small.
+
+Live sessions preallocate and warm their working state before accepting PCM.
+The encoder uses a fixed receptive-field window; decoder cross-attention uses
+masked frame buckets of 128/256/512/1024/1536 frames. Self-attention cache capacity
+is a power of two covering the configured token budget over the shared 30-second
+VAD horizon. Unused keys are masked; padded encoder queries remain finite and
+cannot affect real frames. These bounds do not change offline recognition's
+60-second limit. Session creation includes the warm-up work.
+
+Immutable emitted events, their text and word payloads belong to the caller and
+are never pooled or mutated. They are measured separately from working-state
+allocation. At the validated 100 ms push size, an emitting push also needs no
+new working buffers. Backend runtime allocations are reported separately; zero
+working-state allocation is not a claim of zero total process allocation while
+the backend still allocates.
 
 References: [offline paper](https://arxiv.org/abs/2410.15608),
 [streaming paper](https://download.moonshine.ai/docs/moonshine_streaming_paper.pdf).

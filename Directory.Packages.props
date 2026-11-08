@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup><ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally></PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="RecursiveAI.OneModel" Version="1.0.0" />
+    <PackageVersion Include="RecursiveAI.OneModel" Version="1.2.0-preview.2" />
     <PackageVersion Include="RecursiveAI.OneAudio" Version="1.7.2" />
     <PackageVersion Include="RecursiveAI.OneMedia" Version="1.0.2" />
     <PackageVersion Include="RecursiveAI.OneMedia.Audio" Version="1.0.2" />

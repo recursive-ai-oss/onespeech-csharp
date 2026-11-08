@@ -175,6 +175,19 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## OpenMDW agreement text and Nemotron 3.5 ASR
+
+The OpenMDW-1.1 agreement text is from https://openmdw.ai/license/1-1/;
+copyright The Linux Foundation and its contributors. The site's contents are
+licensed under CC-BY-4.0. The agreement is copied without substantive changes in
+`docs/licenses/OpenMDW-1.1.txt` and in the model's provenance metadata. Model
+rights are governed by OpenMDW-1.1, not the site's content licence.
+
+NVIDIA Nemotron 3.5 ASR weights are loaded only by explicit name from the pinned
+publisher revision and converted in the user's cache. They are not embedded,
+mirrored, or redistributed by OneSpeech. The full agreement and NVIDIA origin
+notice are retained in `ModelInfo`.
+
 ## NVIDIA Nemotron 3 Diarization (optional publisher download)
 
 `nvidia/Nemotron-3-Diarization` revision

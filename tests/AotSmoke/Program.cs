@@ -2,6 +2,7 @@ using OneSpeech;
 TransducerSmoke.Run();
 NemotronSmoke.Run();
 ParakeetSmoke.Run();
+await NemotronAsrSmoke.Run();
 CustomSmoke.Run();
 
 var ctc = OneSpeech.Decoding.CtcTrellis.Align([-9, 0, 0, -9, -9, 0], 3, 2, [1, 1]);

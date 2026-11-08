@@ -67,10 +67,10 @@ public sealed class FastConformerGraphTests
         finally { Directory.Delete(directory, true); }
     }
 
-    private sealed class SyntheticTensors : IFloatTensorSource
+    internal sealed class SyntheticTensors : IFloatTensorSource
     {
         private readonly Dictionary<string, long[]> shapes = new(StringComparer.Ordinal);
-        internal SyntheticTensors(FastConformerDimensions c)
+        internal SyntheticTensors(FastConformerDimensions c, bool causal = false)
         {
             void Add(string name, params long[] shape) => shapes.Add(name, shape);
             void Linear(string name, int input, int output, bool bias = false)
@@ -83,7 +83,7 @@ public sealed class FastConformerGraphTests
                 Add($"encoder.subsampling.{stage}.depthwise.weight", channels, 1, 3, 3); Add($"encoder.subsampling.{stage}.depthwise.bias", channels);
                 Add($"encoder.subsampling.{stage}.pointwise.weight", channels, channels, 1, 1); Add($"encoder.subsampling.{stage}.pointwise.bias", channels);
             }
-            Linear("encoder.subsampling.projection", channels * ((c.MelBins + 7) / 8), d, true);
+            Linear("encoder.subsampling.projection", channels * (causal ? c.MelBins / 8 + 1 : (c.MelBins + 7) / 8), d, true);
             for (int layer = 0; layer < c.Layers; layer++)
             {
                 string p = "encoder.layers." + layer;
@@ -93,7 +93,8 @@ public sealed class FastConformerGraphTests
                 foreach (string name in new[] { "q", "k", "v", "position", "out" }) Linear(p + ".attention." + name, d, d);
                 Add(p + ".attention.u", c.Heads, d / c.Heads); Add(p + ".attention.v_bias", c.Heads, d / c.Heads);
                 Add(p + ".conv.pointwise_in.weight", 2 * d, d, 1); Add(p + ".conv.depthwise.weight", d, 1, c.ConvolutionKernel); Add(p + ".conv.pointwise_out.weight", d, d, 1);
-                foreach (string name in new[] { "weight", "bias", "mean", "variance" }) Add(p + ".conv.batch_norm." + name, d);
+                if (causal) Norm(p + ".conv.layer_norm");
+                else foreach (string name in new[] { "weight", "bias", "mean", "variance" }) Add(p + ".conv.batch_norm." + name, d);
             }
             for (int layer = 0; layer < c.PredictorLayers; layer++)
             { Linear($"predictor.layers.{layer}.input", c.PredictorWidth, 4 * c.PredictorWidth, true); Linear($"predictor.layers.{layer}.hidden", c.PredictorWidth, 4 * c.PredictorWidth, true); }

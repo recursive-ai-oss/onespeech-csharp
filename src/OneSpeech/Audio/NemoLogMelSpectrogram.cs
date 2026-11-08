@@ -105,6 +105,28 @@ public sealed class NemoLogMelSpectrogram
         return result;
     }
 
+    // Fixed-size inner loop: 512 preemphasized samples, 512 FFT slots, 257 powers,
+    // and exactly MelBins output slots. Streaming uses raw features, never utterance statistics.
+    internal void ExtractUnnormalizedFrame(ReadOnlySpan<float> emphasized, Span<float> mel, Complex[] fft, float[] power)
+    {
+        if (emphasized.Length != FftSize || mel.Length != MelBins || fft.Length != FftSize || power.Length != Frequencies) throw new ArgumentException("Invalid streaming feature workspace dimensions.");
+        for (int i = 0; i < FftSize; i++) fft[i] = emphasized[i] * window[i];
+        Transform(fft);
+        for (int f = 0; f < Frequencies; f++)
+        {
+            float real = (float)fft[f].Real, imaginary = (float)fft[f].Imaginary;
+            power[f] = real * real + imaginary * imaginary;
+            if (!float.IsFinite(power[f])) throw new ArgumentException("Power exceeds float32 range.");
+        }
+        for (int channel = 0; channel < MelBins; channel++)
+        {
+            float energy = 0;
+            for (int f = 0; f < Frequencies; f++) energy += filters[channel * Frequencies + f] * power[f];
+            if (!float.IsFinite(energy)) throw new ArgumentException("Mel energy exceeds float32 range.");
+            mel[channel] = MathF.Log(energy + 1f / 16777216);
+        }
+    }
+
     private void Transform(Complex[] values)
     {
         for (int i = 1, j = 0; i < FftSize; i++)

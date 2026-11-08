@@ -9,6 +9,7 @@ using RecursiveAI.OneModel.Tensors;
 namespace OneSpeech.Alignment;
 
 /// <summary>CPU forced alignment with the published omniASR-CTC-300M character model. Instances own a OneModel session and serialize calls.</summary>
+/// <remarks>Calls accept at most 60 seconds and a 16-million-cell blank-expanded target trellis. Larger audio/text combinations throw CapabilityNotSupportedException and must be split together.</remarks>
 public sealed class OmniAsrAligner : Aligner, IDisposable
 {
     private readonly Session session;
@@ -79,11 +80,15 @@ public sealed class OmniAsrAligner : Aligner, IDisposable
             var result = transcript.Words.Select(w => w with { Start = null, End = null, TimingMethod = TimingMethod.None }).ToArray();
             if (target.Count != 0 && audio.Samples.Length >= 400)
             {
+                int expectedFrames = (audio.Samples.Length - 400) / 320 + 1;
+                if ((2L * target.Count + 1) * expectedFrames > 16000000)
+                    throw new CapabilityNotSupportedException("CTC alignment exceeds the 16-million-cell trellis limit. Split audio with its corresponding written words.");
                 using var waveform = Tensor.FromSpan<float>(audio.Samples.Span, Shape.Create(1, 1, audio.Samples.Length));
                 using var output = session.Run(new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["waveform"] = waveform });
                 cancellationToken.ThrowIfCancellationRequested();
                 float[] probabilities = output["logits"].Data<float>().ToArray();
-                int frames = probabilities.Length / 9812;
+                if (probabilities.Length != expectedFrames * 9812) throw new InvalidDataException("CTC graph returned an unexpected emission shape.");
+                int frames = expectedFrames;
                 for (int frame = 0; frame < frames; frame++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();

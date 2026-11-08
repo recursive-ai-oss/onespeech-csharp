@@ -62,6 +62,9 @@ public sealed class OmniAlignmentTests
             var shortAudio = aligner.Align(new AudioBuffer(new float[10], 16000), original, "en", TestContext.Current.CancellationToken);
             Assert.Null(shortAudio.Words[0].Start);
             Assert.Null(shortAudio.Words[0].End);
+            Assert.Throws<InvalidDataException>(() => aligner.Align(new AudioBuffer(new float[2400], 16000), original, "en", TestContext.Current.CancellationToken));
+            var oversizedTarget = original with { Words = Enumerable.Repeat(originalWord, 2000).ToImmutableArray() };
+            Assert.Throws<CapabilityNotSupportedException>(() => aligner.Align(new AudioBuffer(new float[960000], 16000), oversizedTarget, "en", TestContext.Current.CancellationToken));
             Assert.Throws<CapabilityNotSupportedException>(() => aligner.Align(new AudioBuffer(ReadOnlyMemory<float>.Empty, 16000), original, "unsupported", TestContext.Current.CancellationToken));
         }
         finally { Directory.Delete(directory, recursive: true); }

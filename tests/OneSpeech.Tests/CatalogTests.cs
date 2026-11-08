@@ -13,7 +13,7 @@ public sealed class CatalogTests
     {
         Id = "publisher/model", Family = "test", Source = "https://huggingface.co/publisher/model",
         Revision = new string('a', 40), License = "MIT", Tier = ModelTier.Tier1, Attribution = "Test fixture",
-        Files = [new() { Name = "weights", Size = 3, Sha256 = Convert.ToHexStringLower(SHA256.HashData(Bytes)), UpstreamUrl = "https://huggingface.co/publisher/model/resolve/" + new string('a', 40) + "/weights" }]
+        Files = [new() { Name = "weights", Size = 3, Sha256 = System.Convert.ToHexStringLower(SHA256.HashData(Bytes)), UpstreamUrl = "https://huggingface.co/publisher/model/resolve/" + new string('a', 40) + "/weights" }]
     };
 
     [Fact]

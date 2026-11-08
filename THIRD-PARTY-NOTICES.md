@@ -6,7 +6,7 @@ Core embeds the Silero VAD v6.2.3 ONNX release model. No other model weights are
 
 ## Data
 
-No third-party audio or transcript text is included. ID-only LibriSpeech evaluation lists are included, with attribution below.
+The LibriSpeech clip identified below is the only third-party audio fixture; ID-only LibriSpeech evaluation lists are also included, with attribution below. Other feature fixtures use deterministic synthetic signals.
 
 ## Libraries
 
@@ -86,3 +86,11 @@ International, https://creativecommons.org/licenses/by/4.0/ .
 OneSpeech selected and paired these identifiers for evaluation; no original audio or transcript
 text is included in these files. The selection, pairing method and seed are documented in
 `docs/speakers.md`. This attribution does not imply endorsement by the dataset authors.
+
+## Reference observations
+
+The tone feature fixtures were produced from deterministic synthetic audio by black-box calls to openai-whisper 20250625 (MIT). They contain only numerical outputs, not model weights, source code or third-party audio. The oracle harness also supports transformers 5.22.2 (Apache-2.0). Neither oracle is a shipped dependency.
+
+## LibriSpeech fixture
+
+`testdata/1089-134686-0001.flac` is from the LibriSpeech ASR corpus (2015), Vassil Panayotov, Guoguo Chen, Daniel Povey and Sanjeev Khudanpur. Test-clean utterance 1089-134686-0001 is distributed unmodified under Creative Commons Attribution 4.0: <https://creativecommons.org/licenses/by/4.0/>. Source: <https://www.openslr.org/12>. The archive path and SHA-256 are recorded in `testdata/manifest.json`.

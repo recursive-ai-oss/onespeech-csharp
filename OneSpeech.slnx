@@ -2,4 +2,5 @@
   <Folder Name="/src/"><Project Path="src/OneSpeech/OneSpeech.csproj" /><Project Path="src/OneSpeech.Media/OneSpeech.Media.csproj" /><Project Path="src/OneSpeech.Cli/OneSpeech.Cli.csproj" /></Folder>
   <Folder Name="/tests/"><Project Path="tests/OneSpeech.Tests/OneSpeech.Tests.csproj" /><Project Path="tests/AotSmoke/AotSmoke.csproj" /></Folder>
   <Project Path="eval/OneSpeech.Eval/OneSpeech.Eval.csproj" /><Project Path="tools/OneSpeech.Convert/OneSpeech.Convert.csproj" /><Project Path="fuzz/OneSpeech.Fuzz/OneSpeech.Fuzz.csproj" /><Project Path="bench/OneSpeech.Bench/OneSpeech.Bench.csproj" />
+  <Project Path="tools/OneSpeech.WhisperProbe/OneSpeech.WhisperProbe.csproj" /><Project Path="fuzz/OneSpeech.SafeTensors.Fuzz/OneSpeech.SafeTensors.Fuzz.csproj" />
 </Solution>

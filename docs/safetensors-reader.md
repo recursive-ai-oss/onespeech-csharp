@@ -1,0 +1,11 @@
+# Internal safetensors reader
+
+The internal `OneSpeech.Formats.SafeTensorFile` reads the published safetensors format (v0.6.2 format description). It does not load executable objects. A readable, seekable stream is required. Construction starts at file offset zero and owns the stream unless `leaveOpen` is true. Instances are not thread-safe; the underlying stream must not change during use.
+
+Before allocating a header buffer, check the unsigned little-endian 64-bit header size against the remaining file and the 8 MiB header limit. The first header byte must be `{`. Parse strict UTF-8 JSON with depth at most 8; duplicate entries and duplicate tensor fields are rejected. Metadata must be a string-to-string map. Names and property strings have a 1024-byte encoded bound; metadata values have a 64 KiB bound. There are at most 50,000 root entries and at most 50,000 metadata keys, and tensor rank is at most 16.
+
+Every tensor has exactly `dtype`, `shape` and `data_offsets`. Dimensions and offsets are nonnegative signed 64-bit integers. Scalar and empty tensors are allowed. Shape products use checked arithmetic; byte length must equal element count times dtype size. Sorted ranges must cover the payload exactly, with no overlaps, holes, out-of-file ranges or trailing unindexed bytes. Unsupported dtypes fail explicitly. Supported byte widths are BOOL/I8/U8, F16/BF16/I16/U16, F32/I32/U32 and F64/I64/U64; no sub-byte or float8 types are accepted.
+
+`CopyTensorTo` copies original bytes with a 64 KiB buffer. `ReadFloat32` materializes F32/F16/BF16 only and refuses more than 134,217,728 elements (512 MiB output), checked before allocation. Conversion widens values; it does not calibrate, quantize or modify weights. Tensor NaNs and infinities remain data. Cancellation is checked between copy/read blocks. Header validation errors are `InvalidDataException`; unsupported dtypes are `NotSupportedException`. File-system and stream errors remain I/O errors.
+
+`fuzz/OneSpeech.SafeTensors.Fuzz` generates its own corpus from synthetic headers and tests parsing and bounded float reads. `fuzz/run-safetensors-smoke.sh` runs one bounded libFuzzer process and puts binaries, tools, generated seeds and findings in the supplied scratch directory.

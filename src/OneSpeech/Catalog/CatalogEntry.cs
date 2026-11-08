@@ -13,7 +13,7 @@ public sealed record CatalogFile
     public required long Size { get; init; }
     /// <summary>Expected SHA-256, 64 hexadecimal digits.</summary>
     public required string Sha256 { get; init; }
-    /// <summary>Pinned publisher HTTPS URL, or tier-1 release artifact metadata for converted files. Local conversion does not fetch converted URLs.</summary>
+    /// <summary>Pinned publisher HTTPS URL, or tier-1 release artifact metadata for converted files. Local conversion never fetches converted URLs; tier-2 output URLs identify the publisher input, not an output download.</summary>
     public required string UpstreamUrl { get; init; }
     /// <summary>Optional tier-1 mirror HTTPS URL; null for upstream-only files.</summary>
     public string? MirrorUrl { get; init; }
@@ -32,7 +32,7 @@ public sealed record CatalogEntry
     public required string Revision { get; init; }
     /// <summary>Files required to load this model.</summary>
     public ImmutableArray<CatalogFile> Files { get; init; } = [];
-    /// <summary>Converted runtime files; empty while conversion metadata is pending. Never populated for tier 2.</summary>
+    /// <summary>Locally converted runtime files; empty while conversion metadata is pending. Tier-2 outputs are cache-only, never fetched or redistributed; their UpstreamUrl identifies the publisher input.</summary>
     public ImmutableArray<CatalogFile> ConvertedFiles { get; init; } = [];
     /// <summary>Whether this entry is the declared family default; false unless explicitly declared. Tier 2 cannot be a default.</summary>
     public bool IsDefault { get; init; }

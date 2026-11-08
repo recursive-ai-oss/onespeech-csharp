@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><PackageId>$(PackagePrefix).OneSpeech.Models.CamPlusEnglish</PackageId><ModelId>iic/speech_campplus_sv_en_voxceleb_16k</ModelId></PropertyGroup>
+  <Import Project="../../tools/models/ModelPackage.targets" />
+</Project>

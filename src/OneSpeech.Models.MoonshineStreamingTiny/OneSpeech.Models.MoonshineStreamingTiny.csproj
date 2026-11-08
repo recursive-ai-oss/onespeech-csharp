@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><PackageId>$(PackagePrefix).OneSpeech.Models.MoonshineStreamingTiny</PackageId><ModelId>moonshine-ai/moonshine-streaming-tiny</ModelId></PropertyGroup>
+  <Import Project="../../tools/models/ModelPackage.targets" />
+</Project>

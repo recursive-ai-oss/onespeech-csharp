@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="RecursiveAI.OneSpeech" Version="$(Version)" />
+    <PackageReference Include="RecursiveAI.OneSpeech.Models.CamPlusEnglish" Version="$(Version)" />
+    <PackageReference Include="RecursiveAI.OneSpeech.Models.MoonshineTiny" Version="$(Version)" />
+    <PackageReference Include="RecursiveAI.OneSpeech.Models.MoonshineBase" Version="$(Version)" />
+    <PackageReference Include="RecursiveAI.OneSpeech.Models.MoonshineStreamingTiny" Version="$(Version)" />
+  </ItemGroup>
+</Project>

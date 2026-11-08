@@ -16,7 +16,7 @@ if (args is ["align-order-smoke", var orderClip, var orderDocument])
     var explicitCtc = Speech.Align(orderClip, written, language: "en", model: "facebook/omniASR-CTC-300M");
     if (!explicitCtc.Words.Any(w => w.TimingMethod == TimingMethod.CtcAligner)) throw new InvalidDataException("Explicit CTC was not selected.");
     await using var encoded = File.OpenRead(orderClip);
-    var streamed = await Speech.AlignAsync(encoded, written, CancellationToken.None, language: "en");
+    var streamed = await Speech.AlignAsync(encoded, written, language: "en", cancellationToken: CancellationToken.None);
     if (!chosen.Words.SequenceEqual(streamed.Words)) throw new InvalidDataException("Path and encoded-stream alignment differ.");
     Console.WriteLine("Alignment priority, explicit selection and encoded-stream equivalence passed.");
     return 0;
@@ -42,7 +42,7 @@ if (args.Length >= 3 && args[0] == "smoke")
 {
     foreach (string clip in args[2..])
     {
-        var transcript = Speech.Transcribe(clip, cancellation.Token, model: args[1]);
+        var transcript = Speech.Transcribe(clip, model: args[1], cancellationToken: cancellation.Token);
         if (string.IsNullOrWhiteSpace(transcript.Text)) throw new InvalidDataException("Smoke transcription was empty.");
         Console.WriteLine($"{Path.GetFileName(clip)}\t{transcript.Text}");
     }
@@ -110,9 +110,9 @@ if (args is [var operation, var path, var destination, var truthPath, var model]
     if (operation == "transcribe-stream")
     {
         await using var input = File.OpenRead(path);
-        transcript = await Speech.TranscribeAsync(input, cancellation.Token, model: model == "default" ? null : model);
+        transcript = await Speech.TranscribeAsync(input, model: model == "default" ? null : model, cancellationToken: cancellation.Token);
     }
-    else transcript = Speech.Transcribe(path, cancellation.Token, model: model == "default" ? null : model);
+    else transcript = Speech.Transcribe(path, model: model == "default" ? null : model, cancellationToken: cancellation.Token);
     File.WriteAllText(destination + ".json", transcript.ToJson());
     File.WriteAllText(destination + ".txt", transcript.Text);
     var score = Metrics.Score(Normalizer.Normalize(File.ReadAllText(truthPath), "en"), Normalizer.Normalize(transcript.Text, "en"));
@@ -121,7 +121,7 @@ if (args is [var operation, var path, var destination, var truthPath, var model]
 }
 if (args is ["detect", var audioPath, var modelId])
 {
-    Console.WriteLine(Speech.DetectLanguage(audioPath, cancellation.Token, model: modelId));
+    Console.WriteLine(Speech.DetectLanguage(audioPath, model: modelId, cancellationToken: cancellation.Token));
     return 0;
 }
 Console.Error.WriteLine("Usage: prepare <first.flac> <second.flac> <output> | pull <id> | transcribe[-stream] <audio> <output-prefix> <truth.txt> <model-id|default> | detect <audio> <model-id>");

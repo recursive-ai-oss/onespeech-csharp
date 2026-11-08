@@ -30,21 +30,23 @@ internal sealed class OrderedTimingAligner(ModelStore store, bool realign = fals
         }
     }
 
-    public override Transcript Align(AudioBuffer audio, string text, string? language, CancellationToken cancellationToken)
+    public override Transcript Align(AudioBuffer audio, string text, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, "ordered timing");
         var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(w => new Word { Text = w, Language = language }).ToImmutableArray();
         var original = new Transcript { Text = text, Language = language, Duration = audio.Duration, Words = words,
             Segments = [new Segment { Text = text, Words = words, Start = TimeSpan.Zero, End = audio.Duration, Language = language }] };
         return Align(audio, original, language, cancellationToken);
     }
 
-    public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken)
+    public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language ?? transcript.Language, Capabilities, "ordered timing");
         // Explicit alignment can target different audio; old timings are not evidence for the new input.
         if (realign) transcript = Alignment.AlignedWords.Replace(transcript,
             transcript.Words.Select(w => w with { Start = null, End = null, TimingMethod = TimingMethod.None }).ToImmutableArray());
         return VadTranscriptionPipeline.ApplyTiming(audio, transcript, language, Candidates(audio, language ?? transcript.Language, cancellationToken), cancellationToken);
     }
 
-    public void Dispose() { qwen?.Dispose(); ctc?.Dispose(); }
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return; qwen?.Dispose(); ctc?.Dispose(); }
 }

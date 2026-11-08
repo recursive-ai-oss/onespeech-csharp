@@ -37,7 +37,7 @@ public sealed class OnlineDiarizationSession : LiveSession
     /// <inheritdoc />
     protected override void Process(AudioBuffer audio, CancellationToken cancellationToken)
     {
-        if (audio.FrameCount > 160000) throw new UnsupportedAudioException("Online diarization accepts chunks of at most 10 seconds.");
+        if (audio.FrameCount > 160000) throw new ArgumentException("Online diarization accepts chunks of at most 10 seconds.");
         foreach (float sample in audio.Samples.Span) ring[(int)(position++ % ring.Length)] = sample;
         Forward(inner.Push(audio, cancellationToken), cancellationToken);
     }

@@ -13,7 +13,7 @@ public sealed class MoonshineTests
     {
         Assert.Throws<CapabilityNotSupportedException>(() => MoonshineProvenance.Get("moonshine-ai/moonshine-tiny-zh"));
         Assert.Equal(64, MoonshineProvenance.Get("moonshine-ai/moonshine-tiny").Sha256.Length);
-        Assert.Throws<ArgumentOutOfRangeException>(() => new MoonshineOptions { IntraOpThreads = 0 }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MoonshineOptions { Threads = 0 }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new MoonshineOptions { TokensPerSecond = double.NaN }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new MoonshineOptions { TokensPerSecond = 33 }.Validate());
     }

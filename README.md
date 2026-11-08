@@ -21,7 +21,7 @@ await foreach (Segment segment in Speech.TranscribeStream("lecture.wav"))
 Transcript aligned = Speech.Align("short.wav", "The words that were spoken.", language: "en");
 ```
 
-`Transcribe` returns a timed, diarized, language-tagged `Transcript`: inspect `Words`, `Segments`, `Turns` and `Models`. Failed word timing is **null**, never invented. A speaker label is anonymous and local to the document, not a person's identity. `TranscribeStream` yields final segments in bounded chunks; it does **not** perform whole-file speaker assignment. Standalone `Align` accepts at most 60 seconds. File calls have explicit cancellation overloads; encoded-stream I/O uses `TranscribeAsync` / `AlignAsync`.
+`Transcribe` returns a timed, diarized, language-tagged `Transcript`: inspect `Words`, `Segments`, `Turns` and `Models`. Failed word timing is **null**, never invented. A speaker label is anonymous and local to the document, not a person's identity. `TranscribeStream` yields final segments in bounded chunks; it does **not** perform whole-file speaker assignment. Standalone `Align` accepts at most 60 seconds. All verbs take an optional final `cancellationToken`; path and encoded-stream I/O have `*Async` forms. CPU inference remains synchronous within those calls. Language tags are case-insensitive: `en-US`, `EN`, `eng` and `English` resolve to `en`; unsupported hints throw `CapabilityNotSupportedException`.
 
 `Speech.Listen` consumes caller-supplied mono 16 kHz PCM as an `IAsyncEnumerable<AudioBuffer>`. It emits replacing partials, immutable finals, endpoints and speaker turns on one audio clock. It does not capture a microphone. See [live sessions](docs/live-sessions.md).
 
@@ -30,6 +30,12 @@ For speaker recognition, use `Speech.Enroll("alice", "enrollment.wav")`, `Speech
 ### Overlapping speech
 
 **The default clustering diarizer does not detect overlapping speech.** For an overlap-aware upgrade (up to eight speakers), load the named tier-2 diarizer in one call: `await NemotronDiarizer.LoadAsync()`, then pass it to your transcription pipeline. This does not separate simultaneous voices. See the [complete replacement example](docs/diarization.md#voice-clustering-and-overlap-limitation) and [Nemotron guide](docs/nemotron-diarization.md). It is never downloaded as a default.
+
+## First-use downloads and offline preparation
+
+The `model` argument selects a role, **not the entire pipeline**. Transcription also needs a speaker embedder and, without native timings, companion aligners. Even Whisper tiny can require several GB on first use. Silero VAD is embedded. See the [per-verb download table](docs/model-downloads.md) for exact IDs, sizes and conditional dependencies.
+
+`await Speech.PrefetchAsync(language: "en", model: "openai/whisper-tiny");` prepares the complete companion set, including timing fallbacks, without running inference. For live use, pass `model: "moonshine-ai/moonshine-streaming-tiny"`. Every downloadable family exposes `Load(ResolvedModel, …)` and `LoadAsync(store, model, …)`; [composition examples](docs/loading.md) use documented role types.
 
 ## Packages
 

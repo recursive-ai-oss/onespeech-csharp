@@ -56,7 +56,7 @@ internal static class MoonshineLiveProbe
     {
         // At most one decode/final can occur per push below the 250 ms speech minimum.
         if (chunk is < 1 or > 1600) throw new ArgumentOutOfRangeException(nameof(chunk), "Token-traced probes support pushes up to 100 ms.");
-        using var recognizer = MoonshineRecognizer.Load(directory, new MoonshineOptions { IntraOpThreads = 2 });
+        using var recognizer = MoonshineRecognizer.Load(directory, new MoonshineOptions { Threads = 2 });
         using var vad = new SileroVad();
         Directory.CreateDirectory(output);
         foreach (string file in Directory.EnumerateFiles(split, "*.flac", SearchOption.AllDirectories).OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Skip(begin).Take(count))

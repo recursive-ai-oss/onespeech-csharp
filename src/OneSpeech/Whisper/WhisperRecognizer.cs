@@ -9,7 +9,7 @@ namespace OneSpeech.Whisper;
 
 /// <summary>Offline Whisper recognition from independently converted local OneModel graphs and published tokenizer data.</summary>
 /// <remarks>Instances are not concurrent: use one instance per transcription. Input is 16 kHz mono; file decoding and VAD are separate roles.</remarks>
-public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
+public sealed partial class WhisperRecognizer : SpeechRecognizer, IDisposable
 {
     private readonly WhisperModelSession runtime;
     private readonly WhisperTokenizer tokenizer;
@@ -60,15 +60,17 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
     public override Capabilities Capabilities { get; }
 
     /// <inheritdoc/>
-    public override Transcript Transcribe(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         var segments = TranscribeStream(audio, language, cancellationToken).ToImmutableArray();
         return new Transcript { Text = string.Concat(segments.Select(s => s.Text)), Segments = segments, Words = segments.SelectMany(s => s.Words).ToImmutableArray(), Duration = audio.Duration, Language = language ?? segments.FirstOrDefault()?.Language, Models = [Model] };
     }
 
     /// <inheritdoc/>
-    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ValidateAudio(audio);
         cancellationToken.ThrowIfCancellationRequested();
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -92,7 +94,7 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
             Attempt result = Decode(encoded, prefix.ToArray(), cancellationToken);
             WindowTrace?.Invoke(seek, prefix.ToArray(), result.Tokens);
             bool skip = options.NoSpeechThreshold.HasValue && result.NoSpeech > options.NoSpeechThreshold.Value && !(options.LogProbabilityThreshold.HasValue && result.AverageLogProbability > options.LogProbabilityThreshold.Value);
-            if (skip) { seek += count; options.Progress?.Invoke(TimeSpan.FromSeconds(seek / 16000.0)); continue; }
+            if (skip) { seek += count; options.Progress?.Report(TimeSpan.FromSeconds(seek / 16000.0)); continue; }
             var sliced = Slice(result.Tokens, seek, count, language);
             int advance = sliced.Advance;
             if (options.WordTimestamps && sliced.Segments.Count > 0)
@@ -117,12 +119,12 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
             if (!options.ConditionOnPreviousText || result.Temperature > .5) context.Clear();
             else { context.AddRange(sliced.ContextTokens); if (context.Count > 223) context.RemoveRange(0, context.Count - 223); }
             seek += Math.Clamp(advance, 1, count);
-            options.Progress?.Invoke(TimeSpan.FromSeconds(seek / 16000.0));
+            options.Progress?.Report(TimeSpan.FromSeconds(seek / 16000.0));
         }
     }
 
     /// <inheritdoc/>
-    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken)
+    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken = default)
     {
         ValidateAudio(audio);
         cancellationToken.ThrowIfCancellationRequested();
@@ -326,5 +328,5 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
         => WhisperWordAlignment.Align(runtime, tokenizer, alignmentHeads, encoded, segment, offset, count, [start, languages[language], options.Task == WhisperTask.Transcribe ? transcribe : translate, noTimestamps], end, cancellationToken, originalTokens);
 
     /// <summary>Releases model sessions. Subsequent processing throws ObjectDisposedException.</summary>
-    public void Dispose() { if (disposed) return; runtime.Dispose(); disposed = true; }
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return; if (disposed) return; runtime.Dispose(); disposed = true; }
 }

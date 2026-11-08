@@ -53,6 +53,11 @@ public sealed record Word
 /// <summary>An immutable segment on the shared audio clock.</summary>
 public sealed record Segment
 {
+    /// <summary>Compares all document fields and collection elements by value.</summary>
+    public bool Equals(Segment? other) => ReferenceEquals(this, other) || other is not null && Text == other.Text && Start == other.Start && End == other.End && Language == other.Language && SequenceValue.Equals(Words, other.Words);
+    /// <summary>Hashes the same fields and ordered collection elements used by equality.</summary>
+    public override int GetHashCode() => HashCode.Combine(Text, Start, End, Language, SequenceValue.Hash(Words));
+
     /// <summary>Segment text; preserved exactly rather than reconstructed from words.</summary>
     public required string Text { get; init; }
     /// <summary>Start on the audio clock, or null when unavailable.</summary>
@@ -68,6 +73,11 @@ public sealed record Segment
 /// <summary>A speaker turn; turns may overlap.</summary>
 public sealed record Turn
 {
+    /// <summary>Compares all document fields and collection elements by value.</summary>
+    public bool Equals(Turn? other) => ReferenceEquals(this, other) || other is not null && Speaker == other.Speaker && Start == other.Start && End == other.End && Text == other.Text && SequenceValue.Equals(Words, other.Words);
+    /// <summary>Hashes the same fields and ordered collection elements used by equality.</summary>
+    public override int GetHashCode() => HashCode.Combine(Speaker, Start, End, Text, SequenceValue.Hash(Words));
+
     /// <summary>Speaker ID; Unassigned denotes no attribution.</summary>
     public required SpeakerLabel Speaker { get; init; }
     /// <summary>Inclusive turn start on the audio clock.</summary>
@@ -81,8 +91,14 @@ public sealed record Turn
 }
 
 /// <summary>An immutable transcription document. Times are relative to the input audio, not wall time.</summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(TranscriptJsonConverter))]
 public sealed record Transcript
 {
+    /// <summary>Compares all document fields and collection elements by value.</summary>
+    public bool Equals(Transcript? other) => ReferenceEquals(this, other) || other is not null && Text == other.Text && Language == other.Language && Duration == other.Duration && SequenceValue.Equals(Words, other.Words) && SequenceValue.Equals(Segments, other.Segments) && SequenceValue.Equals(Turns, other.Turns) && SequenceValue.Equals(Models, other.Models);
+    /// <summary>Hashes the same fields and ordered collection elements used by equality.</summary>
+    public override int GetHashCode() => HashCode.Combine(Text, Language, Duration, SequenceValue.Hash(Words), SequenceValue.Hash(Segments), SequenceValue.Hash(Turns), SequenceValue.Hash(Models));
+
     /// <summary>Written text, preserved exactly, including whitespace.</summary>
     public required string Text { get; init; }
     /// <summary>Recognized words in input order; empty by default.</summary>

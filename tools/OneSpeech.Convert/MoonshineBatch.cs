@@ -27,7 +27,7 @@ internal static class MoonshineBatch
     internal static void Run(string model, string splitRoot, string output, int begin, int count, bool refreshIncomplete = false)
     {
         Directory.CreateDirectory(output);
-        using var recognizer = MoonshineRecognizer.Load(model, new MoonshineOptions { IntraOpThreads = 2 });
+        using var recognizer = MoonshineRecognizer.Load(model, new MoonshineOptions { Threads = 2 });
         var files = Directory.EnumerateFiles(splitRoot, "*.flac", SearchOption.AllDirectories).OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Skip(begin).Take(count);
         foreach (string file in files)
         {

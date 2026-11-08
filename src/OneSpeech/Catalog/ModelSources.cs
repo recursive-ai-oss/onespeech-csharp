@@ -6,6 +6,8 @@ namespace OneSpeech.Catalog;
 /// <summary>A publisher or mirror request failed. Credentials and signed URLs are not included in the error.</summary>
 public sealed class ModelNetworkException : OneSpeechException
 {
+    /// <summary>Catalog ID involved, null when no ID is available.</summary>
+    public string? ModelId { get; init; }
     /// <summary>Creates a sanitized transport failure.</summary>
     public ModelNetworkException(string message) : base(message) { }
 }
@@ -29,7 +31,7 @@ public sealed class HttpModelSource : ModelSource
     {
         ModelCatalog.Validate(model);
         if (!model.Files.Contains(file) && !model.ConvertedFiles.Contains(file)) throw new InvalidModelCatalogException("File is not part of this model.");
-        if (model.Gated && string.IsNullOrWhiteSpace(token)) throw new ModelTokenRequiredException("Set ONESPEECH_MODEL_TOKEN or pass a token after accepting the publisher's gate.");
+        if (model.Gated && string.IsNullOrWhiteSpace(token)) throw new ModelTokenRequiredException($"Model '{model.Id}' at {model.Source} requires gate acceptance; set ONESPEECH_MODEL_TOKEN or pass a token.") { ModelId = model.Id };
         // Tier 2 never reaches a mirror, including when this source is used outside ModelStore.
         var uri = ModelCatalog.Https(model.Tier == ModelTier.Tier1 ? file.MirrorUrl ?? file.UpstreamUrl : file.UpstreamUrl);
         try
@@ -40,7 +42,7 @@ public sealed class HttpModelSource : ModelSource
                 if (redirects == 0 && token is not null && uri.AbsoluteUri == file.UpstreamUrl)
                 {
                     try { request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token); }
-                    catch (FormatException) { throw new ModelTokenRequiredException("Invalid model token format. Supply a single publisher access token."); }
+                    catch (FormatException) { throw new ModelTokenRequiredException($"Invalid token format for model '{model.Id}'. Supply a single publisher access token.") { ModelId = model.Id }; }
                 }
                 var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 if (response.StatusCode is HttpStatusCode.Moved or HttpStatusCode.Redirect or HttpStatusCode.RedirectMethod or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect)
@@ -56,9 +58,9 @@ public sealed class HttpModelSource : ModelSource
                     var status = response.StatusCode;
                     bool gateRefused = response.Headers.TryGetValues("X-Error-Code", out var codes) && codes.Contains("GatedRepo", StringComparer.OrdinalIgnoreCase);
                     response.Dispose();
-                    if (gateRefused && status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) throw new ModelGateNotAcceptedException("Accept the publisher repository gate with the account that owns this token, then retry.");
-                    if (status == HttpStatusCode.NotFound) throw new ModelNotFoundException($"Publisher file not found for '{model.Id}'.");
-                    if (status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) throw new ModelTokenRejectedException("Publisher rejected the token. Check its validity and repository permissions, then retry.");
+                    if (gateRefused && status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) throw new ModelGateNotAcceptedException($"Accept the publisher gate for model '{model.Id}' at {model.Source} with the account that owns this token, then retry.") { ModelId = model.Id };
+                    if (status == HttpStatusCode.NotFound) throw new ModelUnavailableException($"Publisher file not found for '{model.Id}'.") { ModelId = model.Id };
+                    if (status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) throw new ModelTokenRejectedException($"Publisher rejected the token for model '{model.Id}' at {model.Source}. Check its validity and repository permissions, then retry.") { ModelId = model.Id };
                     throw new ModelNetworkException($"Model request failed (HTTP {(int)status}).");
                 }
                 if (response.Content.Headers.ContentLength is long length && length != file.Size)
@@ -100,7 +102,7 @@ public sealed class HttpModelSource : ModelSource
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        protected override void Dispose(bool disposing) { if (disposing) { inner.Dispose(); response.Dispose(); } base.Dispose(disposing); }
+        protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return; if (disposing) { inner.Dispose(); response.Dispose(); } base.Dispose(disposing); }
     }
 }
 
@@ -118,7 +120,7 @@ public sealed class DirectoryModelSource : ModelSource
         cancellationToken.ThrowIfCancellationRequested();
         string path = Path.Combine(root, model.Id, model.Revision, file.Name);
         try { return ValueTask.FromResult<Stream>(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan)); }
-        catch (FileNotFoundException) { throw new ModelNotFoundException($"Local file '{file.Name}' for '{model.Id}' is missing."); }
-        catch (DirectoryNotFoundException) { throw new ModelNotFoundException($"Local model '{model.Id}' is missing."); }
+        catch (FileNotFoundException) { throw new ModelUnavailableException($"Local file '{file.Name}' for '{model.Id}' is missing.") { ModelId = model.Id }; }
+        catch (DirectoryNotFoundException) { throw new ModelUnavailableException($"Local model '{model.Id}' is missing.") { ModelId = model.Id }; }
     }
 }

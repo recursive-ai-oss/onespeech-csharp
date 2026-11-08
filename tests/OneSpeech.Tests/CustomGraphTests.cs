@@ -19,7 +19,7 @@ public sealed class CustomGraphTests
         {
             string path = Path.Combine(root, "ctc.onemodel");
             Constant(path, 3, [1, 4, 3], [9, -9, -9, -9, -9, 9, -9, 9, -9, -9, -9, 9]);
-            using var recognizer = new GraphSpeechRecognizer([new() { Path = path, Channels = 3, Stride = 100 }], GraphFrontEnd.RawWaveform, new(["a", " b", ""]), 2, TimeSpan.FromTicks(62500), Provenance, beamSize: beam, cancellationToken: TestContext.Current.CancellationToken);
+            using var recognizer = new GraphSpeechRecognizer([new() { Path = path, Channels = 3, Stride = 100 }], GraphFrontEnd.RawWaveform, new(["a", " b", ""]), 2, TimeSpan.FromTicks(62500), Provenance, beamSize: beam, languages: ["en"], cancellationToken: TestContext.Current.CancellationToken);
             var t = recognizer.Transcribe(new(new float[400], 16000), "en", TestContext.Current.CancellationToken);
             Assert.Equal("a b", t.Text); Assert.Equal(2, t.Words.Length);
             Assert.Equal(TimeSpan.Zero, t.Words[0].Start); Assert.Equal(TimeSpan.FromTicks(62500), t.Words[0].End);

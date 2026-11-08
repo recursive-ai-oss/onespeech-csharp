@@ -12,7 +12,7 @@ namespace OneSpeech.FastConformer;
 
 /// <summary>Offline greedy fp32 Parakeet-TDT-v3 recognizer with native 80 ms frame timings. Instances are not thread-safe.</summary>
 /// <remarks>Loads only explicitly selected tier-2 cache files. Audio is mono 16 kHz; input longer than 30 seconds uses VAD-first chunks. No language conditioning, translation, phrase biasing or language-ID head is provided.</remarks>
-public sealed class ParakeetRecognizer : SpeechRecognizer, IDisposable
+public sealed partial class ParakeetRecognizer : SpeechRecognizer, IDisposable
 {
     private readonly Model encoderFirst;
     private readonly Model encoderSecond;
@@ -53,12 +53,12 @@ public sealed class ParakeetRecognizer : SpeechRecognizer, IDisposable
         catch { first?.Dispose(); second?.Dispose(); pred?.Dispose(); join?.Dispose(); throw; }
     }
 
-    /// <summary>Loads a publisher-verified, locally converted resolved cache entry. Threads default to zero (runtime selection); nonnegative values select the intra-op limit.</summary>
+    /// <summary>Loads a publisher-verified, locally converted resolved cache entry. Threads default to 1; zero selects runtime selection; nonnegative values select the intra-op limit.</summary>
     /// <exception cref="ArgumentOutOfRangeException">Threads is negative.</exception>
     /// <exception cref="ModelIntegrityException">Provenance or an artifact is invalid.</exception>
     /// <exception cref="IOException">A required local artifact is missing or unreadable.</exception>
     /// <exception cref="OperationCanceledException">Loading is canceled.</exception>
-    public static ParakeetRecognizer Load(ResolvedModel model, int threads = 0, CancellationToken cancellationToken = default)
+    public static ParakeetRecognizer Load(ResolvedModel model, int threads = 1, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(model);
         ArgumentOutOfRangeException.ThrowIfNegative(threads);
@@ -82,6 +82,7 @@ public sealed class ParakeetRecognizer : SpeechRecognizer, IDisposable
     /// <exception cref="OperationCanceledException">Inference is canceled at graph or decoding steps.</exception>
     public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ObjectDisposedException.ThrowIf(disposed, this); ArgumentNullException.ThrowIfNull(audio);
         cancellationToken.ThrowIfCancellationRequested();
         if (language != null && !Capabilities.Languages.Contains(language)) throw new CapabilityNotSupportedException("Parakeet-TDT-v3 does not support language '" + language + "'.");
@@ -149,6 +150,7 @@ public sealed class ParakeetRecognizer : SpeechRecognizer, IDisposable
     /// <summary>Yields immutable final segments with VAD-first 30-second chunks. Input, language, disposal and cancellation rules match Transcribe.</summary>
     public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ObjectDisposedException.ThrowIf(disposed, this); ArgumentNullException.ThrowIfNull(audio);
         cancellationToken.ThrowIfCancellationRequested();
         if (language != null && !Capabilities.Languages.Contains(language)) throw new CapabilityNotSupportedException("Parakeet-TDT-v3 does not support language '" + language + "'.");
@@ -158,15 +160,14 @@ public sealed class ParakeetRecognizer : SpeechRecognizer, IDisposable
     }
 
     /// <summary>Throws CapabilityNotSupportedException: this checkpoint does not expose an independent language-ID result.</summary>
-    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken)
+    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(disposed, this); cancellationToken.ThrowIfCancellationRequested();
         throw new CapabilityNotSupportedException("Parakeet-TDT-v3 has no separate language-ID output; use Whisper or Qwen3-ASR for DetectLanguage.");
     }
 
     /// <summary>Releases CPU model weights and graph workspaces. Repeated calls are harmless.</summary>
-    public void Dispose()
-    {
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return;
         if (disposed) return; disposed = true;
         encoderFirst.Dispose(); encoderSecond.Dispose(); predictor.Dispose(); joint.Dispose();
     }

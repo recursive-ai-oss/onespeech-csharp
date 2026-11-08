@@ -61,7 +61,8 @@ internal sealed partial class MoonshineGraphWriter(SafeTensorFile weights, bool 
     private string Reshape(string x, params long[] shape) => Op("Reshape", [x, Ints(shape)]);
     private string Linear(string x, string prefix, bool bias = true)
     {
-        string y = int8 ? Int8Linear(x, prefix + ".weight") : Op("MatMul", [x, Transpose(Weight(prefix + ".weight"), 1, 0)]);
+        // Preserve attention projections in fp32; quantize the decoder's larger MLPs and vocabulary head.
+        string y = int8 && prefix.Contains(".mlp.", StringComparison.Ordinal) ? Int8Linear(x, prefix + ".weight") : Op("MatMul", [x, Transpose(Weight(prefix + ".weight"), 1, 0)]);
         return bias ? Op("Add", [y, Weight(prefix + ".bias")]) : y;
     }
     private readonly Dictionary<string, (string Weight, string Scale)> quantizedWeights = new(StringComparer.Ordinal);

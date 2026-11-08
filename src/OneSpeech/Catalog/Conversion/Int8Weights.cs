@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace OneSpeech.Catalog.Conversion;
 
-// Symmetric per-output-channel weights; activations use OneModel's ONNX DynamicQuantizeLinear.
+// Symmetric per-output-channel weights; each family graph supplies its runtime activation ranges.
 // No activation statistics or evaluation audio are used during conversion.
 internal static class Int8Weights
 {

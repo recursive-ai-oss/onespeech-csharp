@@ -13,7 +13,7 @@ mkdir -p "$out"
   dotnet --info
   printf 'OneModel=1.2.0-preview.2 OneAudio=1.7.2 GPU=unused precision=fp32/mixed-int8\n'
 } > "$out/environment.txt"
-for model in whisper-small whisper-large-v3-turbo moonshine-streaming-tiny; do
+for model in ${ONESPEECH_INT8_MODELS:-whisper-small whisper-large-v3-turbo moonshine-streaming-tiny}; do
   for precision in fp32 int8; do
     if [[ $precision = fp32 ]]; then directory=$ONESPEECH_MODELS/$model; else directory=$ONESPEECH_INT8_STATE/$model-int8; fi
     for threads in 1 8; do

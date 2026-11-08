@@ -3202,30 +3202,30 @@
       "convertedFiles": [
         {
           "name": "encoder.onemodel",
-          "size": 15785284,
-          "sha256": "12a5791750ed888d037038441b7ee208f3def0466fb18f5c9192805bcd257ba1",
-          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-int8-encoder-12a5791750ed888d.onemodel",
+          "size": 37888964,
+          "sha256": "8d97f1c44a189c3575d8f6653204b5f9e166f888a35b0bed1ed6f3c0067587a9",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-encoder.onemodel",
           "mirrorUrl": null
         },
         {
           "name": "decoder.onemodel",
-          "size": 70452033,
-          "sha256": "cb1dee81174adb112e440c05f50ab739b308c4df660b9a40b4b6c812946bad88",
-          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-int8-decoder-cb1dee81174adb11.onemodel",
+          "size": 85107969,
+          "sha256": "78c2fffa0ff3222b1cc59c9d332e2a83978085a2218849badb0ca3dc4c2ad5f7",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-int8-decoder-78c2fffa0ff3222b.onemodel",
           "mirrorUrl": null
         },
         {
           "name": "decoder-project.onemodel",
-          "size": 6503136,
-          "sha256": "bf55b2de7d60c183d1c04be507d641bdf7868ce06201a65098662d47fc45b33c",
-          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-int8-decoder-project-bf55b2de7d60c183.onemodel",
+          "size": 10167264,
+          "sha256": "a452d70666e29d54daa34f799d5f8299706e83f6b1fa1f6a82318af23c1c7da8",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-decoder-project.onemodel",
           "mirrorUrl": null
         },
         {
           "name": "decoder-step.onemodel",
-          "size": 63973313,
-          "sha256": "d11a0bd8ddb0c61a9d549614e39af5312fc586ab450c0fb2711e678799d46caa",
-          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-int8-decoder-step-d11a0bd8ddb0c61a.onemodel",
+          "size": 74965121,
+          "sha256": "446a60bd19f5208d79a813c593cd005619b4cd4f121d3ee5f337ba395edc0f5d",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-int8-decoder-step-446a60bd19f5208d.onemodel",
           "mirrorUrl": null
         }
       ],

@@ -5,7 +5,7 @@ using OneSpeech.Whisper;
 
 internal static class Int8Conversion
 {
-    internal static void Run(string input, string output)
+    internal static void Run(string input, string output, bool verifyConverted = true)
     {
         string[] provenance = File.ReadAllLines(Path.Combine(input, "upstream.txt"));
         if (provenance.Length != 3 || provenance[0].EndsWith("-int8", StringComparison.Ordinal)) throw new InvalidDataException("Expected original publisher checkpoint provenance.");
@@ -25,7 +25,7 @@ internal static class Int8Conversion
         {
             using var stream = File.OpenRead(Path.Combine(output, file.Name));
             string digest = Convert.ToHexStringLower(SHA256.HashData(stream));
-            if (stream.Length != file.Size || digest != file.Sha256) throw new InvalidDataException("Converted file differs from the catalog: " + file.Name);
+            if (verifyConverted && (stream.Length != file.Size || digest != file.Sha256)) throw new InvalidDataException("Converted file differs from the catalog: " + file.Name);
             Console.WriteLine($"{file.Name} {stream.Length} {digest}");
         }
     }

@@ -4,6 +4,7 @@ using OneSpeech.Formats;
 using OneSpeech.Whisper;
 if (args is ["int8-whisper-batch", var ibModel, var ibSplit, var ibOutput, var ibBegin, var ibCount]) { Int8Evaluation.Batch(ibModel, ibSplit, ibOutput, int.Parse(ibBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(ibCount, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
 if (args is ["int8-whisper-metrics", var imModel, var imClip, var imOutput, var imThreads]) { Int8Evaluation.Metrics(imModel, imClip, imOutput, int.Parse(imThreads, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
+if (args is ["int8-candidate", var candidateInput, var candidateOutput]) { Int8Conversion.Run(candidateInput, candidateOutput, verifyConverted: false); return 0; }
 if (args is ["int8-convert", var int8Input, var int8Output]) { Int8Conversion.Run(int8Input, int8Output); return 0; }
 if (args is ["speaker-calibrate", var calibrationTrials, var calibrationEmbeddings]) { SpeakerCalibration.Run(calibrationTrials, calibrationEmbeddings); return 0; }
 if (args is ["nemotron-asr-live-batch", var lbDir, var lbCorpus, var lbOut, var lbChunk, var lbBegin, var lbCount]) { NemotronAsrEvaluation.Batch(lbDir, lbCorpus, lbOut, int.Parse(lbChunk, System.Globalization.CultureInfo.InvariantCulture), int.Parse(lbBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(lbCount, System.Globalization.CultureInfo.InvariantCulture), publishedEvents: true); return 0; }

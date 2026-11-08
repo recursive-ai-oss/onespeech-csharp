@@ -62,8 +62,10 @@ public sealed class Int8Tests
         Assert.Equal(original.Attribution, quantized.Attribution);
         Assert.Equal(ModelTier.Tier1, quantized.Tier);
         Assert.Equal(original.ConvertedFiles.Length - (id.EndsWith("turbo", StringComparison.Ordinal) ? 1 : 0), quantized.ConvertedFiles.Length);
-        foreach (var file in quantized.ConvertedFiles)
-            Assert.DoesNotContain(original.ConvertedFiles, f => f.Sha256 == file.Sha256);
+        Assert.Contains(quantized.ConvertedFiles, file => !original.ConvertedFiles.Any(f => f.Sha256 == file.Sha256));
+        if (id.StartsWith("moonshine-ai/", StringComparison.Ordinal))
+            foreach (string name in new[] { "encoder.onemodel", "decoder-project.onemodel" })
+                Assert.Equal(original.ConvertedFiles.Single(f => f.Name == name).Sha256, quantized.ConvertedFiles.Single(f => f.Name == name).Sha256);
         Assert.NotEqual(quantized.Id, catalog.GetDefault(original.Family).Id);
     }
 

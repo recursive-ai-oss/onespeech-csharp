@@ -1,0 +1,11 @@
+# Shared contracts
+
+`AudioBuffer` views interleaved float PCM without copying it. Mono is one channel; multiple channels preserve separated-party audio for later channel diarization. Sample rates are positive Hz and buffers contain whole frames; processing implementations document rate/channel support. Float samples conventionally lie in [-1,1]; the buffer does not scan, clip or resample them. Callers must not mutate borrowed samples while processing.
+
+`Transcript`, `Word`, `Segment`, `Turn`, `SpeakerLabel`, `ModelInfo`, and `Capabilities` are immutable records with immutable collection values. Text is explicit rather than guessed from punctuation or token spacing. `SpeakerLabel.Unassigned` is distinct from a null (unprocessed) speaker. Failed timings remain null.
+
+Roles process in-memory audio synchronously and require an explicit cancellation token. Recognizers and pipelines also expose synchronous bounded segment enumeration. Asynchronous APIs are reserved for I/O: the `ModelSource` stream hook and the `Speech.TranscribeAsync` input-stream entry point. Models declare support through `Capabilities`; empty languages means no support declared, not unrestricted support. Unsupported capabilities produce a typed error. Typed family options, implementations, live events, and loading policy will be added separately.
+
+`CatalogEntry` and `CatalogFile` describe pinned bytes and their provenance, not loading authorization. `ModelSource` returns caller-owned readable streams; the consuming loader must enforce tier/gate rules, relative-path safety, size, digest, HTTPS and revision policies even for custom sources. `CatalogEntry.FromJson` uses the transcript reader's structural bounds and generated metadata; it is data deserialization only, not semantic catalog verification.
+
+`Speech` currently fails explicitly with `FeatureUnavailableException`. No model is downloaded, no audio is decoded, and no timing or recognition is simulated.

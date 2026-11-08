@@ -1,0 +1,46 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackagePrefix>RecursiveAI</PackagePrefix>
+    <Version>0.1.0-preview.1</Version>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <Deterministic>true</Deterministic>
+    <UseSharedCompilation>false</UseSharedCompilation>
+    <IsPackable>false</IsPackable>
+    <ArtifactsPath Condition="'$(ONESPEECH_ARTIFACTS)' != ''">$(ONESPEECH_ARTIFACTS)</ArtifactsPath>
+    <ArtifactsPath Condition="'$(ArtifactsPath)' == ''">$([System.IO.Path]::Combine($([System.IO.Path]::GetTempPath()), 'onespeech-build'))</ArtifactsPath>
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <RestoreAdditionalProjectSources Condition="'$(ONESPEECH_LOCAL_FEED)' != ''">$(ONESPEECH_LOCAL_FEED)</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)src'))">
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <Authors>Recursive AI, LLC</Authors>
+    <Company>Recursive AI, LLC</Company>
+    <Copyright>Copyright © Recursive AI, LLC</Copyright>
+    <PackageLicenseExpression>MIT OR Apache-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <Description>Speech recognition for .NET. Managed transcription, timing and speaker recognition. Unaffiliated with other products or companies named OneSpeech.</Description>
+    <PackageTags>speech recognition;transcription;ASR;speech-to-text;diarization;speaker recognition;forced alignment;word timestamps;VAD;whisper;qwen3-asr;parakeet;moonshine;silero</PackageTags>
+    <RepositoryUrl>https://github.com/recursive-ai-oss/onespeech-csharp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://recursiveai.org/onespeech/</PackageProjectUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+  <ItemGroup Condition="$([System.String]::Copy('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)src'))">
+    <None Include="$(MSBuildThisFileDirectory)LICENSE-MIT;$(MSBuildThisFileDirectory)LICENSE-APACHE;$(MSBuildThisFileDirectory)PACKAGE.md;$(MSBuildThisFileDirectory)THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" />
+    <None Include="$(MSBuildThisFileDirectory)assets/icon.png" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

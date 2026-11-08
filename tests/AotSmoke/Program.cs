@@ -1,4 +1,5 @@
 using OneSpeech;
+TransducerSmoke.Run();
 
 var ctc = OneSpeech.Decoding.CtcTrellis.Align([-9, 0, 0, -9, -9, 0], 3, 2, [1, 1]);
 if (!ctc.Succeeded || ctc.Tokens.Length != 2 || ctc.Tokens[1].StartFrame != 2)

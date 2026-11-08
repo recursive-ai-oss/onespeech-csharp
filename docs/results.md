@@ -85,7 +85,8 @@ float32 OneModel 1.2.0. On the first five ordinal LibriSpeech test-clean clips
 (1089-134686-0000 through 0004), padded/truncated to 10 seconds, probability-space
 max absolute error against pyannote.audio 4.0.7 / CPU Torch 2.11.0 is 9.19e-6;
 the largest per-clip mean error is 2.64e-7. All 2,945 powerset frame decisions
-match. Raw log-probability errors and crafted low-variance cases are described in
+match. This probe row uses four threads on x64 (AMD Ryzen 9 7950X3D);
+it does not establish a bitwise or all-ISA guarantee. Raw log-probability errors and crafted low-variance cases are described in
 [the segmentation contract](gated-segmentation.md); this is not bitwise parity.
 
 The following are **floors for our segmentation-plus-CAM++ clustering policy**,
@@ -95,14 +96,16 @@ far-field channel 1. Each row is one recording, without a bootstrap CI.
 Our side uses four CPU threads, independent 10 s chunks and the existing
 spectral/AHC defaults; CAM++ English on AMI and Chinese on AliMeeting.
 Community-1 is the publisher's complete pipeline (different embedder and PLDA/VBx),
-run offline through pyannote.audio 4.0.7, for information only.
+run offline through pyannote.audio 4.0.7, for information only. Its ES2004a
+reference uses four CPU threads; the remaining reference shards use eight to
+fit the per-recording run bound, with unchanged model/pipeline parameters.
 
 | Recording | Our DER / JER % | Community-1 DER / JER % | Status |
 |---|---|---|---|
 | AMI ES2004a | 20.62 / 25.99 | 18.76 / 22.74 | Floor; reference information |
-| AMI ES2004b | 13.40 / 15.83 | Pending bounded CPU run | Floor |
-| AliMeeting R8001_M8004_MS801 | 26.46 / 30.41 | Pending bounded CPU run | Floor |
-| AliMeeting R8003_M8001_MS801 | 20.40 / 24.11 | Pending bounded CPU run | Floor |
+| AMI ES2004b | 13.40 / 15.83 | 12.61 / 14.28 | Floor; reference information |
+| AliMeeting R8001_M8004_MS801 | 26.46 / 30.41 | 22.02 / 24.55 | Floor; reference information |
+| AliMeeting R8003_M8001_MS801 | 20.40 / 24.11 | 17.38 / 19.14 | Floor; reference information |
 
 Community-1's native WeSpeaker/PLDA/VBx adapter is not implemented. Its published
 PLDA does not require fitting, but its exact transform/dataflow contract has not
@@ -115,7 +118,7 @@ silently substituted for a CAM++ backend. The tier-1 default is unchanged.
 - **Live:** Moonshine streaming-tiny is the default. On 20-file clean/other streaming slices, its WER floor is 1.70/8.33%, with mean finalisation latency 3057/1617 ms. Streaming-small is 1.95/3.74%, 3073/1622 ms. Latency is relative to Whisper-tiny DTW word ends, not independent boundary truth. There is no vendor streaming-policy reference for these floors.
 - **Language identification:** Whisper and its reference each identified 15/15 FLEURS probes (five each English/French/German). This is information only, not multilingual coverage evidence.
 - **Publisher availability:** VoxCeleb1 and VoxConverse audio are no longer available from the publisher. Their intended rows are unavailable; no unofficial re-upload is substituted.
-- **Gated segmentation:** authorized local segmentation-3.0 inference and overlap-aware clustering are supported, as above. The network entry point still refuses inference; remaining community-1 reference rows are CPU-bound, not awaiting gate access. Community-1 has no native pipeline adapter.
+- **Gated segmentation:** authorized local segmentation-3.0 inference and overlap-aware clustering are supported, as above. The network entry point still refuses inference. Community-1 reference rows are information only; it has no native pipeline adapter.
 - **Long-form:** full long-form rows are reserved for the 1.0 evaluation. Existing single-file observations do not establish equivalence. In particular, an Earnings-22 4474955 turbo temperature-zero comparison was 55.159% versus 58.386% reference WER: outside the 0.5-point bound, in our favour because the reference appended repeated tail text. Other decoding/pipeline settings produced different scores; they must not be combined into that row. Whole-recording Qwen reference runs exceeded the CPU run bounds.
 - **Quantization and speed:** int8 quality and publishable benchmark rows are pending the 1.0 evaluation. No int8 quality, structural-overhead or cross-platform throughput guarantee is made here.
 

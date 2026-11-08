@@ -77,6 +77,24 @@ if (args is ["prepare", var corpus, var state])
     }
     return;
 }
+if (args is ["chunks", var evaluationRoot])
+{
+    foreach (string folder in Directory.GetDirectories(Path.Combine(evaluationRoot, "cases")).Order(StringComparer.Ordinal))
+    {
+        using var detector = new OneSpeech.Vad.SileroVad(cancellationToken: ct);
+        using var source = OneSpeech.Audio.AudioFileSource.Open(Path.Combine(folder, "audio.wav"), ct);
+        string output = Path.Combine(folder, "chunks"); Directory.CreateDirectory(output);
+        int index = 0;
+        foreach (var chunk in new OneSpeech.Audio.VadChunker(detector).Read(Blocks(source, ct), null, ct))
+        {
+            using var file = File.Create(Path.Combine(output, $"{index++:D4}.pcm"));
+            using var writer = new BinaryWriter(file);
+            foreach (float sample in chunk.Audio.Samples.Span) writer.Write(sample);
+        }
+        Console.WriteLine($"{Path.GetFileName(folder)}: {index} identical pipeline chunks exported");
+    }
+    return;
+}
 if (args is ["run", var family, var modelDirectory, var root, var caseId, var mode])
 {
     string folder = Path.Combine(root, "cases", caseId), output = Path.Combine(folder, family + "-" + mode + ".json");
@@ -109,12 +127,19 @@ if (args is ["score", var rootDirectory])
     using var file = File.Create(Path.Combine(rootDirectory, "scores.jsonl")); using var writer = new StreamWriter(file);
     var counts = new Dictionary<(string Family, string Mode, string Metric), List<ErrorCounts>>();
     foreach (string folder in Directory.GetDirectories(Path.Combine(rootDirectory, "cases")).Order(StringComparer.Ordinal))
-        foreach (string scoreFamily in new[] { "whisper", "qwen", "parakeet" })
+        foreach (string scoreFamily in new[] { "whisper", "qwen", "parakeet", "reference-whisper" })
             foreach (string scoreMode in new[] { "baseline", "phrases", "control" })
             {
                 string path = Path.Combine(folder, scoreFamily + "-" + scoreMode + ".json"); if (!File.Exists(path)) continue;
                 string[] reference = Normalizer.Normalize(File.ReadAllText(Path.Combine(folder, "reference.txt")), "en").Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                string[] hypothesis = Normalizer.Normalize(Transcript.FromJson(File.ReadAllText(path)).Text, "en").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string text;
+                if (scoreFamily == "reference-whisper")
+                {
+                    using var document = JsonDocument.Parse(File.ReadAllText(path));
+                    text = document.RootElement.GetProperty("text").GetString() ?? "";
+                }
+                else text = Transcript.FromJson(File.ReadAllText(path)).Text;
+                string[] hypothesis = Normalizer.Normalize(text, "en").Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 var alignment = Metrics.Align(reference, hypothesis);
                 var terms = File.ReadAllLines(Path.Combine(folder, "phrases.txt")).Select(t => Normalizer.Normalize(t, "en")).ToHashSet(StringComparer.Ordinal);
                 var controls = File.ReadAllLines(Path.Combine(folder, "control.txt")).Select(t => Normalizer.Normalize(t, "en")).ToHashSet(StringComparer.Ordinal);
@@ -133,7 +158,7 @@ if (args is ["score", var rootDirectory])
                 writer.WriteLine(System.Text.Encoding.UTF8.GetString(buffer.ToArray()));
             }
     using var bootstrapFile = File.Create(Path.Combine(rootDirectory, "bootstrap.jsonl")); using var bootstrapWriter = new StreamWriter(bootstrapFile);
-    foreach (string name in new[] { "whisper", "qwen", "parakeet" })
+    foreach (string name in new[] { "whisper", "qwen", "parakeet", "reference-whisper" })
         foreach (string comparison in new[] { "phrases", "control" })
             foreach (string metric in new[] { "wer", "phraseMissRate" })
             {
@@ -148,7 +173,15 @@ if (args is ["score", var rootDirectory])
             }
     return;
 }
-throw new ArgumentException("Use prepare CORPUS STATE; run FAMILY MODEL STATE CASE baseline|phrases|control; score STATE.");
+throw new ArgumentException("Use prepare CORPUS STATE; chunks STATE; run FAMILY MODEL STATE CASE baseline|phrases|control; score STATE.");
+
+static IEnumerable<AudioBuffer> Blocks(OneSpeech.Audio.AudioFileSource source, CancellationToken ct)
+{
+    var storage = new float[4096 * source.Channels];
+    int frames;
+    while ((frames = source.Read(storage, ct)) > 0)
+        yield return new AudioBuffer(storage.AsMemory(0, frames * source.Channels), 16000, source.Channels);
+}
 
 static List<(string Word, bool SentenceStart)> ReadRows(string corpus, string id)
 {

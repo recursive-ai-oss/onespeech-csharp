@@ -139,3 +139,23 @@ quality claim; do not aggregate away a per-file regression.
 resamples, seed 1729) for WER and phrase miss rate (`1 - recall`), comparing each
 condition with baseline. With only two files these intervals are very coarse
 and conditional on this selection; they do not replace the per-file rows.
+
+### Whisper reference diagnostic
+
+`chunks STATE` exports the same default-Silero, 30-second-bounded PCM chunks used
+by the pipeline, reading the original prepared WAV in 4096-frame blocks.
+`tools/oracles/whisper-features/biasing.py STATE CASE MODE --weights DIRECTORY`
+runs the pinned openai-whisper 20250625 small model through its documented
+`transcribe` API, independently per chunk. The comma-space-joined phrase text
+is passed as `initial_prompt`; English, fp32, temperature zero, previous-text
+conditioning and default rejection thresholds are explicit. Chunk outputs are
+atomic and resumable; no model source or exported implementation graph is used.
+`score STATE` also scores completed `reference-whisper` results with the same
+normalizer, edit alignment and paired file bootstrap.
+
+This comparison reproduced the prompt-induced regression and absent-term
+hallucination: prompt conditioning is not a guarantee of improved WER. The
+native fixed-prompt retention policy and the reference's initial-prompt option
+are not claimed to produce identical decoding. Keep the per-file results and
+false alarms alongside term recall; do not treat reference reproduction of a
+failure as evidence that the hint is safe.

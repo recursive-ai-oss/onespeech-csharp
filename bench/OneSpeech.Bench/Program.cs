@@ -61,7 +61,7 @@ foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
     double modelLoadSeconds = workload?.LoadSeconds ?? 0;
     double prepareSeconds = load.Elapsed.TotalSeconds - modelLoadSeconds;
     var warmClock = Stopwatch.StartNew();
-    if (workload is not null) _ = workload.Run(Path.Combine(data, "warm.wav"), File.ReadAllText(Path.Combine(data, "warm-align.txt")));
+    if (workload is not null) _ = workload.Run(Path.Combine(data, "warm.wav"), File.ReadAllText(Path.Combine(data, "warm-align.txt")), Fixtures.Duration(Path.Combine(data, "warm.wav")));
     warmClock.Stop();
     double warmupSeconds = warmClock.Elapsed.TotalSeconds;
     var sampler = new MemorySamples(Path.Combine(output, $"{name}-{threads}.memory.csv"), () => workload?.Phase ?? "live");
@@ -109,7 +109,7 @@ foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
             _ = session.Complete();
         }
     }
-    else document = workload!.Run(file, File.ReadAllText(Path.Combine(data, "align.txt")));
+    else document = workload!.Run(file, File.ReadAllText(Path.Combine(data, "align.txt")), duration);
     double seconds = Stopwatch.GetElapsedTime(start).TotalSeconds;
     long bytesAllocated = GC.GetTotalAllocatedBytes(precise: true) - allocated;
     var graphs = GraphTiming.Snapshot();

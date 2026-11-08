@@ -79,7 +79,7 @@ internal sealed class LoadedWorkload : IDisposable
 
     private T Own<T>(T model) where T : IDisposable { owners.Add(model); return model; }
 
-    internal Transcript Run(string file, string text)
+    internal Transcript Run(string file, string text, double durationSeconds)
     {
         if (row == "align")
         {
@@ -90,7 +90,7 @@ internal sealed class LoadedWorkload : IDisposable
             return result;
         }
         Transcript transcript;
-        if (row == "diarize") transcript = new Transcript { Text = "" };
+        if (row == "diarize") transcript = new Transcript { Text = "", Duration = TimeSpan.FromSeconds(durationSeconds) };
         else
         {
             phase = "recognition";

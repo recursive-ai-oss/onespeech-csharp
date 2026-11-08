@@ -418,10 +418,15 @@ if (args is ["pyannote-probe", var pyannoteCheckpoint, var pyannoteCache, var py
 }
 if (args is ["pyannote-inspect", var segmentationCheckpoint])
 {
-    using var input = File.OpenRead(segmentationCheckpoint);
-    foreach (var pair in TensorCheckpoint.Read(input, segmentation: true))
-        Console.WriteLine(pair.Key + " " + string.Join(",", pair.Value.Shape));
-    return 0;
+    try
+    {
+        using var input = File.OpenRead(segmentationCheckpoint);
+        foreach (var pair in TensorCheckpoint.Read(input, segmentation: true))
+            Console.WriteLine(pair.Key + " " + string.Join(",", pair.Value.Shape));
+        return 0;
+    }
+    catch (InvalidDataException error) { Console.Error.WriteLine(error.Message); return 1; }
+    catch (IOException error) { Console.Error.WriteLine(error.Message); return 1; }
 }
 if (args is ["speaker-inspect", var checkpoint])
 {

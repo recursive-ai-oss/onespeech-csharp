@@ -22,7 +22,9 @@ public sealed partial class EcapaTdnnEmbedder : SpeakerEmbedder
         ArgumentNullException.ThrowIfNull(model);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threads);
         Model = model;
+        GraphTiming.BeginCost(0);
         graph = Session.Load(graphPath, new ModelOptions { IntraOpThreads = threads }, cancellationToken: cancellationToken);
+        GraphTiming.EndCost(0);
     }
     /// <inheritdoc />
     public override ModelInfo Model { get; }
@@ -47,7 +49,9 @@ public sealed partial class EcapaTdnnEmbedder : SpeakerEmbedder
             using var input = Tensor.Zeros(DType.F32, Shape.Create(1, 80, values.Length / 80));
             values.CopyTo(input.MutableData<float>());
             cancellationToken.ThrowIfCancellationRequested();
+            GraphTiming.Begin(1);
             using var output = graph.Run(new Dictionary<string, Tensor> { ["features"] = input });
+            GraphTiming.End();
             cancellationToken.ThrowIfCancellationRequested();
             var vector = output["embedding"].Data<float>();
             if (vector.Length != Dimension) throw new InvalidDataException("ECAPA-TDNN graph returned the wrong embedding dimension.");

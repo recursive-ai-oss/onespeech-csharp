@@ -6,7 +6,7 @@ using OneSpeech.Whisper;
 namespace OneSpeech.Catalog.Conversion;
 
 // The graph follows Radford et al. §2.2, with names taken only from published tensor data.
-internal sealed class WhisperGraphWriter(SafeTensorFile weights, bool diagnostics = false)
+internal sealed class WhisperGraphWriter(SafeTensorFile weights, bool diagnostics = false, bool int8 = false, CancellationToken conversionCancellation = default)
 {
     private sealed record Value(string Name, int Dtype, object[] Shape);
     private sealed record Initializer(string Name, int Dtype, long[] Shape, byte[]? Bytes, string? Weight, long Offset, long Length);
@@ -61,8 +61,25 @@ internal sealed class WhisperGraphWriter(SafeTensorFile weights, bool diagnostic
     private string Reshape(string x, params long[] shape) => Op("Reshape", [x, Ints(shape)]);
     private string Linear(string x, string prefix, bool bias = true)
     {
-        string y = Op("MatMul", [x, Transpose(Weight(prefix + ".weight"), 1, 0)]);
+        string y = int8 ? Int8Linear(x, prefix + ".weight") : Op("MatMul", [x, Transpose(Weight(prefix + ".weight"), 1, 0)]);
         return bias ? Op("Add", [y, Weight(prefix + ".bias")]) : y;
+    }
+    private readonly Dictionary<string, (string Weight, string Scale)> quantizedWeights = new(StringComparer.Ordinal);
+    private string Int8Linear(string x, string weight)
+    {
+        if (!quantizedWeights.TryGetValue(weight, out var packed))
+        {
+            var shape = weights.Tensors[weight].Shape;
+            if (shape.Length != 2) throw new ModelIntegrityException("Expected rank-two linear weight.");
+            var quantized = Int8Weights.Transpose(weights.ReadFloat32(weight, conversionCancellation), checked((int)shape[0]), checked((int)shape[1]), conversionCancellation);
+            packed = (AddTensor(weight + ".int8", 3, [shape[1], shape[0]], quantized.Values, null),
+                AddTensor(weight + ".scale", 1, [shape[0]], quantized.Scales, null));
+            quantizedWeights.Add(weight, packed);
+        }
+        string q = "v" + serial++, scale = "v" + serial++, zero = "v" + serial++;
+        nodes.Add(new("DynamicQuantizeLinear", [x], [q, scale, zero], []));
+        string product = Op("MatMulInteger", [q, packed.Weight, zero, AddTensor("c" + serial++, 3, [], [0], null)]);
+        return Op("Mul", [Op("Cast", [product], A("to", 1)), Op("Mul", [scale, packed.Scale])]);
     }
     private string Norm(string x, string prefix) => Op("LayerNormalization", [x, Weight(prefix + ".weight"), Weight(prefix + ".bias")], A("axis", -1), new("epsilon", 1, Float: 1e-5f));
     private string Gelu(string x) => Op("Mul", [Op("Mul", [x, Scalar(.5f)]), Op("Add", [Scalar(1), Op("Erf", [Op("Div", [x, Scalar(MathF.Sqrt(2))])])])]);
@@ -164,7 +181,7 @@ internal sealed class WhisperGraphWriter(SafeTensorFile weights, bool diagnostic
             x = FeedForward(x, prefix);
         }
         x = Norm(x, "model.decoder.layer_norm");
-        Output(Op("MatMul", [x, Transpose(embeddings, 1, 0)]), "logits", 1, "sequence", config.Vocabulary);
+        Output(int8 ? Int8Linear(x, embeddings) : Op("MatMul", [x, Transpose(embeddings, 1, 0)]), "logits", 1, "sequence", config.Vocabulary);
     }
 
     internal void Save(string path, CancellationToken cancellationToken)

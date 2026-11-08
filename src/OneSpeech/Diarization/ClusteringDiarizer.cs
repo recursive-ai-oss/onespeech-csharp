@@ -93,12 +93,16 @@ public sealed class ClusteringDiarizer : BlockDiarizer
             }
             offsetFrames += block.FrameCount;
         }
+        GraphTiming.BeginCost(3);
         var labels = EmbeddingClustering.Cluster(windows, options, cancellationToken);
+        GraphTiming.EndCost(3);
         if (labels.Length == 0) return [];
         if (resegmenter is not null)
         {
             int count = labels.Max() + 1;
+            GraphTiming.BeginCost(3);
             var refined = resegmenter.Resegment(windows, labels, cancellationToken);
+            GraphTiming.EndCost(3);
             if (refined is null || refined.Length != labels.Length || refined.Any(l => l < 0 || l >= count)) throw new InvalidOperationException("Resegmenter returned invalid labels.");
             int speakers = refined.Distinct().Count();
             if (speakers < options.MinSpeakers || speakers > options.MaxSpeakers || options.NumSpeakers is {} exact && speakers != exact)

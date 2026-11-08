@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace OneSpeech.Moonshine;
 
-/// <summary>English Moonshine fp32 greedy recognition from independently converted OneModel graphs. Instances are not concurrent; dispose after use. Accepts mono 16 kHz utterances of at most 60 seconds; use the file/live VAD pipeline for longer recordings.</summary>
+/// <summary>English Moonshine fp32 or mixed-int8 greedy recognition from independently converted OneModel graphs. Instances are not concurrent; dispose after use. Accepts mono 16 kHz utterances of at most 60 seconds; use the file/live VAD pipeline for longer recordings.</summary>
 public sealed partial class MoonshineRecognizer : SpeechRecognizer, IDisposable
 {
     private readonly MoonshineModelSession runtime;

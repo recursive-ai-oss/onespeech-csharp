@@ -29,9 +29,9 @@ internal static class RuntimeConversion
             using var weights = new SafeTensorFile(File.OpenRead(Path.Combine(input, "model.safetensors")));
             foreach (var file in entry.ConvertedFiles)
             {
-                var graph = new WhisperGraphWriter(weights);
+                var graph = new WhisperGraphWriter(weights, int8: entry.Id.EndsWith("-int8", StringComparison.Ordinal), conversionCancellation: cancellationToken);
                 if (file.Name == "encoder-part0.onemodel") graph.Encoder(configuration, 0, 16);
-                else if (file.Name == "encoder.onemodel") graph.Encoder(configuration, configuration.EncoderLayers > 24 ? 16 : 0);
+                else if (file.Name == "encoder.onemodel") graph.Encoder(configuration, entry.ConvertedFiles.Any(f => f.Name == "encoder-part0.onemodel") ? 16 : 0);
                 else if (file.Name == "decoder.onemodel") graph.Decoder(configuration);
                 else throw new ModelIntegrityException("Unknown Whisper runtime artifact.");
                 graph.Save(Path.Combine(output, file.Name), cancellationToken);
@@ -48,7 +48,9 @@ internal static class RuntimeConversion
             using var weights = new SafeTensorFile(File.OpenRead(Path.Combine(input, "model.safetensors")));
             foreach (var file in entry.ConvertedFiles)
             {
-                var graph = new MoonshineGraphWriter(weights);
+                // Retain the acoustic encoder and cross-attention projections in fp32.
+                bool quantize = entry.Id.EndsWith("-int8", StringComparison.Ordinal) && file.Name is not ("encoder.onemodel" or "decoder-project.onemodel");
+                var graph = new MoonshineGraphWriter(weights, int8: quantize, conversionCancellation: cancellationToken);
                 if (file.Name == "encoder.onemodel") graph.Encoder(configuration);
                 else if (file.Name == "decoder.onemodel") graph.Decoder(configuration);
                 else if (file.Name == "decoder-project.onemodel" && configuration.Streaming) graph.DecoderProject(configuration);

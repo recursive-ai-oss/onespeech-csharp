@@ -12,7 +12,13 @@ internal static class WhisperCheckpoint
     internal static ModelInfo Provenance(string[] lines)
     {
         if (lines.Length != 3) throw new ModelIntegrityException("Expected verified converter provenance in upstream.txt.");
-        var pin = lines[0] switch
+        string upstreamId = lines[0] switch
+        {
+            "openai/whisper-small-int8" => "openai/whisper-small",
+            "openai/whisper-large-v3-turbo-int8" => "openai/whisper-large-v3-turbo",
+            _ => lines[0]
+        };
+        var pin = upstreamId switch
         {
             "openai/whisper-tiny" => ("169d4a4341b33bc18d8881c4b69c2e104e1cc0af", "7ebd0e69e78190ffe1438491fa05cc1f5c1aa3a4c4db3bc1723adbb551ea2395", "Apache-2.0"),
             "openai/whisper-base" => ("e37978b90ca9030d5170a5c07aadb050351a65bb", "07cadb9f25677c8d50df603e66a98fbd842cce45047139baeb16e6219a1e807b", "Apache-2.0"),
@@ -22,6 +28,6 @@ internal static class WhisperCheckpoint
             _ => throw new ModelIntegrityException("This converted checkpoint has no verified Whisper licence/provenance entry.")
         };
         if (lines[1] != pin.Item1 || lines[2] != pin.Item2) throw new ModelIntegrityException("Whisper revision or weight digest differs from the supported checkpoint pin; run the pinned converter.");
-        return new ModelInfo { Id = lines[0], Source = "https://huggingface.co/" + lines[0], Revision = pin.Item1, License = pin.Item3, Attribution = "OpenAI Whisper; Copyright (c) 2022 OpenAI", Tier = ModelTier.Tier1, Files = [new ModelFileInfo { Name = "model.safetensors", Sha256 = pin.Item2 }] };
+        return new ModelInfo { Id = lines[0], Source = "https://huggingface.co/" + upstreamId, Revision = pin.Item1, License = pin.Item3, Attribution = "OpenAI Whisper; Copyright (c) 2022 OpenAI", Tier = ModelTier.Tier1, Files = [new ModelFileInfo { Name = "model.safetensors", Sha256 = pin.Item2 }] };
     }
 }

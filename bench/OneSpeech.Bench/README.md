@@ -1,0 +1,41 @@
+# Structural measurements
+
+Speech recognition for .NET. Unaffiliated with other products or companies named OneSpeech.
+
+Build a separate, non-AOT Release output with `-p:OneSpeechGraphTiming=true`. Do not package the instrumented core. Normal builds have no timing call sites or argument evaluation: `Conditional` removes them. The hook is internal at `src/OneSpeech/GraphTiming.cs`; no public API change is needed.
+
+```sh
+dotnet build bench/OneSpeech.Bench -c Release -p:OneSpeechGraphTiming=true
+dotnet "$ONESPEECH_ARTIFACTS/bin/OneSpeech.Bench/release/OneSpeech.Bench.dll" --self-test
+dotnet "$ONESPEECH_ARTIFACTS/bin/OneSpeech.Bench/release/OneSpeech.Bench.dll" \
+  --prepare-data "$LIBRISPEECH_TEST_CLEAN" "$AMI_MIX_HEADSET" "$DATA"
+dotnet "$ONESPEECH_ARTIFACTS/bin/OneSpeech.Bench/release/OneSpeech.Bench.dll" \
+  --filter turbo60 --threads 4 --data "$DATA" --out "$RESULTS"
+```
+
+Filters: `turbo60`, `turbo600`, `long`, `small`, `qwen`, `live`, `diarize`, `align`, or `all`. Use one filtered process per queue-sized run. `long` uses **Whisper tiny** on a dense 3600-second file, with the same VAD, deferred alignment, diarization and merge algorithms as the larger Whisper rows. Turbo on 600 seconds is the larger-model memory sanity row. On memory-constrained arm64 hosts use `small` for offline ASR; turbo and Qwen rows can be restricted to x64 and must be labelled as such.
+
+Set `ONESPEECH_MODEL_CACHE` to a verified local cache. `--pull MODEL_ID` fetches pinned publisher assets and converts locally. `--link MODEL_ID EXISTING_DIRECTORY` symlinks a complete existing directory; PullAsync still verifies it. Keep that directory alive until the row completes. Do not copy weights between machines. `tools/scripts/setup-arm64-bench.sh STATE_DIRECTORY` installs a pinned/hash-verified user-local SDK and fetches pinned minimum data on the destination. Model acquisition runs there without credentials.
+
+## Row definition (measurement version 5)
+
+**End-to-end means encoded audio in to Transcript out with models already loaded.** Download, conversion and checksum verification are `prepareSeconds`. Constructing the retained model instances is `modelLoadSeconds`. Both are separate from the 1.15 ratio. Run one untimed warm-up on a **different clip**, then the timed call. Warm-up duration is also recorded.
+
+The ordinary `Speech.Transcribe` convenience call disposes graph sessions between its stages. Calling that convenience method again in a warm OS process does not retain those instances. The runner instead borrows retained recognizer, VAD, timing and embedding instances, and calls the same `VadTranscriptionPipeline`, `DeferredTiming.Apply`, `ClusteringDiarizer` and transcript merge routines in the same order. It neither substitutes chunk-local timing nor omits alignment/diarization. English Qwen and CTC timing candidates are eagerly loaded so fallback cannot hide a model load inside the measured call. Retained model residency can therefore be larger than the convenience helper's sequential model residency. Alignment and standalone clustering also retain their models across warm-up and measurement.
+
+Version 5 retains the same models, timing order and chunk inputs as version 4. It adds allocation-residency diagnostics, word counts, and a memory-only probe of the actual file helper. No session-lifecycle optimization or flat-memory claim is implied.
+
+Version 3 file-helper rows included session loading inside end-to-end. Do **not** compare those ratios directly with version 4 or silently replace a measured miss. Keep their model-loading profiles as diagnostics only.
+
+## Inputs and accounting
+
+- Inputs are the first 60, 600 and 3600 seconds of ordinal-path-sorted LibriSpeech test-clean, concatenated without inserted silence, plus full AMI ES2004a Mix-Headset. Conversion is deterministic mono 16 kHz PCM16, with source and derived SHA-256 manifests. The final utterance can be truncated. Forced alignment uses the corresponding text including that utterance. Warm-up is a separate ten-second clip from the **reverse** ordinal file order, not a prefix of the measured audio. Warm input digest is reported. Keep source licence/attribution notes with derivatives. These constructed inputs make no quality claim.
+- Graph wall time brackets OneModel Session.Run calls in Whisper, Qwen (including its aligner), omniASR, CAM++/ECAPA, Moonshine and Silero. Optional split Whisper encoder calls are bracketed separately. Small input expressions evaluated at the call, such as dictionaries, are included; features and output postprocessing are not. This is wall time, not a sum of model worker CPU times. The opt-in thread override applies to family graph sessions; Silero retains its production one-thread setting.
+- Five exclusive coarse non-graph buckets are model loading, front-end features, CTC postprocessing/trellis, clustering/resegmentation and audio decoding/resampling. `unattributed` is the residual (search, tokenizer work, other tensor preparation, result construction, and measurement overhead), not an invented method-level attribution. Higher-level phases independently subtract graph time: do not add phase and exclusive costs. Invalid exclusive totals fail the row rather than emit negative residuals. Only one pipeline runs in a process.
+- Live uses 100 ms chunks and includes Complete in elapsed time. It discards 100 chunks for allocation accounting. Calling-thread graph allocations and immutable emitted payloads are excluded from our working bytes and reported separately. The emitted graph is replayed after Push, outside the push allocation delta; replay overhead stays in elapsed time, conservatively. Input views are allocated before measuring Push. Events are never pooled.
+- RSS is sampled and flushed every five seconds with the current pipeline stage. `sampledPeakWorkingSetBytes` is explicitly a sample peak; `processLifetimePeakBytes` is the OS high-water mark, including setup. Steady min/max begin at 30 seconds (short rows fall back to sample peak). A linear least-squares trend is reported in bytes per wall-second, globally and per stage, discarding the first minute of each stage. Report the slope and first/last fifth means rather than claiming constant memory from a peak alone. Phase transitions use different activation workspaces, so inspect each stage. Returned transcript text and diarization window/result storage grow with output size; this is stated, not hidden by dropping the output before sampling.
+- JSON records model revision, input digest, precision, threads, CPU/ISA/cores, SDK/runtime/library versions, load before/during/after, model load, end-to-end/graph time, allocations, working set and RTF. CSV/Markdown provide short rows with the load column. Outputs belong outside the source tree.
+
+For a separate memory-only probe of the actual `Speech.Transcribe` helper, run `--memory-file AUDIO MODEL_ID THREADS OUTPUT_DIRECTORY`. This includes model loading and has no structural-ratio claim. It releases sessions between phases as production does, rather than retaining all primary models for warm throughput. Both forms append managed heap size and committed heap bytes, OneModel shared-pool idle/outstanding bytes, and generation-2 collection count to the RSS CSV. `--memory-summary INPUT.csv OUTPUT.json` recomputes phase slopes from a saved trace and marks whether its last sample reached `complete`; it does not reconstruct missing graph timings or turn an incomplete trace into a successful row. These diagnose shape-plan residency and native-pool reuse; they do not redefine RSS or excuse a growing working set. The returned transcript itself necessarily grows with output words, not with retained audio.
+
+These are indicative results until collected under the release benchmark protocol on an otherwise idle machine. Shared-load results must not be presented as final speed bars. A ratio above 1.15 or nonzero working allocation is reported, not tuned away by this runner. A timeout emits no successful row; its flushed memory trace is partial evidence only.

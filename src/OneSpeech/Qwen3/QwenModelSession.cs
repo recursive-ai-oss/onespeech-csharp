@@ -16,10 +16,12 @@ internal sealed class QwenModelSession : IDisposable
 
     internal QwenModelSession(string directory, int threads, CancellationToken cancellationToken, Qwen3Precision precision = Qwen3Precision.Binary32)
     {
+        GraphTiming.BeginCost(0);
         bfloat16 = precision == Qwen3Precision.BFloat16;
         Configuration = QwenConfiguration.Load(directory);
         // Every autoregressive step changes the KV length, so an older shape is not reusable.
         // Retaining it also retains its activation slab until eviction.
+        GraphTiming.OverrideThreads(ref threads);
         var options = new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 1 };
         var loaded = new List<Session>();
         Session Load(string name)
@@ -34,6 +36,7 @@ internal sealed class QwenModelSession : IDisposable
             for (int i = 0; i < decoders.Length; i++) decoders[i] = Load("decoder-" + i);
         }
         catch { foreach (var session in loaded) session.Dispose(); throw; }
+        GraphTiming.EndCost(0);
     }
 
     internal SessionOutputs Encode(AudioBuffer audio, CancellationToken cancellationToken)
@@ -46,7 +49,9 @@ internal sealed class QwenModelSession : IDisposable
             for (int bin = 0; bin < 128; bin++)
                 mel.AsSpan(bin * frames + chunk * 100, Math.Min(100, frames - chunk * 100)).CopyTo(convolutionInput.AsSpan((chunk * 128 + bin) * 100));
         using var input = Tensor.FromSpan<float>(convolutionInput, Shape.Create(chunks, 1, 128, 100));
+        GraphTiming.Begin(3);
         using var convolved = front.Run(new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["mel_chunks"] = input });
+        GraphTiming.End();
         cancellationToken.ThrowIfCancellationRequested();
         var conv = convolved["conv"].Data<float>();
         // The released encoder resets sinusoidal positions at each 100-frame convolution chunk.
@@ -68,7 +73,9 @@ internal sealed class QwenModelSession : IDisposable
         using var hiddenTensor = Tensor.FromSpan<float>(hidden, Shape.Create(1, sequence, width));
         using var positionTensor = Tensor.FromSpan<float>(positions, Shape.Create(1, sequence, width));
         using var maskTensor = Tensor.FromSpan<float>(mask, Shape.Create(1, 1, sequence, sequence));
+        GraphTiming.Begin(3);
         var result = encoder.Run(new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["hidden"] = hiddenTensor, ["positions"] = positionTensor, ["mask"] = maskTensor });
+        GraphTiming.End();
         if (cancellationToken.IsCancellationRequested) { result.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
         return result;
     }
@@ -93,7 +100,9 @@ internal sealed class QwenModelSession : IDisposable
         if (audioCursor != audioCount) throw new InvalidDataException("Audio placeholder count differs from encoder output length.");
         using var emptyAudio = Tensor.Create(DType.F32, Shape.Create(1, 0, Configuration.Width));
         using var audioPositionInput = Tensor.FromSpan<long>(audioPositions, Shape.Create(audioCount, 2));
+        GraphTiming.Begin(3);
         using var embedded = embedding.Run(new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["tokens"] = tokenInput, ["audio"] = audio ?? emptyAudio, ["audio_positions"] = audioPositionInput });
+        GraphTiming.End();
         Tensor hidden = embedded["embeddings"];
         float[] cos = new float[length * dim], sin = new float[length * dim], mask = new float[length * total];
         for (int i = 0; i < length; i++)
@@ -121,9 +130,14 @@ internal sealed class QwenModelSession : IDisposable
                     inputs["past_k_" + layer] = past == null ? empty : past[part]["present_k_" + layer];
                     inputs["past_v_" + layer] = past == null ? empty : past[part]["present_v_" + layer];
                 }
-                next[part] = decoders[part].Run(inputs); hidden = next[part]["decoder"];
+                GraphTiming.Begin(3);
+                next[part] = decoders[part].Run(inputs);
+                GraphTiming.End();
+                hidden = next[part]["decoder"];
             }
+            GraphTiming.Begin(3);
             using var logits = head.Run(new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["hidden"] = hidden });
+            GraphTiming.End();
             float[] result = logits["logits"].Data<float>().ToArray();
             if (past != null) foreach (var previous in past) previous.Dispose();
             past = next; return result;

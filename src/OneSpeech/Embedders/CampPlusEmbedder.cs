@@ -23,7 +23,10 @@ public sealed partial class CampPlusEmbedder : SpeakerEmbedder
         if (dimension is not (192 or 512)) throw new ArgumentOutOfRangeException(nameof(dimension));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threads);
         Model = model; Dimension = dimension;
+        GraphTiming.OverrideThreads(ref threads);
+        GraphTiming.BeginCost(0);
         graph = Session.Load(graphPath, new ModelOptions { IntraOpThreads = threads }, cancellationToken: cancellationToken);
+        GraphTiming.EndCost(0);
     }
     /// <inheritdoc />
     public override ModelInfo Model { get; }
@@ -44,11 +47,15 @@ public sealed partial class CampPlusEmbedder : SpeakerEmbedder
             if (destination.Length != Dimension) throw new ArgumentException("Embedding destination has the wrong dimension.", nameof(destination));
             if (audio.Samples.Length < 720) throw new ArgumentException("CAM++ unbiased pooling requires at least 45 ms of audio.", nameof(audio));
             cancellationToken.ThrowIfCancellationRequested();
+            GraphTiming.BeginCost(1);
             float[] values = features.Compute(audio.Samples.Span, cancellationToken);
+            GraphTiming.EndCost(1);
             using var input = Tensor.Zeros(DType.F32, Shape.Create(1, 80, values.Length / 80));
             values.CopyTo(input.MutableData<float>());
             cancellationToken.ThrowIfCancellationRequested();
+            GraphTiming.Begin(1);
             using var output = graph.Run(new Dictionary<string, Tensor> { ["features"] = input });
+            GraphTiming.End();
             cancellationToken.ThrowIfCancellationRequested();
             var vector = output["embedding"].Data<float>();
             if (vector.Length != Dimension) throw new InvalidDataException("CAM++ graph returned the wrong embedding dimension.");

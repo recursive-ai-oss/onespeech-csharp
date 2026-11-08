@@ -7,6 +7,8 @@ public sealed class SpeakerFbank
     private const int Window = 400, Hop = 160, FftSize = 512, Bins = 257, Mels = 80;
     private readonly float[] window = new float[Window];
     private readonly float[] filters = new float[Mels * Bins];
+    private readonly int[] filterStarts = new int[Mels], filterEnds = new int[Mels];
+    private static readonly float[] TwiddleReal = Twiddles(false), TwiddleImaginary = Twiddles(true);
 
     /// <summary>Creates fixed filter and window coefficients. There are no random or trainable parameters.</summary>
     public SpeakerFbank()
@@ -21,6 +23,10 @@ public sealed class SpeakerFbank
                 float f = Mel(k * (16000f / FftSize));
                 filters[m * Bins + k] = Math.Max(0, Math.Min((f - left) / (middle - left), (right - f) / (right - middle)));
             }
+            int begin = 0, end = Bins;
+            while (begin < end && filters[m * Bins + begin] == 0) begin++;
+            while (end > begin && filters[m * Bins + end - 1] == 0) end--;
+            filterStarts[m] = begin; filterEnds[m] = end;
         }
     }
 
@@ -52,11 +58,19 @@ public sealed class SpeakerFbank
             for (int j = Window - 1; j > 0; j--) real[j] = (real[j] - .97f * real[j - 1]) * window[j];
             real[0] = (real[0] - .97f * real[0]) * window[0];
             Transform(real, imaginary);
-            for (int k = 0; k < Bins; k++) power[k] = real[k] * real[k] + imaginary[k] * imaginary[k];
+            for (int k = 0; k < Bins; k++)
+            {
+                power[k] = real[k] * real[k] + imaginary[k] * imaginary[k];
+                // Zero-weight bins must still reject overflow, as the dense filter
+                // did through its nonfinite zero products.
+                if (!float.IsFinite(power[k])) throw new ArgumentException("PCM magnitude overflows speaker feature computation.", nameof(samples));
+            }
             for (int m = 0; m < Mels; m++)
             {
                 float sum = 0;
-                for (int k = 0; k < Bins; k++) sum += power[k] * filters[m * Bins + k];
+                // Triangles have compact support. Keep the original accumulation order,
+                // omitting only zero products; no vector reduction changes rounding.
+                for (int k = filterStarts[m]; k < filterEnds[m]; k++) sum += power[k] * filters[m * Bins + k];
                 if (!float.IsFinite(sum)) throw new ArgumentException("PCM magnitude overflows speaker feature computation.", nameof(samples));
                 result[m * frames + frame] = MathF.Log(Math.Max(1.1920928955078125e-7f, sum));
             }
@@ -72,6 +86,18 @@ public sealed class SpeakerFbank
     }
 
     private static float Mel(float frequency) => 1127 * MathF.Log(1 + frequency / 700);
+    private static float[] Twiddles(bool imaginary)
+    {
+        var values = new float[FftSize];
+        for (int length = 2; length <= FftSize; length <<= 1)
+            for (int k = 0; k < length / 2; k++)
+            {
+                float angle = -2 * MathF.PI * k / length;
+                values[length / 2 + k] = imaginary ? MathF.Sin(angle) : MathF.Cos(angle);
+            }
+        return values;
+    }
+
     // Fixed 512-element radix-2 FFT: every index is within the two equally sized arrays.
     private static void Transform(float[] real, float[] imaginary)
     {
@@ -87,7 +113,7 @@ public sealed class SpeakerFbank
             int half = length / 2;
             for (int k = 0; k < half; k++)
             {
-                float angle = -2 * MathF.PI * k / length, wr = MathF.Cos(angle), wi = MathF.Sin(angle);
+                float wr = TwiddleReal[half + k], wi = TwiddleImaginary[half + k];
                 for (int start = 0; start < FftSize; start += length)
                 {
                     int a = start + k, b = a + half;

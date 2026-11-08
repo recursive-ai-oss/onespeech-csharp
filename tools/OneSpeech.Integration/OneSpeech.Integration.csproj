@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup><ProjectReference Include="../../src/OneSpeech/OneSpeech.csproj" /><ProjectReference Include="../../eval/OneSpeech.Eval/OneSpeech.Eval.csproj" /></ItemGroup>
+  <ItemGroup><Compile Include="../OneSpeech.TimingFloor/Summary.cs" Link="Summary.cs" /></ItemGroup>
 </Project>

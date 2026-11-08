@@ -61,17 +61,18 @@ internal sealed class LoadedWorkload : IDisposable
                     result.recognitionVad = result.Own(new SileroVad());
                     result.replayVad = result.Own(new SileroVad());
                     var qwen = result.Own(Qwen3ForcedAligner.Load(assets["Qwen/Qwen3-ForcedAligner-0.6B"].Directory));
-                    result.aligner = new BorrowedTiming(qwen, Omni());
+                    result.aligner = new BorrowedTiming(qwen, () => Omni(false));
                 }
             }
             result.LoadSeconds = clock.Elapsed.TotalSeconds;
             return result;
 
             async Task Pull(string modelId) => assets[modelId] = await ModelStore.Default.PullAsync(modelId);
-            OmniAsrAligner Omni()
+            OmniAsrAligner Omni(bool owned = true)
             {
                 var model = assets["facebook/omniASR-CTC-300M"];
-                return result.Own(new OmniAsrAligner(Path.Combine(model.Directory, "ctc-fp32.onemodel"), Path.Combine(model.Directory, "omniASR_tokenizer.model"), model.Info, threads));
+                var timer = new OmniAsrAligner(Path.Combine(model.Directory, "ctc-fp32.onemodel"), Path.Combine(model.Directory, "omniASR_tokenizer.model"), model.Info, threads);
+                return owned ? result.Own(timer) : timer;
             }
         }
         catch { result.Dispose(); throw; }
@@ -121,12 +122,20 @@ internal sealed class LoadedWorkload : IDisposable
         owners.Clear();
     }
 
-    private sealed class BorrowedTiming(params Aligner[] candidates) : Aligner
+    private sealed class BorrowedTiming(Aligner primary, Func<OmniAsrAligner> fallback) : Aligner
     {
-        public override ModelInfo Model => candidates[0].Model;
+        public override ModelInfo Model => primary.Model;
         public override Capabilities Capabilities { get; } = new() { ForcedAlignment = true, Languages = ["en"] };
         public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken) =>
-            VadTranscriptionPipeline.ApplyTiming(audio, transcript, language, candidates, cancellationToken);
+            VadTranscriptionPipeline.ApplyTiming(audio, transcript, language, Candidates(), cancellationToken);
+        private IEnumerable<Aligner> Candidates()
+        {
+            yield return primary;
+            // Match the file helper's scoped fallback. Its reload cost is inside
+            // end-to-end, never subtracted or hidden in graph time.
+            using var temporary = fallback();
+            yield return temporary;
+        }
         public override Transcript Align(AudioBuffer audio, string text, string? language, CancellationToken cancellationToken)
         {
             var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(w => new Word { Text = w, Language = language }).ToImmutableArray();

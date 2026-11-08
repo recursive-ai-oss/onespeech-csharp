@@ -25,8 +25,20 @@ internal sealed class OrderedTimingAligner(ModelStore store, bool realign = fals
         }
         if (audio.Duration <= TimeSpan.FromSeconds(60) && (language is null || store.Catalog.GetDefault("omniasr-ctc").Capabilities.Languages.Contains(language, StringComparer.Ordinal)))
         {
-            ctc ??= SpeechServices.ResolveAlignerAsync(store, null, cancellationToken).AsTask().GetAwaiter().GetResult();
-            yield return ctc;
+            if (qwen is not null && CanUseQwen(audio, language))
+            {
+                // An occasional fallback must not pin a second model's large shape
+                // plan for the rest of a long recording. Iterator disposal also
+                // releases it if timing succeeds early, fails, or is canceled.
+                using var fallback = SpeechServices.ResolveAlignerAsync(store, null, cancellationToken).AsTask().GetAwaiter().GetResult();
+                yield return fallback;
+            }
+            else
+            {
+                // Where CTC is the primary timer, reuse it across adjacent chunks.
+                ctc ??= SpeechServices.ResolveAlignerAsync(store, null, cancellationToken).AsTask().GetAwaiter().GetResult();
+                yield return ctc;
+            }
         }
     }
 

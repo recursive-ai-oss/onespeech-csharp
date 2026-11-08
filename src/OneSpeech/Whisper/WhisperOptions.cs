@@ -32,6 +32,8 @@ public sealed record WhisperOptions
     public bool WordTimestamps { get; init; } = true;
     /// <summary>Maximum generated tokens per attempt, 224 by default; range 1..224.</summary>
     public int MaxTokens { get; init; } = 224;
+    /// <summary>Optional beam width at temperature zero, 1..16. Null (default) selects greedy decoding; positive-temperature fallback samples one candidate.</summary>
+    public int? BeamSize { get; init; }
     /// <summary>OneModel intra-op threads, 1 by default; range 1..256.</summary>
     public int Threads { get; init; } = 1;
     /// <summary>Deterministic sampling seed, 0 by default. Only positive-temperature fallback uses it.</summary>
@@ -41,7 +43,7 @@ public sealed record WhisperOptions
 
     internal void Validate()
     {
-        if (!Enum.IsDefined(Task) || Threads is < 1 or > 256 || MaxTokens is < 1 or > 224 || Temperatures.IsDefaultOrEmpty || Temperatures.Length > 16 || Temperatures.Any(t => !double.IsFinite(t) || t < 0 || t > 2) || !double.IsFinite(MaxInitialTimestamp) || MaxInitialTimestamp is < 0 or > 30)
+        if (BeamSize is < 1 or > 16 || !Enum.IsDefined(Task) || Threads is < 1 or > 256 || MaxTokens is < 1 or > 224 || Temperatures.IsDefaultOrEmpty || Temperatures.Length > 16 || Temperatures.Any(t => !double.IsFinite(t) || t < 0 || t > 2) || !double.IsFinite(MaxInitialTimestamp) || MaxInitialTimestamp is < 0 or > 30)
             throw new ArgumentException("Invalid Whisper options.");
         foreach (double? value in new[] { CompressionRatioThreshold, LogProbabilityThreshold, NoSpeechThreshold })
             if (value.HasValue && !double.IsFinite(value.Value)) throw new ArgumentException("Whisper thresholds must be finite.");

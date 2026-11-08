@@ -3,7 +3,7 @@ using OneSpeech.Convert;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
 
-if (args.Length < 2 || args[0] is not ("fetch" or "whisper"))
+if (args.Length < 2 || args[0] is not ("fetch" or "whisper" or "whisper-debug" or "norm-probe" or "block-probe"))
 {
     Console.Error.WriteLine("Usage: OneSpeech.Convert fetch <tiny|small|large-v3-turbo> <directory> | whisper <directory>");
     return 2;
@@ -22,7 +22,7 @@ if (args[0] == "fetch")
     };
     Directory.CreateDirectory(args[2]);
     using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-    foreach (string name in new[] { "config.json", "generation_config.json", "preprocessor_config.json", "tokenizer.json", "vocab.json", "merges.txt", "added_tokens.json", "model.safetensors" })
+    foreach (string name in new[] { "config.json", "generation_config.json", "preprocessor_config.json", "tokenizer.json", "vocab.json", "merges.txt", "added_tokens.json", "tokenizer_config.json", "special_tokens_map.json", "model.safetensors" })
     {
         string path = Path.Combine(args[2], name);
         if (!File.Exists(path))
@@ -44,17 +44,33 @@ var config = WhisperConfiguration.Load(args[1]);
 string weightPath = Path.Combine(args[1], "model.safetensors");
 string pinPath = Path.Combine(args[1], "upstream.txt");
 if (!File.Exists(pinPath)) throw new InvalidDataException("Run fetch first to establish verified upstream provenance.");
-string[] provenance = File.ReadAllLines(pinPath);
+string[] provenance = WhisperCheckpoint.Read(args[1]);
+_ = WhisperCheckpoint.Provenance(provenance);
 using (var input = File.OpenRead(weightPath))
     if (Convert.ToHexStringLower(SHA256.HashData(input)) != provenance[2]) throw new InvalidDataException("Weight digest mismatch before conversion.");
 using var weights = new SafeTensorFile(File.OpenRead(weightPath));
+if (args[0] == "block-probe")
+{
+    int layer = config.EncoderLayers == 12 ? 6 : 20;
+    var block = new WhisperGraphWriter(weights);
+    block.Encoder(config, layer, layer + 1);
+    block.Save(Path.Combine(args[1], "block-probe.onemodel"), cancellation.Token);
+    return 0;
+}
+if (args[0] == "norm-probe")
+{
+    var norm = new WhisperGraphWriter(weights);
+    norm.NormalizationProbe(config);
+    norm.Save(Path.Combine(args[1], "norm-probe.onemodel"), cancellation.Token);
+    return 0;
+}
 foreach (string graph in config.EncoderLayers > 24 ? new[] { "encoder-part0", "encoder", "decoder" } : new[] { "encoder", "decoder" })
 {
-    var builder = new WhisperGraphWriter(weights);
+    var builder = new WhisperGraphWriter(weights, args[0] == "whisper-debug");
     if (graph == "encoder-part0") builder.Encoder(config, 0, 16);
     else if (graph == "encoder") builder.Encoder(config, config.EncoderLayers > 24 ? 16 : 0);
     else builder.Decoder(config);
-    string path = Path.Combine(args[1], graph + ".onemodel");
+    string path = Path.Combine(args[1], graph + (args[0] == "whisper-debug" ? ".debug.onemodel" : ".onemodel"));
     builder.Save(path, cancellation.Token);
     using var file = File.OpenRead(path);
     Console.WriteLine($"{graph}.onemodel {file.Length} {Convert.ToHexStringLower(SHA256.HashData(file))}");

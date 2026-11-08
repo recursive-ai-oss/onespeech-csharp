@@ -55,7 +55,20 @@ public sealed class WhisperLogMelSpectrogram
         int length = padToWindow ? WindowSamples : samples.Length;
         if (length <= FftSize / 2) throw new ArgumentException("Unpadded centered STFT requires more than 200 samples.", nameof(audio));
         cancellationToken.ThrowIfCancellationRequested();
-        int frames = length / Hop;
+        return Compute(audio, length, 0, length / Hop, cancellationToken);
+    }
+
+    internal float[] ExtractContext(AudioBuffer audio, int offset, float floor, CancellationToken cancellationToken)
+    {
+        if (offset < 0 || offset >= audio.FrameCount) throw new ArgumentOutOfRangeException(nameof(offset));
+        float[] result = Compute(audio, (long)audio.FrameCount + WindowSamples, offset, WindowFrames, cancellationToken);
+        for (int i = 0; i < result.Length; i++) result[i] = MathF.Max(result[i], floor);
+        return result;
+    }
+
+    private float[] Compute(AudioBuffer audio, long length, int offset, int frames, CancellationToken cancellationToken)
+    {
+        ReadOnlySpan<float> samples = audio.Samples.Span;
         float[] features = new float[MelBins * frames];
         Complex[] input = new Complex[FftSize];
         Complex[] output = new Complex[FftSize];
@@ -68,10 +81,10 @@ public sealed class WhisperLogMelSpectrogram
             cancellationToken.ThrowIfCancellationRequested();
             for (int i = 0; i < FftSize; i++)
             {
-                int index = frame * Hop + i - FftSize / 2;
+                long index = (long)offset + frame * Hop + i - FftSize / 2;
                 if (index < 0) index = -index;
                 else if (index >= length) index = 2 * length - 2 - index;
-                input[i] = index < samples.Length ? samples[index] * hann[i] : 0;
+                input[i] = index < samples.Length ? samples[(int)index] * hann[i] : 0;
             }
             Transform(input, 0, 1, output, scratch);
             for (int i = 0; i < Frequencies; i++)

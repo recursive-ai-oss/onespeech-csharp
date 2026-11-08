@@ -15,6 +15,7 @@ internal sealed record WhisperConfiguration(int Width, int EncoderLayers, int De
     {
         using var doc = ReadJson(Path.Combine(directory, "config.json"));
         var root = doc.RootElement;
+        if (root.TryGetProperty("activation_function", out var activation) && activation.GetString() != "gelu") throw new InvalidDataException("Whisper requires the exact erf GELU activation.");
         int Get(string key, int max)
         {
             int value = root.GetProperty(key).GetInt32();

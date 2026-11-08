@@ -6,7 +6,7 @@ using OneSpeech.Whisper;
 namespace OneSpeech.Convert;
 
 // The graph follows Radford et al. §2.2, with names taken only from published tensor data.
-internal sealed class WhisperGraphWriter(SafeTensorFile weights)
+internal sealed class WhisperGraphWriter(SafeTensorFile weights, bool diagnostics = false)
 {
     private sealed record Value(string Name, int Dtype, object[] Shape);
     private sealed record Initializer(string Name, int Dtype, long[] Shape, byte[]? Bytes, string? Weight, long Offset, long Length);
@@ -99,9 +99,12 @@ internal sealed class WhisperGraphWriter(SafeTensorFile weights)
         for (int conv = 1; conv <= 2; conv++)
         {
             string prefix = "model.encoder.conv" + conv;
-            x = Gelu(Op("Conv", [x, Weight(prefix + ".weight"), Weight(prefix + ".bias")], As("pads", 1, 1), As("strides", conv == 1 ? 1 : 2)));
+            x = Op("Conv", [x, Weight(prefix + ".weight"), Weight(prefix + ".bias")], As("pads", 1, 1), As("strides", conv == 1 ? 1 : 2));
+            if (diagnostics) Output(x, "conv" + conv, 1, config.Width, conv == 1 ? 3000 : 1500);
+            x = Gelu(x);
         }
         x = Op("Add", [Transpose(x, 0, 2, 1), Weight("model.encoder.embed_positions.weight")]);
+        if (diagnostics) Output(x, "position", 1, 1500, config.Width);
         }
         else { Input("hidden", 1, 1, 1500, config.Width); x = "hidden"; }
         for (int layer = begin; layer < end; layer++)
@@ -113,6 +116,7 @@ internal sealed class WhisperGraphWriter(SafeTensorFile weights)
             string v = Heads(Linear(n, prefix + ".self_attn.v_proj"), config.EncoderHeads, config.Width / config.EncoderHeads);
             x = Op("Add", [x, Linear(Attend(q, k, v, config.EncoderHeads, config.Width).Result, prefix + ".self_attn.out_proj")]);
             x = FeedForward(x, prefix);
+            if (diagnostics) Output(x, "block" + layer, 1, 1500, config.Width);
         }
         if (end != config.EncoderLayers) { Output(x, "encoder", 1, 1500, config.Width); return; }
         x = Norm(x, "model.encoder.layer_norm");
@@ -125,6 +129,11 @@ internal sealed class WhisperGraphWriter(SafeTensorFile weights)
         }
     }
 
+    internal void NormalizationProbe(WhisperConfiguration config)
+    {
+        Input("hidden", 1, 1, 1500, config.Width);
+        Output(Norm("hidden", "model.encoder.layer_norm"), "encoder", 1, 1500, config.Width);
+    }
     internal void Decoder(WhisperConfiguration config)
     {
         int dim = config.Width / config.DecoderHeads;

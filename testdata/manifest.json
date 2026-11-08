@@ -1,0 +1,14 @@
+{
+  "fixtures": [
+    {
+      "file": "1089-134686-0001.flac",
+      "source": "https://www.openslr.org/resources/12/test-clean.tar.gz",
+      "archivePath": "LibriSpeech/test-clean/1089/134686/1089-134686-0001.flac",
+      "archiveSha256": "39fde525e59672dc6d1551919b1478f724438a95aa55f874b576be21967e6c23",
+      "sha256": "3fc09ec6d4cc496c530b2019b17bd8fc8ef8a43d6697090971dd1d52cc3d4d89",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "attribution": "LibriSpeech ASR corpus (2015), Vassil Panayotov, Guoguo Chen, Daniel Povey and Sanjeev Khudanpur. Test-clean utterance 1089-134686-0001, distributed unmodified under CC BY 4.0. https://www.openslr.org/12"
+    }
+  ]
+}

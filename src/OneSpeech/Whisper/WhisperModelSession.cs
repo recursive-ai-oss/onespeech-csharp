@@ -14,9 +14,10 @@ internal sealed class WhisperModelSession : IDisposable
         Configuration = WhisperConfiguration.Load(directory);
         var options = new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 2 };
         if (File.Exists(Path.Combine(directory, "encoder-part0.onemodel"))) encoderPart = Session.Load(Path.Combine(directory, "encoder-part0.onemodel"), options, cancellationToken: cancellationToken);
-        encoder = Session.Load(Path.Combine(directory, "encoder.onemodel"), options, cancellationToken: cancellationToken);
+        try { encoder = Session.Load(Path.Combine(directory, "encoder.onemodel"), options, cancellationToken: cancellationToken); }
+        catch { encoderPart?.Dispose(); throw; }
         try { decoder = Session.Load(Path.Combine(directory, "decoder.onemodel"), options, cancellationToken: cancellationToken); }
-        catch { encoder.Dispose(); throw; }
+        catch { encoder.Dispose(); encoderPart?.Dispose(); throw; }
     }
 
     internal SessionOutputs Encode(float[] features, CancellationToken cancellationToken)

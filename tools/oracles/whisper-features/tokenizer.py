@@ -14,11 +14,11 @@ def main():
     parser.add_argument("cases", type=Path)
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
-    tokenizer = WhisperTokenizerFast.from_pretrained(args.directory, local_files_only=True)
+    tokenizer = WhisperTokenizerFast.from_pretrained(args.directory, local_files_only=True, clean_up_tokenization_spaces=False)
     values = []
     for text in json.loads(args.cases.read_text()):
         ids = tokenizer.encode(text, add_special_tokens=False)
-        values.append({"text": text, "ids": ids, "decoded": tokenizer.decode(ids, skip_special_tokens=False, clean_up_tokenization_spaces=False)})
+        values.append({"text": text, "ids": ids, "decoded": tokenizer.decode(ids, skip_special_tokens=False, clean_up_tokenization_spaces=False, decode_with_timestamps=True)})
     args.output.write_text(json.dumps(values, ensure_ascii=False, indent=2) + "\n")
 
 

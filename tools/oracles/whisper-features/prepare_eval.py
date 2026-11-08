@@ -45,7 +45,7 @@ def main():
             from math import gcd
             factor = gcd(rate, 16000)
             audio = resample_poly(audio, 16000 // factor, rate // factor).astype("float32")
-        audio.astype("<f4").tofile(args.output / "earnings.pcm")
+        audio.astype("<f4").tofile(args.output / (path.stem + ".pcm"))
         (args.output / "earnings.ids").write_text(path.stem + "\n")
         (args.output / "earnings-audio.json").write_text(json.dumps({"file": path.name, "source_rate": rate, "samples_16000": audio.size, "license": "CC-BY-SA-4.0", "method": "soundfile0.14.0 decode; channel mean; scipy resample_poly when needed"}, indent=2) + "\n")
 

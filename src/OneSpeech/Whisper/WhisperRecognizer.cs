@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Text;
 using RecursiveAI.OneModel.Graph;
 using OneSpeech.Audio;
+using OneSpeech.Decoding;
 
 namespace OneSpeech.Whisper;
 
@@ -33,15 +34,14 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
         transcribe = g.GetProperty("task_to_id").GetProperty("transcribe").GetInt32();
         translate = g.GetProperty("task_to_id").GetProperty("translate").GetInt32();
         previous = tokenizer.GetToken("<|startofprev|>");
-        noSpeech = tokenizer.GetToken("<|nocaptions|>");
+        noSpeech = tokenizer.TryGetToken("<|nospeech|>", out int noSpeechId) ? noSpeechId : tokenizer.GetToken("<|nocaptions|>");
         noTimestamps = g.GetProperty("no_timestamps_token_id").GetInt32();
         timestampBegin = noTimestamps + 1;
         foreach (var entry in g.GetProperty("lang_to_id").EnumerateObject()) languages.Add(entry.Name[2..^2], entry.Value.GetInt32());
         suppress = g.GetProperty("suppress_tokens").EnumerateArray().Select(v => v.GetInt32()).ToArray();
         alignmentHeads = g.TryGetProperty("alignment_heads", out var heads) ? heads.EnumerateArray().Select(v => (v[0].GetInt32(), v[1].GetInt32())).ToArray() : [];
-        string[] source = File.ReadAllLines(Path.Combine(directory, "upstream.txt"));
-        if (source.Length != 3 || source[2].Length != 64) throw new InvalidDataException("Converted model provenance is missing.");
-        Model = new ModelInfo { Id = source[0], Source = "https://huggingface.co/" + source[0], Revision = source[1], License = source[0].EndsWith("turbo", StringComparison.Ordinal) ? "MIT" : "Apache-2.0", Attribution = "OpenAI Whisper; Copyright (c) 2022 OpenAI", Tier = ModelTier.Tier1, Files = [new ModelFileInfo { Name = "model.safetensors", Sha256 = source[2] }] };
+        string[] source = WhisperCheckpoint.Read(directory);
+        Model = WhisperCheckpoint.Provenance(source);
         Capabilities = new Capabilities { Languages = languages.Keys.ToImmutableArray(), Translation = !source[0].EndsWith("turbo", StringComparison.Ordinal), NativeTimestamps = false, Streaming = false, Biasing = false };
         if (options.Task == WhisperTask.Translate && !Capabilities.Translation) throw new CapabilityNotSupportedException("This checkpoint does not support translation.");
         runtime = new WhisperModelSession(directory, options.Threads, cancellationToken);
@@ -70,17 +70,21 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
     public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken)
     {
         ValidateAudio(audio);
+        cancellationToken.ThrowIfCancellationRequested();
         ObjectDisposedException.ThrowIf(disposed, this);
         if (language != null && !languages.ContainsKey(language)) throw new CapabilityNotSupportedException("Unsupported Whisper language: " + language);
         samplingState = options.SamplingSeed ^ 0x9e3779b9u;
+        float fileFloor = float.NegativeInfinity;
+        if (audio.FrameCount > WhisperLogMelSpectrogram.WindowSamples)
+            for (int position = 0; position < audio.FrameCount; position += WhisperLogMelSpectrogram.WindowSamples)
+                fileFloor = MathF.Max(fileFloor, features.ExtractContext(audio, position, float.NegativeInfinity, cancellationToken).Max() - 2);
         List<int> context = [];
         int seek = 0;
         while (seek < audio.FrameCount)
         {
             cancellationToken.ThrowIfCancellationRequested();
             int count = Math.Min(WhisperLogMelSpectrogram.WindowSamples, audio.FrameCount - seek);
-            var window = new AudioBuffer(audio.Samples.Slice(seek, count), 16000);
-            using var encoded = runtime.Encode(features.Extract(window, cancellationToken: cancellationToken), cancellationToken);
+            using var encoded = runtime.Encode(features.ExtractContext(audio, seek, fileFloor, cancellationToken), cancellationToken);
             language ??= DetectLanguage(encoded, cancellationToken);
             List<int> prefix = [];
             if (context.Count > 0) { prefix.Add(previous); prefix.AddRange(context.TakeLast(223)); }
@@ -90,10 +94,23 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
             if (skip) { seek += count; options.Progress?.Invoke(TimeSpan.FromSeconds(seek / 16000.0)); continue; }
             var sliced = Slice(result.Tokens, seek, count, language);
             int advance = sliced.Advance;
+            if (options.WordTimestamps && sliced.Segments.Count > 0)
+            {
+                var combined = new Segment { Text = string.Concat(sliced.Segments.Select(s => s.Text)), Language = language };
+                var alignment = AddWordTimes(encoded, combined, seek, count, language, cancellationToken, sliced.TextTokens);
+                List<Word>[] groups = sliced.Segments.Select(_ => new List<Word>()).ToArray();
+                int group = 0, position = 0, boundary = sliced.Segments[0].Text.Length;
+                foreach (Word word in alignment.Words)
+                {
+                    while (group + 1 < groups.Length && position >= boundary) { group++; boundary += sliced.Segments[group].Text.Length; }
+                    groups[group].Add(word); position += word.Text.Length;
+                }
+                for (int i = 0; i < groups.Length; i++) sliced.Segments[i] = sliced.Segments[i] with { Words = groups[i].ToImmutableArray() };
+            }
             foreach (Segment segment in sliced.Segments)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                Segment timed = options.WordTimestamps ? AddWordTimes(encoded, segment, seek, count, language, cancellationToken) : AddUntimedWords(segment);
+                Segment timed = options.WordTimestamps ? segment : AddUntimedWords(segment);
                 yield return timed;
             }
             if (!options.ConditionOnPreviousText || result.Temperature > .5) context.Clear();
@@ -107,6 +124,7 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
     public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken)
     {
         ValidateAudio(audio);
+        cancellationToken.ThrowIfCancellationRequested();
         ObjectDisposedException.ThrowIf(disposed, this);
         int count = Math.Min(audio.FrameCount, WhisperLogMelSpectrogram.WindowSamples);
         using var encoded = runtime.Encode(features.Extract(new AudioBuffer(audio.Samples[..count], 16000), cancellationToken: cancellationToken), cancellationToken);
@@ -126,12 +144,46 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
         if (audio.SampleRate != 16000 || audio.Channels != 1) throw new ArgumentException("Whisper expects 16 kHz mono PCM.", nameof(audio));
     }
 
+    internal int[] DecodeProbe(float[] mel, string language, CancellationToken cancellationToken)
+    {
+        using var encoded = runtime.Encode(mel, cancellationToken);
+        return Decode(encoded, [start, languages[language], options.Task == WhisperTask.Transcribe ? transcribe : translate], cancellationToken).Tokens;
+    }
     private sealed record Attempt(int[] Tokens, double AverageLogProbability, double NoSpeech, double Temperature);
+    private sealed class DecoderBeamState(WhisperModelSession model, SessionOutputs encoded, SessionOutputs decoded, int length) : IBeamDecoderState
+    {
+        private readonly float[] logits = decoded["logits"].Data<float>()[^model.Configuration.Vocabulary..].ToArray();
+        public ReadOnlyMemory<float> Logits => logits;
+        public IBeamDecoderState Advance(int token, CancellationToken cancellationToken) => new DecoderBeamState(model, encoded, model.Decode(encoded, new[] { token }, decoded, length, cancellationToken), length + 1);
+        public void Dispose() => decoded.Dispose();
+    }
+    private Attempt DecodeBeam(SessionOutputs encoded, int[] prefix, CancellationToken cancellationToken)
+    {
+        var decoded = runtime.Decode(encoded, prefix, null, 0, cancellationToken);
+        int vocab = runtime.Configuration.Vocabulary;
+        var startLogits = decoded["logits"].Data<float>().Slice(Array.IndexOf(prefix, start) * vocab, vocab);
+        double noSpeechProbability = Math.Exp(startLogits[noSpeech] - LogSumExp(startLogits));
+        var root = new DecoderBeamState(runtime, encoded, decoded, prefix.Length);
+        var result = BeamSearch.Decode(root, end, options.BeamSize!.Value, Math.Min(options.MaxTokens, 448 - prefix.Length), (logits, tokens) => Filter(logits, tokens.ToArray().ToList(), tokens.Length == 0), cancellationToken);
+        return new Attempt(result.Tokens.ToArray(), result.MeanLogProbability, noSpeechProbability, 0);
+    }
+    private bool NeedsFallback(Attempt result)
+    {
+        bool fallback = options.CompressionRatioThreshold.HasValue && CompressionRatio(tokenizer.Decode(result.Tokens)) > options.CompressionRatioThreshold.Value || options.LogProbabilityThreshold.HasValue && result.AverageLogProbability < options.LogProbabilityThreshold.Value;
+        if (options.NoSpeechThreshold.HasValue && result.NoSpeech > options.NoSpeechThreshold.Value && options.LogProbabilityThreshold.HasValue && result.AverageLogProbability < options.LogProbabilityThreshold.Value) fallback = false;
+        return fallback;
+    }
     private Attempt Decode(SessionOutputs encoded, int[] prefix, CancellationToken ct)
     {
         Attempt? last = null;
         foreach (double temperature in options.Temperatures)
         {
+            if (temperature == 0 && options.BeamSize.HasValue)
+            {
+                last = DecodeBeam(encoded, prefix, ct);
+                if (!NeedsFallback(last)) return last;
+                continue;
+            }
             List<int> generated = [];
             SessionOutputs? state = null;
             double sumLogProbability = 0, noSpeechProbability = 0;
@@ -163,9 +215,7 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
             finally { state?.Dispose(); }
             double average = sumLogProbability / (generated.Count + 1);
             last = new(generated.ToArray(), average, noSpeechProbability, temperature);
-            bool fallback = options.CompressionRatioThreshold.HasValue && CompressionRatio(tokenizer.Decode(last.Tokens)) > options.CompressionRatioThreshold.Value || options.LogProbabilityThreshold.HasValue && average < options.LogProbabilityThreshold.Value;
-            if (options.NoSpeechThreshold.HasValue && noSpeechProbability > options.NoSpeechThreshold.Value && options.LogProbabilityThreshold.HasValue && average < options.LogProbabilityThreshold.Value) fallback = false;
-            if (!fallback) return last;
+            if (!NeedsFallback(last)) return last;
         }
         return last!;
     }
@@ -232,13 +282,14 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
         return (double)input.Length / output.Length;
     }
 
-    private (List<Segment> Segments, int Advance, int UsedTokens) Slice(int[] tokens, int offset, int count, string language)
+    private (List<Segment> Segments, int Advance, int UsedTokens, int[] TextTokens) Slice(int[] tokens, int offset, int count, string language)
     {
         List<int> cuts = [];
         for (int i = 1; i < tokens.Length; i++) if (tokens[i - 1] >= timestampBegin && tokens[i] >= timestampBegin) cuts.Add(i);
         bool singleEnding = tokens.Length >= 2 && tokens[^1] >= timestampBegin && tokens[^2] < timestampBegin;
         if (cuts.Count > 0 && singleEnding) cuts.Add(tokens.Length);
         List<Segment> segments = [];
+        List<int> selectedTextTokens = [];
         int begin = 0;
         foreach (int cut in cuts)
         {
@@ -251,21 +302,22 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
         {
             int endpoint = tokens.LastOrDefault(t => t >= timestampBegin, timestampBegin);
             Add(tokens, 0, endpoint > timestampBegin ? (endpoint - timestampBegin) * 320 : count);
-            return (segments, count, tokens.Length);
+            return (segments, count, tokens.Length, selectedTextTokens.ToArray());
         }
         int advance = singleEnding ? count : (tokens[begin - 1] - timestampBegin) * 320;
-        return (segments, advance, begin);
+        return (segments, advance, begin, selectedTextTokens.ToArray());
         void Add(int[] slice, int startSamples, int endSamples)
         {
             string text = tokenizer.Decode(slice);
             if (string.IsNullOrWhiteSpace(text) || endSamples <= startSamples) return;
+            selectedTextTokens.AddRange(slice.Where(t => t < end));
             segments.Add(new Segment { Text = text, Start = TimeSpan.FromSeconds((offset + Math.Min(startSamples, count)) / 16000.0), End = TimeSpan.FromSeconds((offset + Math.Min(endSamples, count)) / 16000.0), Language = language });
         }
     }
 
     private static Segment AddUntimedWords(Segment segment) => segment with { Words = segment.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(t => new Word { Text = t, Language = segment.Language }).ToImmutableArray() };
-    private Segment AddWordTimes(SessionOutputs encoded, Segment segment, int offset, int count, string language, CancellationToken cancellationToken)
-        => WhisperWordAlignment.Align(runtime, tokenizer, alignmentHeads, encoded, segment, offset, count, [start, languages[language], options.Task == WhisperTask.Transcribe ? transcribe : translate, noTimestamps], end, cancellationToken);
+    private Segment AddWordTimes(SessionOutputs encoded, Segment segment, int offset, int count, string language, CancellationToken cancellationToken, int[]? originalTokens = null)
+        => WhisperWordAlignment.Align(runtime, tokenizer, alignmentHeads, encoded, segment, offset, count, [start, languages[language], options.Task == WhisperTask.Transcribe ? transcribe : translate, noTimestamps], end, cancellationToken, originalTokens);
 
     /// <summary>Releases model sessions. Subsequent processing throws ObjectDisposedException.</summary>
     public void Dispose() { if (disposed) return; runtime.Dispose(); disposed = true; }

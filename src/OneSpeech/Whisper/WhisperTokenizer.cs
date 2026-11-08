@@ -31,7 +31,7 @@ public sealed class WhisperTokenizer
             characterBytes.Add(character, (byte)b);
         }
         using (var doc = LoadJson(Path.Combine(directory, "vocab.json")))
-            foreach (var entry in doc.RootElement.EnumerateObject()) Add(entry.Name, entry.Value.GetInt32(), false);
+            foreach (var entry in doc.RootElement.EnumerateObject()) Add(entry.Name, entry.Value.GetInt32(), entry.Name == "<|endoftext|>");
         using (var doc = LoadJson(Path.Combine(directory, "added_tokens.json")))
             foreach (var entry in doc.RootElement.EnumerateObject()) Add(entry.Name, entry.Value.GetInt32(), true);
         int count = vocabulary.Values.Max() + 1;
@@ -74,11 +74,12 @@ public sealed class WhisperTokenizer
             if (existing != id) throw new InvalidDataException("Inconsistent added token.");
         }
         else vocabulary.Add(token, id);
-        if (isSpecial) { special.Add(token, id); specialIds.Add(id); }
+        if (isSpecial) { special[token] = id; specialIds.Add(id); }
     }
 
     /// <summary>Returns a data-defined token ID, including a special or timestamp token. Throws KeyNotFoundException if absent.</summary>
     public int GetToken(string token) => vocabulary[token];
+    internal bool TryGetToken(string token, out int id) => vocabulary.TryGetValue(token, out id);
 
     /// <summary>Returns true for a data-defined special token, including timestamp tokens.</summary>
     public bool IsSpecial(int id) => specialIds.Contains(id);

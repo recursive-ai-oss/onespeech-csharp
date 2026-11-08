@@ -5,9 +5,65 @@ using OneSpeech.Audio;
 using OneSpeech.Whisper;
 using System.Text.Json;
 
-if (args.Length == 5 && args[0] == "score")
+if (args.Length == 3 && args[0] == "long-features")
 {
-    InterimEvaluation.Run(args[1], args[2], args[3], args[4]);
+    var audio = new AudioBuffer(ReadFloats(args[1]), 16000); Directory.CreateDirectory(args[2]);
+    foreach (int bins in new[] { 80, 128 })
+    {
+        var extractor = new WhisperLogMelSpectrogram(bins); float floor = float.NegativeInfinity;
+        for (int offset = 0; offset < audio.FrameCount; offset += 480000) floor = MathF.Max(floor, extractor.ExtractContext(audio, offset, float.NegativeInfinity, CancellationToken.None).Max() - 2);
+        for (int offset = 0; offset < audio.FrameCount; offset += 480000) WriteFloats(Path.Combine(args[2], $"{offset}.{bins}.f32"), extractor.ExtractContext(audio, offset, floor, CancellationToken.None));
+    }
+    return 0;
+}
+if (args.Length == 8 && args[0] == "realign")
+{
+    string[] ids = File.ReadAllLines(args[3]); Directory.CreateDirectory(args[5]);
+    using var recognizer = WhisperRecognizer.Load(args[1], new WhisperOptions { Threads = 8 });
+    int begin = int.Parse(args[6], CultureInfo.InvariantCulture), count = int.Parse(args[7], CultureInfo.InvariantCulture);
+    for (int i = begin; i < Math.Min(ids.Length, begin + count); i++)
+    {
+        string path = Path.Combine(args[5], ids[i] + ".json"); if (File.Exists(path)) continue;
+        Transcript original = Transcript.FromJson(File.ReadAllText(Path.Combine(args[4], ids[i] + ".json")));
+        Transcript aligned = recognizer.Transcribe(new AudioBuffer(ReadFloats(Path.Combine(args[2], ids[i] + ".pcm")), 16000), original.Language, CancellationToken.None);
+        File.WriteAllText(path + ".part", aligned.ToJson()); File.Move(path + ".part", path); Console.WriteLine(ids[i]);
+    }
+    return 0;
+}
+if (args.Length == 4 && args[0] == "greedy")
+{
+    using var recognizer = WhisperRecognizer.Load(args[1], new WhisperOptions { Threads = 4, Temperatures = [0], WordTimestamps = false });
+    int[] tokens = recognizer.DecodeProbe(ReadFloats(args[2]), "en", CancellationToken.None);
+    using var output = File.Create(args[3]); using var json = new Utf8JsonWriter(output);
+    json.WriteStartArray(); foreach (int token in tokens) json.WriteNumberValue(token); json.WriteEndArray();
+    return 0;
+}
+if (args.Length == 4 && (args[0] == "norm" || args[0] == "block"))
+{
+    var config = WhisperConfiguration.Load(args[1]);
+    using var input = RecursiveAI.OneModel.Tensors.Tensor.FromSpan<float>(ReadFloats(args[2]), RecursiveAI.OneModel.Tensors.Shape.Create(1, 1500, config.Width));
+    using var session = RecursiveAI.OneModel.Graph.Session.Load(Path.Combine(args[1], args[0] == "norm" ? "norm-probe.onemodel" : "block-probe.onemodel"), new RecursiveAI.OneModel.Graph.ModelOptions { IntraOpThreads = 4 });
+    using var output = session.Run(new Dictionary<string, RecursiveAI.OneModel.Tensors.Tensor>(StringComparer.Ordinal) { ["hidden"] = input });
+    Directory.CreateDirectory(args[3]); WriteFloats(Path.Combine(args[3], args[0] == "norm" ? "encoder.f32" : "block" + (config.EncoderLayers == 12 ? 6 : 20) + ".f32"), output["encoder"].Data<float>());
+    return 0;
+}
+if (args.Length == 4 && args[0] == "stages")
+{
+    Directory.CreateDirectory(args[3]);
+    var config = WhisperConfiguration.Load(args[1]);
+    using var input = RecursiveAI.OneModel.Tensors.Tensor.FromSpan<float>(ReadFloats(args[2]), RecursiveAI.OneModel.Tensors.Shape.Create(1, config.MelBins, 3000));
+    using var first = File.Exists(Path.Combine(args[1], "encoder-part0.debug.onemodel")) ? RecursiveAI.OneModel.Graph.Session.Load(Path.Combine(args[1], "encoder-part0.debug.onemodel"), new RecursiveAI.OneModel.Graph.ModelOptions { IntraOpThreads = 4 }) : null;
+    using var intermediate = first?.Run(new Dictionary<string, RecursiveAI.OneModel.Tensors.Tensor>(StringComparer.Ordinal) { ["mel"] = input });
+    if (intermediate != null)
+        foreach (string name in intermediate.Names) if (name != "encoder") WriteFloats(Path.Combine(args[3], name + ".f32"), intermediate[name].Data<float>());
+    using var final = RecursiveAI.OneModel.Graph.Session.Load(Path.Combine(args[1], "encoder.debug.onemodel"), new RecursiveAI.OneModel.Graph.ModelOptions { IntraOpThreads = 4 });
+    using var output = final.Run(new Dictionary<string, RecursiveAI.OneModel.Tensors.Tensor>(StringComparer.Ordinal) { [intermediate == null ? "mel" : "hidden"] = intermediate == null ? input : intermediate["encoder"] });
+    foreach (string name in output.Names) if (!name.StartsWith("cross", StringComparison.Ordinal)) WriteFloats(Path.Combine(args[3], name + ".f32"), output[name].Data<float>());
+    return 0;
+}
+if (args.Length == 5 && args[0] == "export")
+{
+    ExportHypotheses.Run(args[1], args[2], args[3], args[4]);
     return 0;
 }
 if (args.Length == 8 && args[0] == "recognize")

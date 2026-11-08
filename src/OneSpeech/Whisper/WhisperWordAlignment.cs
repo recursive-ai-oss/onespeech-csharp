@@ -7,9 +7,9 @@ namespace OneSpeech.Whisper;
 
 internal static class WhisperWordAlignment
 {
-    internal static Segment Align(WhisperModelSession model, WhisperTokenizer tokenizer, (int Layer, int Head)[] heads, SessionOutputs encoded, Segment segment, int offset, int count, int[] prefix, int endToken, CancellationToken ct)
+    internal static Segment Align(WhisperModelSession model, WhisperTokenizer tokenizer, (int Layer, int Head)[] heads, SessionOutputs encoded, Segment segment, int offset, int count, int[] prefix, int endToken, CancellationToken ct, int[]? originalTokens = null)
     {
-        int[] text = tokenizer.Encode(segment.Text, cancellationToken: ct);
+        int[] text = originalTokens ?? tokenizer.Encode(segment.Text, cancellationToken: ct);
         var words = SplitWords(tokenizer, text);
         Segment Untimed() => segment with { Words = words.Select(w => new Word { Text = w.Text, Language = segment.Language }).ToImmutableArray() };
         int frames = Math.Min(1500, count / 320);
@@ -66,14 +66,18 @@ internal static class WhisperWordAlignment
         List<Word> aligned = [];
         foreach (var word in words)
         {
-            int begin = boundaries[word.Begin], end = boundaries[word.End];
+            int begin = boundaries[word.TimingBegin], end = boundaries[word.TimingEnd];
             double confidence = probabilities.AsSpan(word.Begin, word.End - word.Begin).ToArray().Average();
-            aligned.Add(new Word { Text = word.Text, Start = TimeSpan.FromSeconds((offset + begin * 320) / 16000.0), End = TimeSpan.FromSeconds((offset + end * 320) / 16000.0), Confidence = Math.Clamp(confidence, 0, 1), TimingMethod = TimingMethod.Dtw, Language = segment.Language });
+            aligned.Add(new Word { Text = word.Text, Start = TimeSpan.FromTicks(((long)offset + begin * 320) * 625), End = TimeSpan.FromTicks(((long)offset + end * 320) * 625), Confidence = Math.Clamp(confidence, 0, 1), TimingMethod = TimingMethod.Dtw, Language = segment.Language });
         }
         return segment with { Words = aligned.ToImmutableArray() };
     }
 
-    private sealed record TokenWord(string Text, int Begin, int End);
+    private sealed record TokenWord(string Text, int Begin, int End)
+    {
+        internal int TimingBegin { get; init; } = Begin;
+        internal int TimingEnd { get; init; } = End;
+    }
     private static List<TokenWord> SplitWords(WhisperTokenizer tokenizer, int[] tokens)
     {
         List<TokenWord> words = [];
@@ -85,10 +89,12 @@ internal static class WhisperWordAlignment
             bool punctuation = piece.Trim().EnumerateRunes().All(r => Rune.IsPunctuation(r));
             if (words.Count == 0 || piece.StartsWith(' ') || punctuation)
                 words.Add(new TokenWord(piece, begin, i + 1));
-            else words[^1] = words[^1] with { Text = words[^1].Text + piece, End = i + 1 };
+            else words[^1] = words[^1] with { Text = words[^1].Text + piece, End = i + 1, TimingEnd = i + 1 };
             begin = i + 1;
         }
         if (begin < tokens.Length) words.Add(new TokenWord(tokenizer.Decode(tokens.AsSpan(begin)), begin, tokens.Length));
+        // Observed in openai-whisper 20250625: attached punctuation shares the lexical
+        // word interval; punctuation-token attention must not extend it across a pause.
         const string prepend = "\"'“¿([{-";
         const string append = "\"'.。,，!！?？:：”)]}、";
         for (int i = 0; i + 1 < words.Count;)

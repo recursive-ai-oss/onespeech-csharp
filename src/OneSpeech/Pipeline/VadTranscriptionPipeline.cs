@@ -24,8 +24,8 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         chunker = new VadChunker(detector, maximumChunkDuration);
     }
 
-    /// <summary>Creates a pipeline with an optional whole-recording diarization pass for in-memory PCM. Models are borrowed.
-    /// File inputs are refused until a bounded whole-file diarization implementation is available; chunk-local speaker identities are never presented as global identities.</summary>
+    /// <summary>Creates a pipeline with a whole-recording diarization pass. Models are borrowed.
+    /// File/encoded-stream inputs require a BlockDiarizer and make two bounded decoding passes; no chunk-local speaker IDs are substituted.</summary>
     public VadTranscriptionPipeline(SpeechRecognizer recognizer, VoiceActivityDetector detector, TimeSpan? maximumChunkDuration, IProgress<TimeSpan>? progress, Diarizer diarizer)
         : this(recognizer, detector, maximumChunkDuration, progress)
     {
@@ -38,30 +38,36 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     {
         ArgumentNullException.ThrowIfNull(audio);
         var transcript = Combine([audio], language, cancellationToken);
-        return diarizer is null ? transcript : TranscriptDiarization.Merge(transcript,
-            diarizer.Diarize(audio, cancellationToken).Select(t => new ActiveTurn { Turn = t }), cancellationToken);
+        return MergeDocument(transcript, diarizer?.Diarize(audio, cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray(), cancellationToken);
     }
 
     /// <summary>Decodes and transcribes a file without retaining its PCM. The returned document necessarily grows with the recognized text. Filesystem errors remain IOException; corrupt/unsupported audio throws UnsupportedAudioException.</summary>
     public Transcript Transcribe(string path, string? language, CancellationToken cancellationToken)
     {
-        RequireFileDiarizationSupport();
+        var turns = FileTurns(path, cancellationToken);
         using var source = AudioFileSource.Open(path, cancellationToken);
-        return Combine(VadChunker.Blocks(source, cancellationToken), language, cancellationToken);
+        return MergeDocument(Combine(VadChunker.Blocks(source, cancellationToken), language, cancellationToken), turns, cancellationToken);
     }
 
     /// <summary>Asynchronously copies caller-owned encoded input into a temporary seekable file, then decodes bounded chunks synchronously. The spool is deleted on completion/cancellation. No background inference or synchronous input-stream reads are used.</summary>
     public async ValueTask<Transcript> TranscribeAsync(Stream stream, string? language, CancellationToken cancellationToken)
     {
-        RequireFileDiarizationSupport();
         ArgumentNullException.ThrowIfNull(stream);
+        var blockDiarizer = RequireBlockDiarizer();
         if (!stream.CanRead) throw new ArgumentException("Input stream must be readable.", nameof(stream));
         string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         await using var spool = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 65536, FileOptions.Asynchronous | FileOptions.DeleteOnClose);
         await stream.CopyToAsync(spool, cancellationToken).ConfigureAwait(false);
         spool.Position = 0;
+        ActiveTurn[]? turns = null;
+        if (blockDiarizer is not null)
+        {
+            using var firstPass = AudioFileSource.Open(spool, true, cancellationToken);
+            turns = blockDiarizer.DiarizeBlocks(VadChunker.Blocks(firstPass, cancellationToken), cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray();
+        }
+        spool.Position = 0;
         using var source = AudioFileSource.Open(spool, true, cancellationToken);
-        return Combine(VadChunker.Blocks(source, cancellationToken), language, cancellationToken);
+        return MergeDocument(Combine(VadChunker.Blocks(source, cancellationToken), language, cancellationToken), turns, cancellationToken);
     }
 
     /// <summary>Yields final segments on the input clock from bounded 16 kHz chunks, without accumulating the document. Cancellation is checked per chunk; stereo is averaged.</summary>
@@ -89,7 +95,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     /// <summary>Decodes a file and yields final segments without retaining its PCM or accumulating text. Enumeration owns and closes the decoder, including on early disposal. Errors and cancellation follow AudioFileSource.</summary>
     public IEnumerable<Segment> TranscribeStream(string path, string? language, CancellationToken cancellationToken)
     {
-        RequireFileDiarizationSupport();
+        var activeTurns = FileTurns(path, cancellationToken);
         using var source = AudioFileSource.Open(path, cancellationToken);
         foreach (var chunk in chunker.Read(VadChunker.Blocks(source, cancellationToken), progress, cancellationToken))
         {
@@ -97,14 +103,33 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
             foreach (var segment in recognizer.TranscribeStream(chunk.Audio, language, cancellationToken))
             {
                 language ??= segment.Language;
-                yield return Shift(segment, chunk.Start);
+                var shifted = Shift(segment, chunk.Start);
+                if (activeTurns is not null)
+                    shifted = TranscriptDiarization.Merge(new Transcript { Text = shifted.Text, Segments = [shifted] }, activeTurns, cancellationToken).Segments[0];
+                yield return shifted;
             }
         }
     }
 
-    private void RequireFileDiarizationSupport()
+    private BlockDiarizer? RequireBlockDiarizer()
     {
-        if (diarizer is not null) throw new FeatureUnavailableException("Whole-file diarization is not available in this pipeline yet. Use Transcribe(AudioBuffer, ...) with bounded in-memory input, or omit the diarizer for file streaming.");
+        if (diarizer is null) return null;
+        return diarizer as BlockDiarizer ?? throw new CapabilityNotSupportedException("File diarization requires a BlockDiarizer, such as ClusteringDiarizer or ChannelDiarizer. Supply a block-capable implementation or use in-memory audio.");
+    }
+
+    private ActiveTurn[]? FileTurns(string path, CancellationToken cancellationToken)
+    {
+        var blockDiarizer = RequireBlockDiarizer();
+        if (blockDiarizer is null) return null;
+        using var source = AudioFileSource.Open(path, cancellationToken);
+        return blockDiarizer.DiarizeBlocks(VadChunker.Blocks(source, cancellationToken), cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray();
+    }
+
+    private Transcript MergeDocument(Transcript transcript, ActiveTurn[]? turns, CancellationToken cancellationToken)
+    {
+        if (turns is null) return transcript;
+        var merged = TranscriptDiarization.Merge(transcript, turns, cancellationToken);
+        return diarizer is BlockDiarizer block ? merged with { Models = [.. merged.Models.Concat(block.Models).DistinctBy(m => (m.Id, m.Revision))] } : merged;
     }
 
     private Transcript Combine(IEnumerable<AudioBuffer> blocks, string? language, CancellationToken cancellationToken)

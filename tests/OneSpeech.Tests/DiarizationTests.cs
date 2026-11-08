@@ -80,7 +80,36 @@ public sealed class DiarizationTests
         Assert.Equal(ChannelIds, transcript.Words.Select(w => w.Speaker!.Id));
         var segments = pipeline.TranscribeStream(Stereo(0), "en", TestContext.Current.CancellationToken).ToArray();
         Assert.Equal(transcript.Words.Select(w => w.Speaker), segments.SelectMany(s => s.Words).Select(w => w.Speaker));
-        Assert.Throws<FeatureUnavailableException>(() => pipeline.Transcribe("absent.wav", null, TestContext.Current.CancellationToken));
+
+    }
+
+    [Fact]
+    public async Task StereoFileAndEncodedStreamHaveGlobalChannelSpeakers()
+    {
+        var detector = new EnergyVad();
+        var pipeline = new VadTranscriptionPipeline(new FakeRecognizer(), detector, null, null, new ChannelDiarizer(detector));
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".wav");
+        try
+        {
+            var audio = Stereo(0);
+            using (var file = File.Create(path))
+            using (var writer = new BinaryWriter(file))
+            {
+                writer.Write("RIFF"u8); writer.Write(36 + audio.Samples.Length * 2); writer.Write("WAVEfmt "u8); writer.Write(16);
+                writer.Write((short)1); writer.Write((short)2); writer.Write(16000); writer.Write(64000); writer.Write((short)4); writer.Write((short)16);
+                writer.Write("data"u8); writer.Write(audio.Samples.Length * 2);
+                foreach (float sample in audio.Samples.ToArray()) writer.Write((short)(sample * 32767));
+            }
+            var result = pipeline.Transcribe(path, "en", TestContext.Current.CancellationToken);
+            Assert.Equal(ChannelIds, result.Words.Select(w => w.Speaker!.Id));
+            Assert.Equal(2, result.Turns.Length);
+            Assert.Equal(TimeSpan.FromSeconds(2), result.Duration);
+            Assert.Equal(result.Words.Select(w => w.Speaker), pipeline.TranscribeStream(path, "en", TestContext.Current.CancellationToken).SelectMany(s => s.Words).Select(w => w.Speaker));
+            await using var encoded = File.OpenRead(path);
+            var fromStream = await pipeline.TranscribeAsync(encoded, "en", TestContext.Current.CancellationToken);
+            Assert.Equal(result.Words, fromStream.Words);
+        }
+        finally { File.Delete(path); }
     }
 
     private static readonly ModelInfo TestModel = new() { Id = "synthetic", Source = "synthetic", Revision = "1", Tier = ModelTier.Tier1, License = "MIT", Attribution = "synthetic" };

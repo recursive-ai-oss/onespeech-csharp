@@ -71,6 +71,32 @@ internal sealed class SafeTensorFile : IDisposable
         }
     }
 
+    internal void CopyFloat32To(string name, Stream destination, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        cancellationToken.ThrowIfCancellationRequested();
+        SafeTensorInfo tensor = tensors[name];
+        if (tensor.DataType == "F32") { CopyTensorTo(name, destination, cancellationToken); return; }
+        if (tensor.DataType is not ("F16" or "BF16")) throw new NotSupportedException("Expected floating-point weights.");
+        // Fixed 64 KiB input blocks keep large embedding tensors out of the managed heap.
+        byte[] input = new byte[65536], output = new byte[131072];
+        stream.Position = dataStart + tensor.Offset;
+        long remaining = tensor.ElementCount;
+        while (remaining > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int count = (int)Math.Min(remaining, input.Length / 2);
+            stream.ReadExactly(input.AsSpan(0, count * 2));
+            for (int i = 0; i < count; i++)
+            {
+                ushort value = BinaryPrimitives.ReadUInt16LittleEndian(input.AsSpan(i * 2));
+                float expanded = tensor.DataType == "BF16" ? BitConverter.Int32BitsToSingle(value << 16) : (float)BitConverter.UInt16BitsToHalf(value);
+                BinaryPrimitives.WriteSingleLittleEndian(output.AsSpan(i * 4), expanded);
+            }
+            destination.Write(output.AsSpan(0, count * 4)); remaining -= count;
+        }
+    }
+
     internal float[] ReadFloat32(string name, CancellationToken cancellationToken)
     {
         SafeTensorInfo tensor = tensors[name];

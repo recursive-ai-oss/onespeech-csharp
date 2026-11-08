@@ -31,7 +31,11 @@ Fuzzer.LibFuzzer.Run(data =>
         using var file = new SafeTensorFile(stream);
         foreach (var pair in file.Tensors)
             if (pair.Value.ElementCount <= 16384 && pair.Value.DataType is "F32" or "F16" or "BF16")
+            {
                 _ = file.ReadFloat32(pair.Key, CancellationToken.None);
+                using var expanded = new MemoryStream();
+                file.CopyFloat32To(pair.Key, expanded, CancellationToken.None);
+            }
     }
     catch (InvalidDataException) { }
     catch (NotSupportedException) { }

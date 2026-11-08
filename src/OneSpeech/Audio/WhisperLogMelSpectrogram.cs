@@ -58,6 +58,16 @@ public sealed class WhisperLogMelSpectrogram
         return Compute(audio, length, 0, length / Hop, cancellationToken);
     }
 
+    internal float[] ExtractQwen(AudioBuffer audio, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(audio);
+        if (audio.SampleRate != SampleRate || audio.Channels != 1 || audio.FrameCount is <= 200 or > 4800000)
+            throw new ArgumentException("Qwen features require more than 200 samples and at most 300 seconds of 16 kHz mono audio.", nameof(audio));
+        foreach (float sample in audio.Samples.Span)
+            if (!float.IsFinite(sample)) throw new ArgumentException("Audio samples must be finite.", nameof(audio));
+        return Compute(audio, audio.FrameCount, 0, audio.FrameCount / Hop, cancellationToken);
+    }
+
     internal float[] ExtractContext(AudioBuffer audio, int offset, float floor, CancellationToken cancellationToken)
     {
         if (offset < 0 || offset >= audio.FrameCount) throw new ArgumentOutOfRangeException(nameof(offset));

@@ -113,10 +113,31 @@ internal static class SpeechServices
         return new AudioBuffer(samples.AsMemory(0, length), 16000);
     }
 
+    // Call after native timings and before a generic CTC/DTW fallback. The returned model is caller-owned.
+    internal static async ValueTask<OneSpeech.Qwen3.Qwen3ForcedAligner?> TryResolveQwenAlignerAsync(ModelStore store, string language, CancellationToken cancellationToken)
+    {
+        if (!OneSpeech.Qwen3.Qwen3ForcedAligner.SupportedLanguages.Contains(language)) return null;
+        var model = await store.PullAsync("Qwen/Qwen3-ForcedAligner-0.6B", cancellationToken: cancellationToken).ConfigureAwait(false);
+        return OneSpeech.Qwen3.Qwen3ForcedAligner.Load(model.Directory, cancellationToken: cancellationToken);
+    }
+
     private static async ValueTask<RecognizerLease> ResolveAsync(ModelStore store, string? model, CancellationToken cancellationToken)
     {
         if (model is not null && model.StartsWith("moonshine-ai/", StringComparison.Ordinal)) _ = Moonshine.MoonshineProvenance.Get(model);
         var entry = model is null ? store.Catalog.GetDefault("whisper") : store.Catalog.Get(model);
+        if (entry.Family == "qwen3-asr")
+        {
+            var qwenModel = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var recognition = OneSpeech.Qwen3.Qwen3Recognizer.Load(qwenModel.Directory, cancellationToken: cancellationToken);
+            try
+            {
+                var alignmentModel = await store.PullAsync("Qwen/Qwen3-ForcedAligner-0.6B", cancellationToken: cancellationToken).ConfigureAwait(false);
+                var alignment = OneSpeech.Qwen3.Qwen3ForcedAligner.Load(alignmentModel.Directory, cancellationToken: cancellationToken);
+                recognition.WordAligner = alignment;
+                return new RecognizerLease(recognition, recognition, alignment);
+            }
+            catch { recognition.Dispose(); throw; }
+        }
         if (entry.Family is not ("whisper" or "moonshine")) throw new CapabilityNotSupportedException($"Model {entry.Id} is not a registered speech recognizer.");
         if (entry.ConvertedFiles.Any(f => f.Size > int.MaxValue))
             throw new CapabilityNotSupportedException($"'{entry.Id}' requires a runtime graph larger than OneModel 1.0.0's 2 GiB file limit. Select openai/whisper-large-v3-turbo until a larger-file loader is available.");
@@ -130,7 +151,7 @@ internal static class SpeechServices
         return new RecognizerLease(whisper, whisper);
     }
 
-    private sealed class RecognizerLease(SpeechRecognizer recognizer, IDisposable owner) : SpeechRecognizer, IDisposable
+    private sealed class RecognizerLease(SpeechRecognizer recognizer, IDisposable owner, IDisposable? alignment = null) : SpeechRecognizer, IDisposable
     {
         public override ModelInfo Model => recognizer.Model;
         public override Capabilities Capabilities => recognizer.Capabilities;
@@ -138,7 +159,7 @@ internal static class SpeechServices
         public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken) => recognizer.TranscribeStream(audio, language, cancellationToken);
         public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken) => recognizer.DetectLanguage(audio, cancellationToken);
         public override LiveSession CreateLiveSession(SileroVad detector, string? language = null) => recognizer.CreateLiveSession(detector, language);
-        public void Dispose() => owner.Dispose();
+        public void Dispose() { owner.Dispose(); alignment?.Dispose(); }
     }
 
     private static async ValueTask<CampPlusEmbedder> ResolveEmbedderAsync(ModelStore store, string? language, CancellationToken cancellationToken)

@@ -35,6 +35,7 @@ Console.WriteLine("Clustering NativeAOT smoke passed.");
 
 SpeakerSmoke.Run();
 OnlineSpeakerSmoke.Run();
+Qwen3Smoke.Run();
 Console.WriteLine("Speaker arithmetic and in-memory registry NativeAOT smoke passed.");
 
 if (args is ["--camp" or "--camp-zh", var campGraph, var campAudio])

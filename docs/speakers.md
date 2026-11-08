@@ -108,7 +108,7 @@ hops. It uses unscaled float PCM, removes each window's DC component, applies 0.
 (with the first sample repeated), a symmetric Povey window, and a zero-padded 512-point power FFT.
 Mel triangles span 20 Hz through 8 kHz on the mel scale. Energies are floored at float machine
 epsilon before taking natural logs. Each feature dimension has its utterance mean removed.
-FFT twiddles are cached at construction-independent fixed sizes. Mel accumulation visits only each triangle's nonzero support, in the original bin order; there is no SIMD reduction or change of rounding order. The optimized path is bit-identical to the dense arithmetic on the fixed speech probes and synthetic inputs. All power bins, including zero-weight bins, are checked for overflow.
+FFT twiddles are cached at construction-independent fixed sizes. Mel accumulation visits only each triangle's nonzero support, in the original bin order; there is no SIMD reduction or change of rounding order. The optimized path is bit-identical to the dense arithmetic on five fixed LibriSpeech probes and the synthetic test inputs. All power bins, including zero-weight bins, are checked for overflow.
 Output is planar `[mel, frame]`, not interleaved frames. These settings were observed by a
 pass-through capture at the documented public fbank API invoked by ModelScope 1.40.2. The wrapper
 returned all values unchanged; no implementation source was inspected. The extractor is deterministic,

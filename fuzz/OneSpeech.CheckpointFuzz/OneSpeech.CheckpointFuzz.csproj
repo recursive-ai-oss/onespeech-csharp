@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../tools/OneSpeech.Convert/OneSpeech.Convert.csproj" /></ItemGroup>
+  <ItemGroup><PackageReference Include="SharpFuzz" /></ItemGroup>
+</Project>

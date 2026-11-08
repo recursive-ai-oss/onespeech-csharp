@@ -8,3 +8,14 @@ For the model catalog reader, set `ONESPEECH_FUZZ_CATALOG=1` before calling
 `fuzz/run-smoke.sh`. This selects the catalog target and seeds the corpus with
 the embedded catalog plus an empty schema-1 envelope. Use a separate work directory
 from the transcript target; all other smoke bounds are unchanged.
+
+## Tensor checkpoint inspection
+
+`fuzz/run-checkpoint-smoke.sh /absolute/scratch/checkpoint-zip 120` mutates the complete ZIP
+container. With `ONESPEECH_CHECKPOINT_PICKLE=1` and a separate scratch directory, it mutates
+the pickle index inside a generated ZIP with two constant storage values. This reaches inert
+tensor parsing without first having to repair a mutated ZIP directory. Both targets use the
+same bounded reader, instrument only the converter assembly, and accept only `InvalidDataException`
+and ordinary I/O errors. Seed checkpoints are constructed by our harness, without audio, Python
+execution or upstream fixtures. The normal executable creates seeds before instrumentation;
+only libFuzzer invokes the instrumented reader. Use one process at a time.

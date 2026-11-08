@@ -219,3 +219,19 @@ The ECAPA oracle uses the publisher's exact `/resolve/<commit>` URL as its sourc
 path, because the released `from_hparams` interface does not accept a `revision` constructor keyword.
 Auxiliary classifier/global-normalization files loaded by the oracle are recorded in notices but are
 not part of the converted graph; embedding normalization is explicitly disabled on the reference call.
+
+## CAM++ Chinese common checkpoint
+
+The same converter/frontend and `CampPlusEmbedder` (dimension 192) support
+`iic/speech_campplus_sv_zh-cn_16k-common` revision `013c18884dffb82846cf472dd06dd4a08d97e2cd`.
+On the same 50 IDs, feature max/mean errors are 0.000597/0.00000624 and embedding minimum/mean
+cosines are 0.999999999966/0.999999999984. This meets the numeric parity target.
+The converted graph is 28,098,192 bytes, SHA-256
+`4b2f0fef5ec8cb855b53c6b5abae5dd4cd72c215137c52d32f5c477e4a792f49`, registered under the same
+unpublished-artifact convention. No default selection is implied.
+
+**Information only:** this checkpoint is trained on Chinese speech, while these trials contain
+English read speech. Both our graph and the reference score 2.87% EER and 0.1876 normalized minDCF
+on the shared 20,000-trial English slice, with paired difference intervals [0,0]. The same prior,
+costs and conditional trial bootstrap apply. This is an implementation comparison and not a
+language-appropriate accuracy bar or a new-speaker population confidence interval.

@@ -30,12 +30,14 @@ Console.WriteLine("Clustering NativeAOT smoke passed.");
 SpeakerSmoke.Run();
 Console.WriteLine("Speaker arithmetic and in-memory registry NativeAOT smoke passed.");
 
-if (args is ["--camp", var campGraph, var campAudio])
+if (args is ["--camp" or "--camp-zh", var campGraph, var campAudio])
 {
     var clip = OneAudio.Audio.Load(campAudio, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
-    var model = new ModelInfo { Id = "iic/speech_campplus_sv_en_voxceleb_16k", Source = "https://modelscope.cn/models/iic/speech_campplus_sv_en_voxceleb_16k", Revision = "032b8131a7ad812f87061955ca974c99060c5a03", License = "Apache-2.0", Tier = ModelTier.Tier1, Attribution = "CAM++ published checkpoint." };
-    using var camp = new OneSpeech.Embedders.CampPlusEmbedder(campGraph, model);
-    float[] vector = new float[512];
+    bool chinese = args[0] == "--camp-zh";
+    var entry = OneSpeech.Catalog.ModelCatalog.Default.Get(chinese ? "iic/speech_campplus_sv_zh-cn_16k-common" : "iic/speech_campplus_sv_en_voxceleb_16k");
+    var model = new ModelInfo { Id = entry.Id, Source = entry.Source, Revision = entry.Revision, License = entry.License, Tier = entry.Tier, Attribution = entry.Attribution };
+    using var camp = new OneSpeech.Embedders.CampPlusEmbedder(campGraph, model, dimension: chinese ? 192 : 512);
+    float[] vector = new float[camp.Dimension];
     camp.Embed(new AudioBuffer(clip.Samples, 16000), vector, CancellationToken.None);
     Console.WriteLine("CAM++ real graph NativeAOT extraction passed.");
 }

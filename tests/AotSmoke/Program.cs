@@ -28,7 +28,7 @@ Console.WriteLine("Diarization merge and channel detection NativeAOT smoke passe
 
 using var smokeEmbedder = new SmokeEmbedder(vad.Model);
 var clustering = new OneSpeech.Diarization.ClusteringDiarizer(smokeEmbedder, new SmokeVad(vad.Model),
-    new OneSpeech.Diarization.ClusteringOptions { NumSpeakers = 1 });
+    new OneSpeech.Diarization.ClusteringOptions { NumSpeakers = 1 }, new OneSpeech.Diarization.CosineResegmenter());
 if (clustering.Diarize(new AudioBuffer(new float[3200], 16000), CancellationToken.None).Length != 1)
     throw new InvalidOperationException("Clustering NativeAOT smoke failed.");
 Console.WriteLine("Clustering NativeAOT smoke passed.");

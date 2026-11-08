@@ -6,4 +6,5 @@
   <Project Path="fuzz/OneSpeech.MoonshineFuzz/OneSpeech.MoonshineFuzz.csproj" /><Project Path="tools/OneSpeech.TimingFloor/OneSpeech.TimingFloor.csproj" />
   <Project Path="tools/OneSpeech.OnlineDiarization/OneSpeech.OnlineDiarization.csproj" />
   <Project Path="tools/OneSpeech.NemoProbe/OneSpeech.NemoProbe.csproj" />
+  <Project Path="fuzz/OneSpeech.ParakeetFuzz/OneSpeech.ParakeetFuzz.csproj" />
 </Solution>

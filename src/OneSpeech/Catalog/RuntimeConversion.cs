@@ -10,7 +10,14 @@ internal static class RuntimeConversion
     internal static void Convert(CatalogEntry entry, string input, string output, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (entry.Tier != ModelTier.Tier1) throw new CapabilityNotSupportedException("Local conversion is limited to tier-1 catalog models.");
+        if (entry.Tier == ModelTier.Tier2)
+        {
+            if (entry.Id != "nvidia/parakeet-tdt-0.6b-v3" || entry.Family != "parakeet-tdt" || entry.Revision != "541d1f99c6b0c3cd0b11a95167540bb8edefd82b")
+                throw new CapabilityNotSupportedException("No publisher-only local converter is registered for this tier-2 checkpoint.");
+            ParakeetConverter.Convert(input, output, cancellationToken);
+            return;
+        }
+        if (entry.Tier != ModelTier.Tier1) throw new CapabilityNotSupportedException("Unsupported model tier.");
         if (entry.Family == "whisper")
         {
             var configuration = WhisperConfiguration.Load(input);

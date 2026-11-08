@@ -4,10 +4,11 @@ set -euo pipefail
 state=${1:?external result directory}
 evaluator=${2:-eval/OneSpeech.Eval}
 mkdir -p "$state/scores"
-for row in small-clean small-other turbo-clean turbo-earnings; do
+# Earnings rows: original seed zero, deterministic greedy, then fallback seeds one and two.
+for row in small-clean small-other turbo-clean turbo-earnings turbo-earnings-zero turbo-earnings-seed1 turbo-earnings-seed2; do
   case "$row" in
     small-other) truth="$state/eval-inputs/test-other.truth.json" ;;
-    turbo-earnings) truth="$state/eval-inputs/earnings.truth.jsonl" ;;
+    turbo-earnings*) truth="$state/eval-inputs/earnings.truth.jsonl" ;;
     *) truth="$state/eval-inputs/test-clean.truth.json" ;;
   esac
   dotnet run --no-build --project tools/OneSpeech.WhisperProbe -- export "$truth" "$state/$row/ours-final" "$state/$row/reference" "$state/scores/$row"

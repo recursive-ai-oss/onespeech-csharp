@@ -20,6 +20,8 @@ def main():
     parser.add_argument("--begin", type=int, default=0)
     parser.add_argument("--count", type=int, default=10)
     parser.add_argument("--words", action="store_true")
+    parser.add_argument("--temperature-zero", action="store_true", help="Disable stochastic fallback without changing rejection thresholds.")
+    parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
     torch.set_num_threads(8)
     model = whisper.load_model(args.model, device="cpu", download_root=str(args.weights)).float().eval()
@@ -31,10 +33,11 @@ def main():
         if output.exists():
             continue
         audio = np.fromfile(args.inputs / (key + ".pcm"), dtype="<f4")
-        torch.manual_seed(0)
-        result = model.transcribe(audio, language="en", task="transcribe", fp16=False, verbose=None, temperature=(0, .2, .4, .6, .8, 1.), compression_ratio_threshold=2.4, logprob_threshold=-1., no_speech_threshold=.6, condition_on_previous_text=True, word_timestamps=args.words)
+        torch.manual_seed(args.seed)
+        temperatures = (0,) if args.temperature_zero else (0, .2, .4, .6, .8, 1.)
+        result = model.transcribe(audio, language="en", task="transcribe", fp16=False, verbose=None, temperature=temperatures, compression_ratio_threshold=2.4, logprob_threshold=-1., no_speech_threshold=.6, condition_on_previous_text=True, word_timestamps=args.words)
         # The public API returns JSON-compatible scalar data; ignore opaque/unused tensors.
-        value = {"text": result["text"], "segments": result["segments"], "language": result["language"], "oracle": "openai-whisper20250625", "precision": "fp32", "temperature": [0, .2, .4, .6, .8, 1.], "beam_size": None, "best_of": None, "compression_ratio_threshold": 2.4, "logprob_threshold": -1., "no_speech_threshold": .6, "condition_on_previous_text": True, "word_timestamps": args.words, "seed": 0}
+        value = {"text": result["text"], "segments": result["segments"], "language": result["language"], "oracle": "openai-whisper20250625", "precision": "fp32", "temperature": list(temperatures), "beam_size": None, "best_of": None, "compression_ratio_threshold": 2.4, "logprob_threshold": -1., "no_speech_threshold": .6, "condition_on_previous_text": True, "word_timestamps": args.words, "seed": args.seed}
         output.with_suffix(".part").write_text(json.dumps(value, ensure_ascii=False) + "\n")
         output.with_suffix(".part").rename(output)
         if index < 50 and args.words:

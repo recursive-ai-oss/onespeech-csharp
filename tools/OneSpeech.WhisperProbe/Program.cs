@@ -5,6 +5,47 @@ using OneSpeech.Audio;
 using OneSpeech.Whisper;
 using System.Text.Json;
 
+if (args.Length == 5 && args[0] == "forced-logits")
+{
+    using var document = JsonDocument.Parse(File.ReadAllText(args[3]));
+    int[] tokens = document.RootElement.GetProperty("tokens").EnumerateArray().Select(t => t.GetInt32()).ToArray();
+    int prefixLength = document.RootElement.GetProperty("prefixLength").GetInt32();
+    using var model = new WhisperModelSession(args[1], 8, CancellationToken.None);
+    using var encoded = model.Encode(ReadFloats(args[2]), CancellationToken.None);
+    RecursiveAI.OneModel.Graph.SessionOutputs? decoded = null;
+    try
+    {
+        decoded = model.Decode(encoded, tokens.AsSpan(0, prefixLength), null, 0, CancellationToken.None);
+        for (int i = prefixLength; i < tokens.Length; i++)
+        {
+            var next = model.Decode(encoded, tokens.AsSpan(i, 1), decoded, i, CancellationToken.None);
+            decoded.Dispose(); decoded = next;
+        }
+        var logits = decoded["logits"].Data<float>()[^model.Configuration.Vocabulary..];
+        WriteFloats(args[4], logits);
+        foreach (int token in document.RootElement.GetProperty("candidates").EnumerateArray().Select(t => t.GetInt32())) Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"native raw token {token}: {logits[token]:G9}"));
+    }
+    finally { decoded?.Dispose(); }
+    return 0;
+}
+if (args.Length is 4 or 5 && args[0] == "window-trace")
+{
+    int lastSeekFrame = args.Length == 5 ? int.Parse(args[4], CultureInfo.InvariantCulture) : int.MaxValue;
+    using var writer = new StreamWriter(args[3]);
+    using var recognizer = WhisperRecognizer.Load(args[1], new WhisperOptions { Threads = 8, WordTimestamps = false, Temperatures = [0] });
+    recognizer.WindowTrace = (seek, prefix, tokens) =>
+    {
+        using var buffer = new MemoryStream(); using var json = new Utf8JsonWriter(buffer);
+        json.WriteStartObject(); json.WriteNumber("seek", seek / 160);
+        json.WriteStartArray("prefix"); foreach (int token in prefix) json.WriteNumberValue(token); json.WriteEndArray();
+        json.WriteStartArray("tokens"); foreach (int token in tokens) json.WriteNumberValue(token); json.WriteEndArray(); json.WriteEndObject(); json.Flush();
+        writer.WriteLine(System.Text.Encoding.UTF8.GetString(buffer.ToArray())); writer.Flush();
+        if (seek / 160 >= lastSeekFrame) throw new OperationCanceledException("Diagnostic reached the selected window.");
+    };
+    try { recognizer.Transcribe(new AudioBuffer(ReadFloats(args[2]), 16000), "en", CancellationToken.None); }
+    catch (OperationCanceledException error) { Console.WriteLine(error.Message); }
+    return 0;
+}
 if (args.Length == 3 && args[0] == "long-features")
 {
     var audio = new AudioBuffer(ReadFloats(args[1]), 16000); Directory.CreateDirectory(args[2]);
@@ -66,13 +107,16 @@ if (args.Length == 5 && args[0] == "export")
     ExportHypotheses.Run(args[1], args[2], args[3], args[4]);
     return 0;
 }
-if (args.Length == 8 && args[0] == "recognize")
+if (args.Length is >= 8 and <= 10 && args[0] == "recognize")
 {
     string[] ids = File.ReadAllLines(args[3]);
     Directory.CreateDirectory(args[4]);
     int begin = int.Parse(args[5], CultureInfo.InvariantCulture), count = int.Parse(args[6], CultureInfo.InvariantCulture);
     bool words = args[7] == "words";
-    using var recognizer = WhisperRecognizer.Load(args[1], new WhisperOptions { Threads = 8, WordTimestamps = words });
+    uint seed = args.Length > 9 ? uint.Parse(args[9], CultureInfo.InvariantCulture) : 0;
+    var options = new WhisperOptions { Threads = 8, WordTimestamps = words, SamplingSeed = seed };
+    if (args.Length > 8 && args[8] == "zero") options = options with { Temperatures = [0] };
+    using var recognizer = WhisperRecognizer.Load(args[1], options);
     for (int i = begin; i < Math.Min(ids.Length, begin + count); i++)
     {
         string path = Path.Combine(args[4], ids[i] + ".json");
@@ -83,6 +127,19 @@ if (args.Length == 8 && args[0] == "recognize")
         if (i < 50 && words) File.WriteAllText(Path.Combine(args[4], ids[i] + ".language"), recognizer.DetectLanguage(audio, CancellationToken.None));
         Console.WriteLine(ids[i]);
     }
+    return 0;
+}
+if (args.Length == 4 && args[0] == "lid")
+{
+    using var recognizer = WhisperRecognizer.Load(args[1], new WhisperOptions { Threads = 8 });
+    using var file = File.Create(args[3]); using var json = new Utf8JsonWriter(file);
+    json.WriteStartObject();
+    foreach (string id in File.ReadAllLines(Path.Combine(args[2], "ids")))
+    {
+        var audio = new AudioBuffer(ReadFloats(Path.Combine(args[2], id + ".pcm")), 16000);
+        json.WriteString(id, recognizer.DetectLanguage(audio, CancellationToken.None));
+    }
+    json.WriteEndObject();
     return 0;
 }
 if (args.Length == 3 && args[0] == "transcribe")

@@ -30,6 +30,28 @@ public sealed class WhisperModelTests
     }
 
     [Fact]
+    public void EmptyTimestampSlicesDoNotConditionTheNextWindow()
+    {
+        string directory = ModelDirectory();
+        var tokenizer = new WhisperTokenizer(directory);
+        using var recognizer = WhisperRecognizer.Load(directory, cancellationToken: TestContext.Current.CancellationToken);
+        int timestamp = tokenizer.GetToken("<|0.00|>");
+        var empty = recognizer.Slice([timestamp], 0, 480000, "en");
+        Assert.Empty(empty.Segments);
+        Assert.Empty(empty.ContextTokens);
+        Assert.Equal(480000, empty.Advance);
+        int[] text = tokenizer.Encode(" Hello", cancellationToken: TestContext.Current.CancellationToken);
+        int[] spaces = tokenizer.Encode(" ", cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Empty(recognizer.Slice([timestamp, .. spaces, timestamp + 50], 0, 480000, "en").ContextTokens);
+        Assert.Empty(recognizer.Slice([timestamp + 50, .. text, timestamp + 50, timestamp + 51], 0, 480000, "en").ContextTokens);
+        int[] accepted = [timestamp, .. text, timestamp + 50];
+        var combined = recognizer.Slice([.. accepted, timestamp + 50], 0, 480000, "en");
+        Assert.Single(combined.Segments);
+        Assert.Equal(accepted, combined.ContextTokens);
+        Assert.Equal(text, combined.TextTokens);
+    }
+
+    [Fact]
     public void TinyTranscribesTheAttributedShortClip()
     {
         string directory = ModelDirectory();

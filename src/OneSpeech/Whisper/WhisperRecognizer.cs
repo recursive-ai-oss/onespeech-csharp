@@ -90,6 +90,7 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
             if (context.Count > 0) { prefix.Add(previous); prefix.AddRange(context.TakeLast(223)); }
             prefix.Add(start); prefix.Add(languages[language]); prefix.Add(options.Task == WhisperTask.Transcribe ? transcribe : translate);
             Attempt result = Decode(encoded, prefix.ToArray(), cancellationToken);
+            WindowTrace?.Invoke(seek, prefix.ToArray(), result.Tokens);
             bool skip = options.NoSpeechThreshold.HasValue && result.NoSpeech > options.NoSpeechThreshold.Value && !(options.LogProbabilityThreshold.HasValue && result.AverageLogProbability > options.LogProbabilityThreshold.Value);
             if (skip) { seek += count; options.Progress?.Invoke(TimeSpan.FromSeconds(seek / 16000.0)); continue; }
             var sliced = Slice(result.Tokens, seek, count, language);
@@ -114,7 +115,7 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
                 yield return timed;
             }
             if (!options.ConditionOnPreviousText || result.Temperature > .5) context.Clear();
-            else { context.AddRange(result.Tokens.Take(sliced.UsedTokens)); if (context.Count > 223) context.RemoveRange(0, context.Count - 223); }
+            else { context.AddRange(sliced.ContextTokens); if (context.Count > 223) context.RemoveRange(0, context.Count - 223); }
             seek += Math.Clamp(advance, 1, count);
             options.Progress?.Invoke(TimeSpan.FromSeconds(seek / 16000.0));
         }
@@ -149,6 +150,7 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
         using var encoded = runtime.Encode(mel, cancellationToken);
         return Decode(encoded, [start, languages[language], options.Task == WhisperTask.Transcribe ? transcribe : translate], cancellationToken).Tokens;
     }
+    internal Action<int, int[], int[]>? WindowTrace { get; set; }
     private sealed record Attempt(int[] Tokens, double AverageLogProbability, double NoSpeech, double Temperature);
     private sealed class DecoderBeamState(WhisperModelSession model, SessionOutputs encoded, SessionOutputs decoded, int length) : IBeamDecoderState
     {
@@ -282,7 +284,7 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
         return (double)input.Length / output.Length;
     }
 
-    private (List<Segment> Segments, int Advance, int UsedTokens, int[] TextTokens) Slice(int[] tokens, int offset, int count, string language)
+    internal (List<Segment> Segments, int Advance, int[] ContextTokens, int[] TextTokens) Slice(int[] tokens, int offset, int count, string language)
     {
         List<int> cuts = [];
         for (int i = 1; i < tokens.Length; i++) if (tokens[i - 1] >= timestampBegin && tokens[i] >= timestampBegin) cuts.Add(i);
@@ -290,6 +292,7 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
         if (cuts.Count > 0 && singleEnding) cuts.Add(tokens.Length);
         List<Segment> segments = [];
         List<int> selectedTextTokens = [];
+        List<int> contextTokens = [];
         int begin = 0;
         foreach (int cut in cuts)
         {
@@ -302,14 +305,17 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
         {
             int endpoint = tokens.LastOrDefault(t => t >= timestampBegin, timestampBegin);
             Add(tokens, 0, endpoint > timestampBegin ? (endpoint - timestampBegin) * 320 : count);
-            return (segments, count, tokens.Length, selectedTextTokens.ToArray());
+            return (segments, count, contextTokens.ToArray(), selectedTextTokens.ToArray());
         }
         int advance = singleEnding ? count : (tokens[begin - 1] - timestampBegin) * 320;
-        return (segments, advance, begin, selectedTextTokens.ToArray());
+        return (segments, advance, contextTokens.ToArray(), selectedTextTokens.ToArray());
         void Add(int[] slice, int startSamples, int endSamples)
         {
             string text = tokenizer.Decode(slice);
             if (string.IsNullOrWhiteSpace(text) || endSamples <= startSamples) return;
+            // Empty timestamp-only slices must not enter the next window's prompt.
+            // Observed with the reference public transcribe API on trailing blank segments.
+            contextTokens.AddRange(slice);
             selectedTextTokens.AddRange(slice.Where(t => t < end));
             segments.Add(new Segment { Text = text, Start = TimeSpan.FromSeconds((offset + Math.Min(startSamples, count)) / 16000.0), End = TimeSpan.FromSeconds((offset + Math.Min(endSamples, count)) / 16000.0), Language = language });
         }

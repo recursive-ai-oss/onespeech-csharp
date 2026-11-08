@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><PackageId>$(PackagePrefix).OneSpeech</PackageId><IsPackable>true</IsPackable></PropertyGroup>
   <ItemGroup><PackageReference Include="RecursiveAI.OneModel" /><PackageReference Include="RecursiveAI.OneAudio" /></ItemGroup>
+  <Import Project="Silero.targets" />
 </Project>

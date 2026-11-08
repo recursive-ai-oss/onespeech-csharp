@@ -1,9 +1,19 @@
 """Black-box oracle driver; never imports private APIs or reads installed source."""
 import argparse
 import hashlib
+import inspect
+import dataclasses
 import importlib.metadata
 import json
 import os
+import warnings
+
+
+def oracle_warning(message, category, filename, lineno, file=None, line=None):
+    print(f"{category.__name__}: {message}", flush=True)
+
+
+warnings.showwarning = oracle_warning
 from pathlib import Path
 
 
@@ -22,7 +32,8 @@ def main():
     p.add_argument("--output", required=True)
     p.add_argument("--model", required=True)
     p.add_argument("--revision", required=True)
-    p.add_argument("--checkpoint", help="OpenAI checkpoint path to hash; must be the released model selected")
+    p.add_argument("--checkpoint", help="Optional released checkpoint path; otherwise download the named OpenAI model")
+    p.add_argument("--audio-root", default=".", help="Root for manifest-relative audio paths")
     p.add_argument("--cache", required=True)
     p.add_argument("--start", type=int, default=0)
     p.add_argument("--end", type=int, required=True)
@@ -57,9 +68,6 @@ def main():
                   audio=dict(decoder="soundfile", downmix="arithmetic mean float32", sampleRate=16000,
                              resampler="librosa soxr_hq", normalize=False), decoding=settings)
     if args.oracle == "openai-whisper":
-        if not args.checkpoint or not Path(args.checkpoint).is_file():
-            p.error("--checkpoint must name the released checkpoint, downloaded before this run")
-        header["checkpointSha256"] = digest(args.checkpoint)
         settings.update(fp16=False, best_of=None, beam_size=None, patience=None,
                         length_penalty=None, suppress_tokens="-1", initial_prompt=None,
                         carry_initial_prompt=False, without_timestamps=False, max_initial_timestamp=1.0,
@@ -68,7 +76,7 @@ def main():
         # Pipeline kwargs and generation kwargs are recorded separately; no generation sampling.
         header["decoding"] = dict(return_timestamps="word", chunk_length_s=30, batch_size=1,
                                   generate_kwargs=dict(task="transcribe", language="en", do_sample=False,
-                                                       num_beams=1, max_new_tokens=440))
+                                                       num_beams=1, temperature=0.0, max_new_tokens=440, condition_on_prev_tokens=False))
     else:
         settings["log_prob_threshold"] = settings.pop("logprob_threshold")
         settings.update(best_of=1, patience=1.0, length_penalty=1.0, repetition_penalty=1.0,
@@ -85,6 +93,47 @@ def main():
         raise ValueError("Range is outside the manifest")
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
+    # Signature defaults and public configuration objects are black-box API metadata;
+    # no source, bytecode or installed files are inspected.
+    def defaults(callable_api):
+        return {k: v.default for k, v in inspect.signature(callable_api).parameters.items()
+                if v.default is not inspect.Parameter.empty}
+
+    if args.oracle == "openai-whisper":
+        import whisper
+        model = whisper.load_model(args.checkpoint or args.model, device="cpu", download_root=args.cache)
+        checkpoint = Path(args.checkpoint) if args.checkpoint else Path(args.cache) / (args.model + ".pt")
+        header["checkpointSha256"] = digest(checkpoint)
+        if args.model == "tiny" and header["checkpointSha256"] != "65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9":
+            raise ValueError("OpenAI tiny checkpoint hash differs from the release pin")
+        header["checkpointProvenance"] = "OpenAI released checkpoint downloaded by openai-whisper 20250625 (MIT); not HF safetensors"
+        transcribe_defaults = defaults(whisper.transcribe)
+        transcribe_defaults.update({k: v for k, v in settings.items() if k in transcribe_defaults})
+        transcribe_defaults["verbose"] = None
+        decode_names = {f.name for f in dataclasses.fields(whisper.DecodingOptions)}
+        decode_overrides = {k: v for k, v in settings.items() if k in decode_names}
+        header["resolvedDecoding"] = dict(transcribe=transcribe_defaults,
+                                          options=dataclasses.asdict(whisper.DecodingOptions(**decode_overrides)))
+    elif args.oracle == "transformers":
+        from transformers import pipeline, GenerationConfig
+        model = pipeline("automatic-speech-recognition", model=args.model, revision=args.revision,
+                         device="cpu", dtype=torch.float32, trust_remote_code=False, model_kwargs={"cache_dir": args.cache})
+        resolved = model.model.generation_config.to_dict()
+        resolved.update(header["decoding"]["generate_kwargs"])
+        generation_config = GenerationConfig.from_dict(resolved)
+        header["resolvedDecoding"] = dict(generateApiDefaults=defaults(model.model.generate),
+                                          modelGenerationConfig=model.model.generation_config.to_dict(),
+                                          effectiveGenerationConfig=generation_config.to_dict(),
+                                          pipelineCall=header["decoding"])
+    else:
+        from faster_whisper import WhisperModel
+        model = WhisperModel(args.model, device="cpu", compute_type="float32", cpu_threads=args.threads,
+                             num_workers=1, download_root=args.cache, revision=args.revision)
+        resolved = defaults(model.transcribe)
+        resolved.update(settings)
+        header["resolvedDecoding"] = resolved
+    # Normalize tuples in public defaults before comparing to a JSON resume header.
+    header = json.loads(json.dumps(header))
     done = set()
     if output.exists():
         with output.open() as f:
@@ -97,17 +146,6 @@ def main():
                 done.add(row["id"])
     if len(done) == len(selected):
         return
-    if args.oracle == "openai-whisper":
-        import whisper
-        model = whisper.load_model(args.checkpoint, device="cpu", download_root=args.cache)
-    elif args.oracle == "transformers":
-        from transformers import pipeline
-        model = pipeline("automatic-speech-recognition", model=args.model, revision=args.revision,
-                         device="cpu", dtype=torch.float32, trust_remote_code=False, model_kwargs={"cache_dir": args.cache})
-    else:
-        from faster_whisper import WhisperModel
-        model = WhisperModel(args.model, device="cpu", compute_type="float32", cpu_threads=args.threads,
-                             num_workers=1, download_root=args.cache, revision=args.revision)
     with output.open("a", encoding="utf-8") as out:
         if not done:
             # An empty existing file is not resumable; a header is written exactly once.
@@ -117,7 +155,10 @@ def main():
         for record in selected:
             if record["id"] in done:
                 continue
-            audio, rate = sf.read(record["audio"], dtype="float32", always_2d=True)
+            audio_path = Path(args.audio_root) / record["audio"]
+            if "sha256" in record and digest(audio_path) != record["sha256"]:
+                raise ValueError("Audio content differs from the fixed manifest")
+            audio, rate = sf.read(Path(args.audio_root) / record["audio"], dtype="float32", always_2d=True)
             audio = audio.mean(axis=1, dtype=np.float32)
             if rate != 16000:
                 audio = librosa.resample(audio, orig_sr=rate, target_sr=16000, res_type="soxr_hq")
@@ -130,7 +171,9 @@ def main():
                 words = [dict(text=w["word"], start=w["start"], end=w["end"])
                          for s in result["segments"] for w in s.get("words", [])]
             elif args.oracle == "transformers":
-                result = model(dict(raw=audio, sampling_rate=16000), **header["decoding"])
+                pipeline_options = dict(header["decoding"])
+                pipeline_options["generate_kwargs"] = dict(header["decoding"]["generate_kwargs"], generation_config=generation_config)
+                result = model(dict(raw=audio, sampling_rate=16000), **pipeline_options)
                 text = result["text"]
                 words = [dict(text=w["text"], start=w["timestamp"][0], end=w["timestamp"][1]) for w in result["chunks"]]
                 for w in words:
@@ -152,4 +195,6 @@ if __name__ == "__main__":
         main()
     except Exception as error:
         print(f"Oracle run failed ({type(error).__name__}); inspect inputs and documented API settings.", flush=True)
+        if isinstance(error, (AttributeError, TypeError, ValueError)):
+            print(str(error).splitlines()[0], flush=True)
         raise SystemExit(2) from None

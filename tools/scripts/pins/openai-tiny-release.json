@@ -1,0 +1,18 @@
+{
+  "model": "tiny",
+  "publisher": "OpenAI",
+  "upstream": "https://github.com/openai/whisper",
+  "release": "v20250625",
+  "revision": "31243bad24cc746f07d4c8bfdd2d974872cb1803",
+  "file": "tiny.pt",
+  "bytes": 75572083,
+  "sha256": "65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9",
+  "license": "MIT",
+  "licenseSource": "https://raw.githubusercontent.com/openai/whisper/31243bad24cc746f07d4c8bfdd2d974872cb1803/LICENSE",
+  "modelCard": "https://raw.githubusercontent.com/openai/whisper/31243bad24cc746f07d4c8bfdd2d974872cb1803/README.md",
+  "licenseStatement": "Whisper's code and model weights are released under the MIT License.",
+  "copyright": "Copyright (c) 2022 OpenAI",
+  "gated": false,
+  "tier": 1,
+  "use": "Black-box oracle evaluation only; not the HF safetensors artifact; no weights redistributed."
+}

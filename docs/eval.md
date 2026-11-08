@@ -93,3 +93,29 @@ The fixed slice was checked with openai-whisper 20250625 (`tiny`, original MIT r
 | HF tiny | 141 / 2357 | 5.982% | [4.852%, 7.231%] |
 
 Paired difference (OpenAI minus HF): **0.085 percentage points**, 95% CI **[−0.626, 1.077]**, verdict **within-noise**. This is a small correctness check, not a full-corpus quality claim or a performance comparison. The run used Linux x64 on an AMD Ryzen 9 7950X3D (16 cores / 32 logical CPUs), eight oracle threads, torch 2.15.0+cpu, numpy 2.5.4, soundfile 0.13.1 and librosa 0.11.0; no GPU. Full per-utterance hypotheses and resolved decoding headers are evaluation artifacts, not embedded library data.
+
+## Diarization scoring
+
+```
+onespeech-eval der --ref reference.rttm --hyp hypothesis.rttm --out der.json
+```
+
+The `der` command implements the definitions in the *Third DIHARD Challenge Evaluation Plan*, version 1.2 (2020-10-30), §4 and Appendix C. This is a scorer specification reference only: no DIHARD data is fetched. Rates in JSON are fractions, not percentages. Output includes reference speaker-seconds, miss, false alarm, confusion, reference speaker count, DER and JER. No collar is applied and all overlap is scored. These definitions are implemented independently, with hand-computed tests; an external released-scorer cross-check is still pending.
+
+Each recording/channel is scored separately with independent, optimal one-to-one speaker mappings; speaker names have no significance across recordings. Corpus DER sums error counts before dividing by total reference speaker-seconds. Duplicate or overlapping segments of the same speaker are unioned. For each constant-activity interval of duration d, with R reference speakers, H hypothesis speakers and C correctly mapped concurrent speakers:
+
+* miss = d × max(0, R−H);
+* false alarm = d × max(0, H−R);
+* confusion = d × (min(R,H)−C).
+
+The DER mapping maximizes total pairwise intersection duration via Hungarian assignment. Reference speaker-time includes multiplicity in overlap. DER can exceed 100%. Empty reference speech has undefined DER (`null`), but false-alarm seconds are retained.
+
+JER uses a separate Hungarian assignment maximizing the sum of per-reference-speaker intersection-over-union. An unmatched reference speaker contributes error 1. JER is the reference-speaker-macro mean, including across recordings; unmatched hypothesis speakers do not add terms of their own (but can affect the pairing/union). No reference speakers means undefined JER (`null`). Maximum 512 distinct speakers per recording/channel; more is refused rather than allocating an unbounded assignment matrix.
+
+The scored domain is the union of all reference and hypothesis intervals, including hypothesis-only files/channels, which count as false alarms. There is currently **no UEM support**: do not use this command for a benchmark with excluded or restricted scoring regions without first clipping both sides to those regions. Missing hypothesis files are treated as empty, never dropped from corpus denominators. Pure silence outside all listed turns contributes zero.
+
+RTTM input is strict UTF-8 and accepts blank lines, `#` comment lines and ten-field `SPEAKER` records. Fields are type, recording ID, positive integer channel, onset seconds, duration seconds, orthography, speaker type, speaker ID, confidence and lookahead. Onset must be finite and nonnegative; duration positive, finite and distinguishable from zero when added to onset. Unsupported record types, malformed fields, invalid UTF-8, lines exceeding 16,384 UTF-16 code units or more than one million segments are rejected. The confidence/lookahead/orthography/type placeholders are not used by scoring. Segments of the same speaker are treated as a set even when duplicated.
+
+Either input may instead be a version-1 `Transcript` JSON file (extension `.json`). Assigned turns become RTTM-style channel-1 segments, ignoring turn text and words; `Unassigned` turns are omitted. Set `--recording meeting-id` to identify the transcript when comparing JSON to RTTM. Default ID is `recording`; JSON-vs-JSON inputs therefore share a clock by default. A transcript has no channel field, so a multi-channel RTTM must be converted explicitly rather than silently conflated.
+
+`fuzz/run-rttm-smoke.sh <absolute-scratch-directory> [seconds]` exercises the bounded RTTM reader through SharpFuzz/libFuzzer, with the same pinned development tools as the other reader smoke scripts; maximum duration 300 seconds.

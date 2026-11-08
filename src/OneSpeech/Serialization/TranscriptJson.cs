@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -42,16 +43,18 @@ internal sealed record TranscriptEnvelope
 
 internal static class TranscriptJson
 {
+    private static readonly UTF8Encoding WireEncoding = new(false, true);
     internal static Transcript Read(string json)
     {
-        if (json is null || json.Length > JsonBounds.MaxBytes) throw new InvalidTranscriptJsonException("Missing or oversized JSON.");
+        if (json is null || json.Length > TranscriptJsonBounds.MaxBytes) throw new InvalidTranscriptJsonException("Missing or oversized JSON.");
         try
         {
             var encoding = new UTF8Encoding(false, true);
-            if (encoding.GetByteCount(json) > JsonBounds.MaxBytes) throw new JsonException("JSON exceeds 8 MiB.");
+            if (encoding.GetByteCount(json) > TranscriptJsonBounds.MaxBytes) throw new JsonException("Transcript JSON exceeds 1 GB (1,000,000,000 bytes).");
             return Read(encoding.GetBytes(json));
         }
         catch (EncoderFallbackException e) { throw new InvalidTranscriptJsonException("Invalid Unicode in JSON.", e); }
+        catch (ArgumentException e) { throw new InvalidTranscriptJsonException("Oversized or invalid Unicode in JSON.", e); }
         catch (JsonException e) { throw new InvalidTranscriptJsonException("Invalid transcript JSON.", e); }
     }
 
@@ -59,8 +62,25 @@ internal static class TranscriptJson
     {
         try
         {
-            JsonBounds.Check(json);
+            TranscriptJsonBounds.Check(json);
             var envelope = JsonSerializer.Deserialize(json, SpeechJsonContext.Default.TranscriptEnvelope)
+                ?? throw new JsonException("Expected a transcript envelope.");
+            if (envelope.SchemaVersion != 1) throw new JsonException("Unsupported transcript schema major version; expected 1.");
+            var transcript = (envelope.Transcript ?? throw new JsonException("Missing transcript payload at 'transcript'.")).ToTranscript();
+            Validate(transcript);
+            return transcript;
+        }
+        catch (JsonException e) { throw new InvalidTranscriptJsonException("Invalid transcript JSON: " + e.Message, e); }
+    }
+
+    internal static Transcript Read(ref Utf8JsonReader reader)
+    {
+        try
+        {
+            var probe = reader;
+            if (probe.TokenType == JsonTokenType.None && !probe.Read()) throw new JsonException("Empty JSON.");
+            TranscriptJsonBounds.CheckValue(ref probe);
+            var envelope = JsonSerializer.Deserialize(ref reader, SpeechJsonContext.Default.TranscriptEnvelope)
                 ?? throw new JsonException("Expected a transcript envelope.");
             if (envelope.SchemaVersion != 1) throw new JsonException("Unsupported transcript schema major version; expected 1.");
             var transcript = (envelope.Transcript ?? throw new JsonException("Missing transcript payload at 'transcript'.")).ToTranscript();
@@ -75,12 +95,50 @@ internal static class TranscriptJson
         try
         {
             Validate(transcript);
-            string json = JsonSerializer.Serialize(new TranscriptEnvelope { SchemaVersion = 1, Transcript = TranscriptPayload.From(transcript) }, SpeechJsonContext.Default.TranscriptEnvelope);
-            // The same limits apply in both directions so every accepted output can be read.
-            _ = Read(json);
+            var envelope = new TranscriptEnvelope { SchemaVersion = 1, Transcript = TranscriptPayload.From(transcript) };
+            // Count the exact encoded wire size without retaining output. A caller
+            // can share a large string across many words; count limits alone do
+            // not bound the resulting JSON allocation.
+            using (var budget = new Utf8JsonWriter(new JsonByteBudget()))
+            {
+                JsonSerializer.Serialize(budget, envelope, SpeechJsonContext.Default.TranscriptEnvelope);
+                budget.Flush();
+            }
+            string json = JsonSerializer.Serialize(envelope, SpeechJsonContext.Default.TranscriptEnvelope);
+            // Preflight the wire budgets without allocating a second document graph.
+            var encoding = new UTF8Encoding(false, true);
+            if (encoding.GetByteCount(json) > TranscriptJsonBounds.MaxBytes) throw new JsonException("Transcript JSON exceeds 1 GB (1,000,000,000 bytes).");
+            TranscriptJsonBounds.Check(encoding.GetBytes(json));
             return json;
         }
         catch (JsonException e) { throw new InvalidTranscriptJsonException("Invalid transcript document: " + e.Message, e); }
+    }
+
+    private sealed class JsonByteBudget : IBufferWriter<byte>
+    {
+        private long count;
+        private byte[] buffer = new byte[16384];
+        public void Advance(int bytes)
+        {
+            if (bytes < 0 || bytes > buffer.Length) throw new ArgumentOutOfRangeException(nameof(bytes));
+            if (bytes > TranscriptJsonBounds.MaxBytes - count) throw new JsonException("Transcript JSON exceeds 1 GB (1,000,000,000 bytes).");
+            count += bytes;
+        }
+        public Memory<byte> GetMemory(int sizeHint = 0) { Ensure(sizeHint); return buffer; }
+        public Span<byte> GetSpan(int sizeHint = 0) { Ensure(sizeHint); return buffer; }
+        private void Ensure(int size)
+        {
+            if (size < 0 || size > TranscriptJsonBounds.MaxBytes) throw new JsonException("Transcript JSON exceeds 1 GB (1,000,000,000 bytes).");
+            // Reuse a single token-sized buffer, never accumulate the whole wire.
+            if (size > buffer.Length) buffer = new byte[size];
+        }
+    }
+
+    private static void Text(string? value, string path, int limit = TranscriptJsonBounds.MaxStringBytes)
+    {
+        Require(value is not null, path);
+        try { Require(WireEncoding.GetByteCount(value!) <= limit, path); }
+        catch (EncoderFallbackException e) { throw new JsonException("Invalid Unicode at '" + path + "'.", e); }
     }
 
     private static void Require(bool valid, string path)
@@ -91,23 +149,29 @@ internal static class TranscriptJson
     private static void Interval(TimeSpan? start, TimeSpan? end, string path)
     {
         Require(start.HasValue == end.HasValue, path + ".start/end");
-        if (start.HasValue) Require(start.Value >= TimeSpan.Zero && end >= start, path + ".start/end");
+        if (start.HasValue) Require(start.Value >= TimeSpan.Zero && end >= start && end <= TimeSpan.FromSeconds(TranscriptJsonBounds.MaxSeconds), path + ".start/end");
     }
 
     private static void Speaker(SpeakerLabel? speaker, string path)
     {
-        if (speaker is not null) Require(!string.IsNullOrWhiteSpace(speaker.Id), path + ".id");
+        if (speaker is not null)
+        {
+            Require(!string.IsNullOrWhiteSpace(speaker.Id), path + ".id");
+            Text(speaker.Id, path + ".id");
+            if (speaker.Name is not null) Text(speaker.Name, path + ".name");
+        }
     }
 
     private static void Words(ImmutableArray<Word> words, string path)
     {
-        Require(!words.IsDefault, path);
+        Require(!words.IsDefault && words.Length <= TranscriptJsonBounds.MaxItems, path);
         for (int i = 0; i < words.Length; i++)
         {
             var word = words[i];
             string item = $"{path}[{i}]";
             Require(word is not null, item);
-            Require(word!.Text is not null, item + ".text");
+            Text(word!.Text, item + ".text");
+            if (word.Language is not null) Text(word.Language, item + ".language");
             Require(Enum.IsDefined(word.TimingMethod), item + ".timingMethod");
             Interval(word.Start, word.End, item);
             Require(word.Confidence is null || double.IsFinite(word.Confidence.Value) && word.Confidence is >= 0 and <= 1, item + ".confidence");
@@ -118,26 +182,35 @@ internal static class TranscriptJson
     private static void Validate(Transcript? transcript)
     {
         Require(transcript is not null, "transcript");
-        Require(transcript!.Text is not null, "transcript.text");
-        Require(transcript.Duration >= TimeSpan.Zero, "transcript.duration");
-        Require(!transcript.Segments.IsDefault, "transcript.segments");
-        Require(!transcript.Turns.IsDefault, "transcript.turns");
-        Require(!transcript.Models.IsDefault, "transcript.models");
+        Text(transcript!.Text, "transcript.text", TranscriptJsonBounds.MaxTextBytes);
+        if (transcript.Language is not null) Text(transcript.Language, "transcript.language");
+        Require(transcript.Duration >= TimeSpan.Zero && transcript.Duration <= TimeSpan.FromSeconds(TranscriptJsonBounds.MaxSeconds), "transcript.duration");
+        Require(!transcript.Segments.IsDefault && transcript.Segments.Length <= TranscriptJsonBounds.MaxItems, "transcript.segments");
+        Require(!transcript.Turns.IsDefault && transcript.Turns.Length <= TranscriptJsonBounds.MaxItems, "transcript.turns");
+        Require(!transcript.Models.IsDefault && transcript.Models.Length <= 256, "transcript.models");
         Words(transcript.Words, "transcript.words");
+        long wordCopies = transcript.Words.Length;
         for (int i = 0; i < transcript.Segments.Length; i++)
         {
             var segment = transcript.Segments[i]; string item = $"transcript.segments[{i}]";
             Require(segment is not null && segment.Text is not null, item + ".text");
-            Interval(segment!.Start, segment.End, item);
+            Text(segment!.Text, item + ".text", TranscriptJsonBounds.MaxTextBytes);
+            if (segment.Language is not null) Text(segment.Language, item + ".language");
+            Interval(segment.Start, segment.End, item);
             Words(segment.Words, item + ".words");
+            wordCopies += segment.Words.Length;
+            Require(wordCopies <= TranscriptJsonBounds.MaxWordCopies, "transcript.wordCopies");
         }
         for (int i = 0; i < transcript.Turns.Length; i++)
         {
             var turn = transcript.Turns[i]; string item = $"transcript.turns[{i}]";
             Require(turn is not null && turn.Text is not null && turn.Speaker is not null, item);
-            Speaker(turn!.Speaker, item + ".speaker");
+            Text(turn!.Text, item + ".text", TranscriptJsonBounds.MaxTextBytes);
+            Speaker(turn.Speaker, item + ".speaker");
             Interval(turn.Start, turn.End, item);
             Words(turn.Words, item + ".words");
+            wordCopies += turn.Words.Length;
+            Require(wordCopies <= TranscriptJsonBounds.MaxWordCopies, "transcript.wordCopies");
         }
         for (int i = 0; i < transcript.Models.Length; i++)
         {
@@ -147,14 +220,16 @@ internal static class TranscriptJson
             Require(!string.IsNullOrWhiteSpace(model.Source), item + ".source");
             Require(!string.IsNullOrWhiteSpace(model.Revision), item + ".revision");
             Require(!string.IsNullOrWhiteSpace(model.License), item + ".license");
-            Require(model.Attribution is not null, item + ".attribution");
+            Text(model.Id, item + ".id"); Text(model.Source, item + ".source"); Text(model.Revision, item + ".revision");
+            Text(model.License, item + ".license"); Text(model.Attribution, item + ".attribution");
             Require(Enum.IsDefined(model.Tier), item + ".tier");
-            Require(!model.Files.IsDefault, item + ".files");
+            Require(!model.Files.IsDefault && model.Files.Length <= 256, item + ".files");
             for (int j = 0; j < model.Files.Length; j++)
             {
                 var file = model.Files[j]; string filePath = $"{item}.files[{j}]";
                 Require(file is not null && !string.IsNullOrWhiteSpace(file.Name), filePath + ".name");
-                Require(file!.Sha256 is { Length: 64 } && file.Sha256.All(char.IsAsciiHexDigit), filePath + ".sha256");
+                Text(file!.Name, filePath + ".name");
+                Require(file.Sha256 is { Length: 64 } && file.Sha256.All(char.IsAsciiHexDigit), filePath + ".sha256");
             }
         }
     }

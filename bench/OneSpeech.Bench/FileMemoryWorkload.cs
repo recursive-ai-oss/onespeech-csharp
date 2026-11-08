@@ -19,10 +19,11 @@ internal static class FileMemoryWorkload
             return phases[3] != 0 ? "complete" : phases[2] != 0 ? "diarization" : phases[1] != 0 ? "alignment" : phases[0] != 0 ? "recognition" : "loading";
         }
         var samples = new MemorySamples(Path.Combine(output, "file.memory.csv"), Phase);
+        GraphTiming.PhaseCompleted = phase => samples.CaptureBoundary(phase switch { 0 => "loading", 1 => "recognition", 2 => "alignment", _ => "diarization" });
         var clock = Stopwatch.StartNew();
         Transcript transcript;
         try { transcript = Speech.Transcribe(file, language: "en", model: model); }
-        finally { clock.Stop(); samples.Dispose(); }
+        finally { clock.Stop(); GraphTiming.PhaseCompleted = null; samples.Dispose(); }
         // Keep the growing result alive throughout measurement, rather than hiding
         // output memory from the probe. No audio, embeddings or transcript is saved.
         using var stream = File.Create(Path.Combine(output, "file.json"));
@@ -33,6 +34,7 @@ internal static class FileMemoryWorkload
         json.WriteNumber("words", transcript.Words.Length);
         json.WriteNumber("sampledPeakWorkingSetBytes", samples.Peak);
         samples.WriteSlopes(json);
+        samples.WritePhaseEnds(json);
         Machine.Write(json, beforeLoad, samples.Loads);
         json.WriteEndObject();
         Console.WriteLine($"File memory probe: {transcript.Words.Length} words, {clock.Elapsed.TotalSeconds:F3} s including loading.");

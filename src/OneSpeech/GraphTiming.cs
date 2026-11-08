@@ -62,9 +62,13 @@ internal static class GraphTiming
         phaseGraphs = ticks.Sum();
         phaseStart = Stopwatch.GetTimestamp();
     }
+    internal static Action<int>? PhaseCompleted { get; set; }
     [Conditional("ONESPEECH_GRAPH_TIMING")]
-    internal static void EndPhase(int phase) =>
+    internal static void EndPhase(int phase)
+    {
         Interlocked.Add(ref phaseTicks[phase], Stopwatch.GetTimestamp() - phaseStart - (ticks.Sum() - phaseGraphs));
+        PhaseCompleted?.Invoke(phase);
+    }
     internal static long[] PhaseSnapshot() => (long[])phaseTicks.Clone();
 
     // Exclusive coarse costs: model loading, features, CTC postprocessing, clustering, audio I/O.

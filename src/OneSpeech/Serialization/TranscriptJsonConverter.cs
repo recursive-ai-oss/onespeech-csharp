@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -12,17 +11,9 @@ public sealed class TranscriptJsonConverter : JsonConverter<Transcript>
     /// <summary>Reads exactly one bounded schema envelope. Throws JsonException for malformed, unsupported or over-limit input.</summary>
     public override Transcript Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        // Check the byte bound before ParseValue allocates the DOM; JsonBounds then checks tokens, strings and depth.
-        var probe = reader;
-        long start = probe.TokenStartIndex;
-        if (!probe.TrySkip() || probe.BytesConsumed - start > JsonBounds.MaxBytes) throw new JsonException("Transcript exceeds 8 MiB or is incomplete.");
-        try
-        {
-            using var document = JsonDocument.ParseValue(ref reader);
-            var buffer = new ArrayBufferWriter<byte>();
-            using (var writer = new Utf8JsonWriter(buffer)) document.RootElement.WriteTo(writer);
-            return TranscriptJson.Read(buffer.WrittenSpan);
-        }
+        // A reader copy checks every wire budget before the generated reader can
+        // allocate strings or collections. No intermediate DOM or JSON copy.
+        try { return TranscriptJson.Read(ref reader); }
         catch (InvalidTranscriptJsonException e) { throw new JsonException(e.Message, e); }
     }
     /// <summary>Writes the canonical schema envelope, irrespective of naming and enum options. Throws JsonException for invalid or over-limit documents.</summary>

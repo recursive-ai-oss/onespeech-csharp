@@ -42,7 +42,13 @@ public sealed class ModelCatalog
 
     /// <summary>Finds an exact, case-sensitive ID; throws ModelNotFoundException if absent.</summary>
     public CatalogEntry Get(string id) => Entries.FirstOrDefault(e => e.Id == id)
-        ?? throw new ModelNotFoundException($"Unknown model '{id}'. Use 'onespeech models list'.");
+        ?? throw new ModelNotFoundException($"Unknown model '{id}'. Use 'onespeech models list'." + Suggest(id)) { ModelId = id };
+
+    private string Suggest(string id)
+    {
+        var matches = Entries.Where(e => e.Id.EndsWith("/" + id, StringComparison.OrdinalIgnoreCase)).ToArray();
+        return matches.Length == 1 ? $" Did you mean '{matches[0].Id}'?" : "";
+    }
 
     /// <summary>Finds the one declared tier-1 default for a family, or throws ModelNotFoundException. Tier 2 is never eligible.</summary>
     public CatalogEntry GetDefault(string family) => Entries.FirstOrDefault(e => e.Family == family && e.IsDefault && e.Tier == ModelTier.Tier1)

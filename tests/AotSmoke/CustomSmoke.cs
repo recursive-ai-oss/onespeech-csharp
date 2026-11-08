@@ -16,7 +16,7 @@ internal static class CustomSmoke
         using var recognizer = new GraphSpeechRecognizer([new() { Path = path, Channels = 3, Stride = 100 }], GraphFrontEnd.RawWaveform, new(["a", " b", ""]), 2, TimeSpan.FromTicks(62500), info);
         var transcript = recognizer.Transcribe(new(new float[400], 16000));
         var vocabulary = new TokenVocabulary(["a", " b", ""]).WithPhraseEncoder((text, ct) => { ct.ThrowIfCancellationRequested(); return text == "b" ? [1] : [0]; });
-        using var contextual = new GraphSpeechRecognizer([new() { Path = path, Channels = 3, Stride = 100 }], GraphFrontEnd.RawWaveform, vocabulary, 2, TimeSpan.FromTicks(62500), info);
+        using var contextual = new GraphSpeechRecognizer([new() { Path = path, Channels = 3, Stride = 100 }], GraphFrontEnd.RawWaveform, vocabulary, 2, TimeSpan.FromTicks(62500), info, languages: ["en"]);
         var biased = contextual.WithPhrases([new Phrase("b", .5)]);
         if (!biased.Capabilities.Biasing || biased.Transcribe(new(new float[400], 16000), "en", CancellationToken.None).Words.Length != 2)
             throw new InvalidOperationException("Borrowed contextual graph NativeAOT smoke failed.");

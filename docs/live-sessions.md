@@ -96,7 +96,7 @@ This method takes an application-owned PCM source and cancellation token. It doe
 static async Task ShowLive(IAsyncEnumerable<OneSpeech.AudioBuffer> pcm,
     CancellationToken cancellationToken)
 {
-    await foreach (var update in OneSpeech.Speech.Listen(pcm, cancellationToken, language: "en"))
+    await foreach (var update in OneSpeech.Speech.Listen(pcm, language: "en", cancellationToken: cancellationToken))
     {
         switch (update)
         {

@@ -26,6 +26,7 @@ public sealed class AudioFileSource : IDisposable
         }
     }
     private readonly Stream stream;
+    private string? sourceName;
     private readonly bool leaveOpen;
     private readonly IAudioDecoder decoder;
     private readonly IResampler? resampler;
@@ -68,7 +69,8 @@ public sealed class AudioFileSource : IDisposable
         ArgumentException.ThrowIfNullOrEmpty(path);
         cancellationToken.ThrowIfCancellationRequested();
         var file = File.OpenRead(path);
-        try { return Open(file, false, cancellationToken); }
+        try { var source = Open(file, false, cancellationToken); source.sourceName = path; return source; }
+        catch (UnsupportedAudioException ex) { file.Dispose(); throw new UnsupportedAudioException($"Audio file '{path}': {ex.Message} For media containers, reference RecursiveAI.OneSpeech.Media and call MediaInput.Register().", ex) { SourceName = path }; }
         catch { file.Dispose(); throw; }
     }
 
@@ -112,7 +114,7 @@ public sealed class AudioFileSource : IDisposable
         }
         catch (Exception ex) when (ex is OneAudioException or EndOfStreamException)
         {
-            throw new UnsupportedAudioException("The audio payload is corrupt or truncated.", ex);
+            throw new UnsupportedAudioException($"Audio source '{sourceName ?? "stream"}' is corrupt or truncated.", ex) { SourceName = sourceName };
         }
     }
 

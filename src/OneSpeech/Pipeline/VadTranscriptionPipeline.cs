@@ -11,7 +11,8 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     private readonly VoiceActivityDetector detector;
     private readonly VadChunker chunker;
     private readonly IProgress<TimeSpan>? progress;
-    private readonly Diarizer? diarizer;
+    /// <summary>Optional borrowed whole-recording diarizer, null by default. File/stream routes require a BlockDiarizer; it must outlive this pipeline.</summary>
+    public Diarizer? Diarizer { get; init; }
     internal Action<TimeSpan, TimeSpan, int, int, string?>? RecognizedChunk { get; init; }
 
     /// <summary>Borrowed forced aligners in priority order (for example Qwen3, then CTC). Empty by default. Native timings win; unsuccessful or unsupported alignment leaves existing DTW as last resort. Aligners must preserve the supplied written words and support each chunk duration.</summary>
@@ -34,28 +35,31 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         : this(recognizer, detector, maximumChunkDuration, progress)
     {
         ArgumentNullException.ThrowIfNull(diarizer);
-        this.diarizer = diarizer;
+        Diarizer = diarizer;
     }
 
-    /// <summary>Transcribes 16 kHz interleaved PCM. Other rates throw UnsupportedAudioException; empty input returns an empty document. Cancellation is checked at every chunk.</summary>
-    public override Transcript Transcribe(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    /// <summary>Transcribes 16 kHz interleaved PCM. Other rates throw ArgumentException; empty input returns an empty document. Cancellation is checked at every chunk.</summary>
+    public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, recognizer.Capabilities, recognizer.Model.Id);
         ArgumentNullException.ThrowIfNull(audio);
         var transcript = Combine([audio], language, cancellationToken);
         return MergeDocument(transcript, ActiveTurns(audio, cancellationToken), cancellationToken);
     }
 
     /// <summary>Decodes and transcribes a file without retaining its PCM. The returned document necessarily grows with the recognized text. Filesystem errors remain IOException; corrupt/unsupported audio throws UnsupportedAudioException.</summary>
-    public Transcript Transcribe(string path, string? language, CancellationToken cancellationToken)
+    public Transcript Transcribe(string path, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, recognizer.Capabilities, recognizer.Model.Id);
         var turns = FileTurns(path, cancellationToken);
         using var source = AudioFileSource.Open(path, cancellationToken);
         return MergeDocument(Combine(VadChunker.Blocks(source, cancellationToken), language, cancellationToken), turns, cancellationToken);
     }
 
     /// <summary>Asynchronously copies caller-owned encoded input into a temporary seekable file, then decodes bounded chunks synchronously. The spool is deleted on completion/cancellation. No background inference or synchronous input-stream reads are used.</summary>
-    public async ValueTask<Transcript> TranscribeAsync(Stream stream, string? language, CancellationToken cancellationToken)
+    public async ValueTask<Transcript> TranscribeAsync(Stream stream, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, recognizer.Capabilities, recognizer.Model.Id);
         ArgumentNullException.ThrowIfNull(stream);
         var blockDiarizer = RequireBlockDiarizer();
         if (!stream.CanRead) throw new ArgumentException("Input stream must be readable.", nameof(stream));
@@ -75,8 +79,9 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     }
 
     /// <summary>Yields final segments on the input clock from bounded 16 kHz chunks, without accumulating the document. Cancellation is checked per chunk; stereo is averaged.</summary>
-    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, recognizer.Capabilities, recognizer.Model.Id);
         ArgumentNullException.ThrowIfNull(audio);
         var activeTurns = ActiveTurns(audio, cancellationToken);
         foreach (var chunk in chunker.Read([audio], progress, cancellationToken))
@@ -97,8 +102,9 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     }
 
     /// <summary>Decodes a file and yields final segments without retaining its PCM or accumulating text. Enumeration owns and closes the decoder, including on early disposal. Errors and cancellation follow AudioFileSource.</summary>
-    public IEnumerable<Segment> TranscribeStream(string path, string? language, CancellationToken cancellationToken)
+    public IEnumerable<Segment> TranscribeStream(string path, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, recognizer.Capabilities, recognizer.Model.Id);
         var activeTurns = FileTurns(path, cancellationToken);
         using var source = AudioFileSource.Open(path, cancellationToken);
         foreach (var chunk in chunker.Read(VadChunker.Blocks(source, cancellationToken), progress, cancellationToken))
@@ -115,11 +121,11 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         }
     }
 
-    private ActiveTurn[]? ActiveTurns(AudioBuffer audio, CancellationToken cancellationToken) => diarizer switch
+    private ActiveTurn[]? ActiveTurns(AudioBuffer audio, CancellationToken cancellationToken) => Diarizer switch
     {
         NemotronDiarizer nemotron => nemotron.DiarizeActive(audio, cancellationToken).ToArray(),
         null => null,
-        _ => diarizer.Diarize(audio, cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray()
+        _ => Diarizer.Diarize(audio, cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray()
     };
 
     private static ActiveTurn[] ActiveTurns(BlockDiarizer block, IEnumerable<AudioBuffer> blocks, CancellationToken cancellationToken) =>
@@ -128,8 +134,8 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
 
     private BlockDiarizer? RequireBlockDiarizer()
     {
-        if (diarizer is null) return null;
-        return diarizer as BlockDiarizer ?? throw new CapabilityNotSupportedException("File diarization requires a BlockDiarizer, such as ClusteringDiarizer or ChannelDiarizer. Supply a block-capable implementation or use in-memory audio.");
+        if (Diarizer is null) return null;
+        return Diarizer as BlockDiarizer ?? throw new CapabilityNotSupportedException("File diarization requires a BlockDiarizer, such as ClusteringDiarizer or ChannelDiarizer. Supply a block-capable implementation or use in-memory audio.");
     }
 
     private ActiveTurn[]? FileTurns(string path, CancellationToken cancellationToken)
@@ -144,12 +150,12 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     {
         if (turns is null) return transcript;
         var merged = TranscriptDiarization.Merge(transcript, turns, cancellationToken);
-        return diarizer is BlockDiarizer block ? merged with { Models = [.. merged.Models.Concat(block.Models).DistinctBy(m => (m.Id, m.Revision))] } : merged;
+        return Diarizer is BlockDiarizer block ? merged with { Models = [.. merged.Models.Concat(block.Models).DistinctBy(m => (m.Id, m.Revision))] } : merged;
     }
 
-    internal Transcript TranscribeBlocks(IEnumerable<AudioBuffer> blocks, string? language, CancellationToken cancellationToken) => Combine(blocks, language, cancellationToken);
+    internal Transcript TranscribeBlocks(IEnumerable<AudioBuffer> blocks, string? language = null, CancellationToken cancellationToken = default) => Combine(blocks, language, cancellationToken);
 
-    private Transcript Combine(IEnumerable<AudioBuffer> blocks, string? language, CancellationToken cancellationToken)
+    private Transcript Combine(IEnumerable<AudioBuffer> blocks, string? language = null, CancellationToken cancellationToken = default)
     {
         var words = ImmutableArray.CreateBuilder<Word>();
         var segments = ImmutableArray.CreateBuilder<Segment>();
@@ -178,7 +184,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         };
     }
 
-    private IEnumerable<Segment> TimedSegments(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    private IEnumerable<Segment> TimedSegments(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
         if (TimingAligners.IsDefaultOrEmpty) return recognizer.TranscribeStream(audio, language, cancellationToken);
         var segments = recognizer.TranscribeStream(audio, language, cancellationToken).ToImmutableArray();
@@ -192,7 +198,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         return ApplyTiming(audio, transcript, language, cancellationToken).Segments;
     }
 
-    private Transcript ApplyTiming(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken)
+    private Transcript ApplyTiming(AudioBuffer audio, Transcript transcript, string? language = null, CancellationToken cancellationToken = default)
     {
         return ApplyTiming(audio, transcript, language, TimingAligners, cancellationToken);
     }

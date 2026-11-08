@@ -42,23 +42,27 @@ internal static class PhraseRequests
 internal sealed class BiasedRecognizer(SpeechRecognizer source, Func<AudioBuffer, string?, CancellationToken, Transcript> transcribe,
     Func<AudioBuffer, string?, CancellationToken, IEnumerable<Segment>>? stream = null) : SpeechRecognizer
 {
+    // The wrapper borrows the source; only the original recognizer owns its model resources.
+    protected override void Dispose(bool disposing) => base.Dispose(disposing);
     public override ModelInfo Model => source.Model;
     public override Capabilities Capabilities => source.Capabilities;
     public override SpeechRecognizer WithPhrases(IEnumerable<Phrase> phrases, CancellationToken cancellationToken = default) => source.WithPhrases(phrases, cancellationToken);
-    public override Transcript Transcribe(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ArgumentNullException.ThrowIfNull(audio); cancellationToken.ThrowIfCancellationRequested();
         if (stream != null || audio.FrameCount <= 480000) return transcribe(audio, language, cancellationToken);
         using var vad = new SileroVad(cancellationToken: cancellationToken);
         return new VadTranscriptionPipeline(this, vad).Transcribe(audio, language, cancellationToken);
     }
-    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ArgumentNullException.ThrowIfNull(audio); cancellationToken.ThrowIfCancellationRequested();
         if (stream != null) { foreach (var segment in stream(audio, language, cancellationToken)) yield return segment; yield break; }
         if (audio.FrameCount <= 480000) { foreach (var segment in transcribe(audio, language, cancellationToken).Segments) yield return segment; yield break; }
         using var vad = new SileroVad(cancellationToken: cancellationToken);
         foreach (var segment in new VadTranscriptionPipeline(this, vad).TranscribeStream(audio, language, cancellationToken)) yield return segment;
     }
-    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken) => source.DetectLanguage(audio, cancellationToken);
+    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken = default) => source.DetectLanguage(audio, cancellationToken);
 }

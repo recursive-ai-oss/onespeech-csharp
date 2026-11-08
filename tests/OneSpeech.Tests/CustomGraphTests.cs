@@ -19,7 +19,7 @@ public sealed class CustomGraphTests
         {
             string path = Path.Combine(root, "ctc.onemodel");
             Constant(path, 3, [1, 4, 3], [9, -9, -9, -9, -9, 9, -9, 9, -9, -9, -9, 9]);
-            using var recognizer = new GraphSpeechRecognizer([new() { Path = path, Channels = 3, Stride = 100 }], GraphFrontEnd.RawWaveform, new(["a", " b", ""]), 2, TimeSpan.FromTicks(62500), Provenance, beamSize: beam, cancellationToken: TestContext.Current.CancellationToken);
+            using var recognizer = new GraphSpeechRecognizer([new() { Path = path, Channels = 3, Stride = 100 }], GraphFrontEnd.RawWaveform, new(["a", " b", ""]), 2, TimeSpan.FromTicks(62500), Provenance, beamSize: beam, languages: ["en"], cancellationToken: TestContext.Current.CancellationToken);
             var t = recognizer.Transcribe(new(new float[400], 16000), "en", TestContext.Current.CancellationToken);
             Assert.Equal("a b", t.Text); Assert.Equal(2, t.Words.Length);
             Assert.Equal(TimeSpan.Zero, t.Words[0].Start); Assert.Equal(TimeSpan.FromTicks(62500), t.Words[0].End);
@@ -46,13 +46,13 @@ public sealed class CustomGraphTests
             Constant(predictor, 2, [1, 4], new float[4], 4);
             Constant(joint, 2, [1, tdt ? 5 : 3], tdt ? [-9, -9, 9, -9, 9] : [-9, -9, 9], 4);
             using var recognizer = new GraphSpeechRecognizer([new() { Path = encoder, Channels = 2, Stride = 100 }], GraphFrontEnd.RawWaveform, new(["a", "b", ""]), 2, TimeSpan.FromTicks(62500), Provenance,
-                new() { PredictorPath = predictor, JointPath = joint, StateSize = 4, EmbeddingSize = 2, Embeddings = new float[6], Durations = tdt ? [0, 1] : [] }, cancellationToken: TestContext.Current.CancellationToken);
+                new() { PredictorPath = predictor, JointPath = joint, StateSize = 4, EmbeddingSize = 2, Embeddings = new float[6], Durations = tdt ? [0, 1] : [] }, languages: ["en"], cancellationToken: TestContext.Current.CancellationToken);
             Assert.Empty(recognizer.Transcribe(new(new float[400], 16000), null, TestContext.Current.CancellationToken).Words);
             Assert.False(recognizer.Capabilities.Biasing);
             Assert.Throws<CapabilityNotSupportedException>(() => recognizer.WithPhrases([new("a")], TestContext.Current.CancellationToken));
             using var contextual = new GraphSpeechRecognizer([new() { Path = encoder, Channels = 2, Stride = 100 }], GraphFrontEnd.RawWaveform,
                 new TokenVocabulary(["a", "b", ""]).WithPhraseEncoder((_, ct) => { ct.ThrowIfCancellationRequested(); return [0]; }), 2, TimeSpan.FromTicks(62500), Provenance,
-                new() { PredictorPath = predictor, JointPath = joint, StateSize = 4, EmbeddingSize = 2, Embeddings = new float[6], Durations = tdt ? [0, 1] : [] }, cancellationToken: TestContext.Current.CancellationToken);
+                new() { PredictorPath = predictor, JointPath = joint, StateSize = 4, EmbeddingSize = 2, Embeddings = new float[6], Durations = tdt ? [0, 1] : [] }, languages: ["en"], cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(contextual.Capabilities.Biasing);
             Assert.Empty(contextual.WithPhrases([new("a", .25)], TestContext.Current.CancellationToken).Transcribe(new(new float[400], 16000), "en", TestContext.Current.CancellationToken).Words);
         }
@@ -83,13 +83,16 @@ public sealed class CustomGraphTests
             Constant(path, 3, [1, 4, 3], [0, -.5f, -10, 0, -.5f, -10, 0, -.5f, -10, 0, -.5f, -10]);
             var plain = new TokenVocabulary(["a", "b", ""]);
             var vocabulary = plain.WithPhraseEncoder((text, ct) => { ct.ThrowIfCancellationRequested(); return text == "b" ? [1] : [2]; });
-            using var model = new GraphSpeechRecognizer([new() { Path = path, Channels = 3, Stride = 100 }], GraphFrontEnd.RawWaveform, vocabulary, 2, TimeSpan.FromTicks(62500), Provenance, cancellationToken: TestContext.Current.CancellationToken);
+            using var model = new GraphSpeechRecognizer([new() { Path = path, Channels = 3, Stride = 100 }], GraphFrontEnd.RawWaveform, vocabulary, 2, TimeSpan.FromTicks(62500), Provenance, languages: ["en"], cancellationToken: TestContext.Current.CancellationToken);
             var audio = new AudioBuffer(new float[400], 16000);
             string before = model.Transcribe(audio, "en", TestContext.Current.CancellationToken).Text;
             List<Phrase> phrases = [new("b")];
             var biased = model.WithPhrases(phrases, TestContext.Current.CancellationToken); phrases.Clear();
             Assert.True(biased.Capabilities.Biasing);
             Assert.Contains("b", biased.Transcribe(audio, "en", TestContext.Current.CancellationToken).Text, StringComparison.Ordinal);
+            Assert.Equal("en", biased.Transcribe(audio, "en-US", TestContext.Current.CancellationToken).Language);
+            Assert.Throws<CapabilityNotSupportedException>(() => biased.Transcribe(audio, "zz", TestContext.Current.CancellationToken));
+            biased.Dispose();
             Assert.Equal(before, model.Transcribe(audio, "en", TestContext.Current.CancellationToken).Text);
             Assert.Same(model, biased.WithPhrases([], TestContext.Current.CancellationToken));
             Assert.Throws<ArgumentException>(() => model.WithPhrases([new("blank")], TestContext.Current.CancellationToken));

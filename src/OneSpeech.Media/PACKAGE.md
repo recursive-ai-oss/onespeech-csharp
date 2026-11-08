@@ -12,7 +12,7 @@ File.WriteAllText("interview.vtt", transcript.ToVtt());
 transcript.MuxCaptions("interview.mp4", "captioned.mp4");
 ```
 
-The registered adapter opens containers that OneMedia supports and decodes their first audio track when OneMedia.Audio supports its codec. Video is not decoded. Existing core path and stream transcription, alignment, diarization in transcription, and path streaming use the adapter. `MediaInput.TranscribeStreamAsync(stream)` also accepts nonseekable encoded input, spooling up to 512 MiB before streaming final segments. Streams stay caller-owned.
+The registered adapter opens containers that OneMedia supports and decodes their first audio track when OneMedia.Audio supports its codec. Video is not decoded. Existing core path and stream transcription, alignment, diarization in transcription, and path streaming use the adapter. `MediaInput.TranscribeStream(stream)` also accepts nonseekable encoded input, spooling up to 512 MiB before streaming final segments. Streams stay caller-owned.
 
 `ToSubtitles()` returns OneMedia's `SubtitleDocument`; `ToTranscript()` imports cues. Exports: `ToSrt()`, `ToVtt()`, `ToAss()`, `ToTtml()`. Untimed words keep null span times. Segments without any timing retain unknown cue times, not guessed ones; the string export extensions refuse those cues until aligned. SRT cannot carry word times or speakers; WebVTT carries voices/start tags, ASS carries cue speakers/karaoke, TTML carries agents and span bounds. Use OneMedia's low-level writers for fidelity/loss reports.
 

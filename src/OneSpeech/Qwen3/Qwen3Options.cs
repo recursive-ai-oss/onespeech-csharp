@@ -7,8 +7,8 @@ public sealed record Qwen3Options
     public string Context { get; init; } = "";
     /// <summary>Maximum generated tokens per chunk, 1–4096; defaults to 512. Reaching the limit throws rather than silently truncating.</summary>
     public int MaxNewTokens { get; init; } = 512;
-    /// <summary>OneModel threads per operator; zero selects the runtime default. Range 0–256.</summary>
-    public int Threads { get; init; }
+    /// <summary>OneModel threads per operator; 1 by default; zero selects the runtime default. Range 0–256.</summary>
+    public int Threads { get; init; } = 1;
     /// <summary>Activation storage precision; Binary32 by default. BFloat16 lazily converts missing graphs from the pinned publisher files in the local model directory and verifies catalog hashes; no download is performed.</summary>
     public Qwen3Precision Precision { get; init; }
     internal void Validate()

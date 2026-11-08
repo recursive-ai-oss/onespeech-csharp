@@ -44,12 +44,13 @@ public sealed class PhraseRequestTests
         var wrapper = model.WithPhrases(list, Token); list[0] = new("Other");
         int[] prefix = [];
         model.WindowTrace = (_, ids, _) => prefix = ids;
-        wrapper.Transcribe(new(new float[400], 16000), "en", Token);
+        Assert.Equal("en", wrapper.Transcribe(new(new float[400], 16000), "en-US", Token).Language);
         Assert.Equal(tokenizer.GetToken("<|startofprev|>"), prefix[0]);
         Assert.Equal(tokenizer.Encode(" Acme", cancellationToken: Token), prefix.Skip(1).Take(prefix.Length - 4));
         Assert.Same(model, wrapper.WithPhrases([], Token));
         Assert.Throws<CapabilityNotSupportedException>(() => model.WithPhrases([new("Acme", 1)], Token));
         Assert.Throws<ArgumentException>(() => model.WithPhrases([new("<|endoftext|>")], Token));
+        wrapper.Dispose();
         model.Transcribe(new(new float[400], 16000), "en", Token);
         Assert.Equal(tokenizer.GetToken("<|startoftranscript|>"), prefix[0]);
     }

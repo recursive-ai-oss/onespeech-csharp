@@ -144,10 +144,10 @@ internal static class CommandLine
         string[] a = o.Arguments;
         if (o.Command == "models list") return string.Join('\n', ModelStore.Default.Catalog.Entries.Select(m => $"{m.Id}\t{m.Tier}\t{m.License}\t{m.Revision}"));
         if (o.Command == "models pull") return (await ModelStore.Default.PullAsync(a[0], cancellationToken: ct)).Directory;
-        if (o.Command == "detect-language") return Speech.DetectLanguage(a[0], ct, model: o.Model);
+        if (o.Command == "detect-language") return Speech.DetectLanguage(a[0], model: o.Model, cancellationToken: ct);
         Transcript document;
-        if (o.Command == "transcribe") document = Speech.Transcribe(a[0], ct, o.Language, o.Model);
-        else if (o.Command == "align") document = Speech.Align(a[0], await File.ReadAllTextAsync(a[1], ct), ct, o.Language, o.Model);
+        if (o.Command == "transcribe") document = Speech.Transcribe(a[0], o.Language, o.Model, cancellationToken: ct);
+        else if (o.Command == "align") document = Speech.Align(a[0], await File.ReadAllTextAsync(a[1], ct), o.Language, o.Model, cancellationToken: ct);
         else if (o.Command == "diarize")
         {
             using var source = AudioFileSource.Open(a[0], ct);
@@ -186,14 +186,14 @@ internal static class CommandLine
         {
             try
             {
-                if (o.Command == "verify") return Speech.Verify(a[0], a[1], ct, o.Language, o.Model).ToString("R", CultureInfo.InvariantCulture);
+                if (o.Command == "verify") return Speech.Verify(a[0], a[1], o.Language, o.Model, cancellationToken: ct).ToString("R", CultureInfo.InvariantCulture);
                 if (o.Command == "enroll")
                 {
-                    Speech.Enroll(a[0], a[1], ct, o.Language, o.Model);
+                    Speech.Enroll(a[0], a[1], o.Language, o.Model, cancellationToken: ct);
                     return $"Enrolled '{a[0]}' in memory for this invocation only; enrollment discarded on exit.";
                 }
-                for (int i = 1; i < a.Length; i += 2) Speech.Enroll(a[i], a[i + 1], ct, o.Language, o.Model);
-                var match = Speech.Identify(a[0], ct, o.Language, o.Model);
+                for (int i = 1; i < a.Length; i += 2) Speech.Enroll(a[i], a[i + 1], o.Language, o.Model, cancellationToken: ct);
+                var match = Speech.Identify(a[0], o.Language, o.Model, cancellationToken: ct);
                 return $"{match.SpeakerId ?? "unknown"}\t{match.Score.ToString("R", CultureInfo.InvariantCulture)}";
             }
             finally { Speech.ClearSpeakers(CancellationToken.None); }

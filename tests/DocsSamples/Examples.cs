@@ -33,7 +33,7 @@ var transcript = new OneSpeech.Pipeline.VadTranscriptionPipeline(recognizer, vad
 static async Task ShowLive(IAsyncEnumerable<OneSpeech.AudioBuffer> pcm,
     CancellationToken cancellationToken)
 {
-    await foreach (var update in OneSpeech.Speech.Listen(pcm, cancellationToken, language: "en"))
+    await foreach (var update in OneSpeech.Speech.Listen(pcm, language: "en", cancellationToken: cancellationToken))
     {
         switch (update)
         {
@@ -65,7 +65,7 @@ var alignment = Speech.Align("meeting.mp4", "the supplied words", language: "en"
 await foreach (var segment in Speech.TranscribeStream("lecture.webm"))
     Console.WriteLine(segment.Text);
 await using var encoded = File.OpenRead("meeting.mkv");
-var streamedInput = await Speech.TranscribeAsync(encoded, CancellationToken.None);
+var streamedInput = await Speech.TranscribeAsync(encoded, cancellationToken: CancellationToken.None);
     }
 
     // docs/media.md snippet 2
@@ -187,4 +187,18 @@ if (restored.Text != document.Text || restored.Words[0].Start is not null)
     throw new InvalidOperationException("Document round-trip changed text or invented timing.");
     }
 
+    // docs/loading.md
+    internal static async Task Loading(CancellationToken cancellationToken)
+    {
+        using SpeechRecognizer recognizer = await OneSpeech.Whisper.WhisperRecognizer.LoadAsync(model: "openai/whisper-tiny", cancellationToken: cancellationToken);
+        using VoiceActivityDetector recognitionVad = new OneSpeech.Vad.SileroVad(cancellationToken: cancellationToken);
+        using SpeakerEmbedder embedder = await OneSpeech.Embedders.CampPlusEmbedder.LoadAsync(cancellationToken: cancellationToken);
+        using VoiceActivityDetector speakerVad = new OneSpeech.Vad.SileroVad(OneSpeech.Vad.SileroVadOptions.Diarization, cancellationToken);
+        using Diarizer diarizer = new OneSpeech.Diarization.ClusteringDiarizer(embedder, speakerVad);
+        using Aligner qwen = await OneSpeech.Qwen3.Qwen3ForcedAligner.LoadAsync(cancellationToken: cancellationToken);
+        using Aligner ctc = await OneSpeech.Alignment.OmniAsrAligner.LoadAsync(cancellationToken: cancellationToken);
+        var pipeline = new OneSpeech.Pipeline.VadTranscriptionPipeline(recognizer, recognitionVad) { Diarizer = diarizer, TimingAligners = [qwen, ctc] };
+        _ = pipeline.Transcribe("meeting.wav", "en", cancellationToken);
+        await Speech.PrefetchAsync(language: "en", model: "openai/whisper-tiny", cancellationToken: cancellationToken);
+    }
 }

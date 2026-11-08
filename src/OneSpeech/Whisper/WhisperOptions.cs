@@ -38,15 +38,19 @@ public sealed record WhisperOptions
     public int Threads { get; init; } = 1;
     /// <summary>Deterministic sampling seed, 0 by default. Only positive-temperature fallback uses it.</summary>
     public uint SamplingSeed { get; init; }
-    /// <summary>Optional synchronous progress callback in processed audio time, called after each window.</summary>
-    public Action<TimeSpan>? Progress { get; init; }
+    /// <summary>Optional progress observer in processed audio time, called after each window.</summary>
+    public IProgress<TimeSpan>? Progress { get; init; }
 
     internal void Validate()
     {
-        if (BeamSize is < 1 or > 16 || !Enum.IsDefined(Task) || Threads is < 1 or > 256 || MaxTokens is < 1 or > 224 || Temperatures.IsDefaultOrEmpty || Temperatures.Length > 16 || Temperatures.Any(t => !double.IsFinite(t) || t < 0 || t > 2) || !double.IsFinite(MaxInitialTimestamp) || MaxInitialTimestamp is < 0 or > 30)
-            throw new ArgumentException("Invalid Whisper options.");
-        foreach (double? value in new[] { CompressionRatioThreshold, LogProbabilityThreshold, NoSpeechThreshold })
-            if (value.HasValue && !double.IsFinite(value.Value)) throw new ArgumentException("Whisper thresholds must be finite.");
-        if (CompressionRatioThreshold <= 0 || NoSpeechThreshold is < 0 or > 1) throw new ArgumentException("Invalid Whisper thresholds.");
+        if (BeamSize is < 1 or > 16) throw new ArgumentOutOfRangeException(nameof(BeamSize), BeamSize, "Whisper BeamSize must be 1–16 or null.");
+        if (Threads is < 1 or > 256) throw new ArgumentOutOfRangeException(nameof(Threads), Threads, "Whisper Threads must be 1–256.");
+        if (MaxTokens is < 1 or > 224) throw new ArgumentOutOfRangeException(nameof(MaxTokens), MaxTokens, "Whisper MaxTokens must be 1–224.");
+        if (!Enum.IsDefined(Task)) throw new ArgumentOutOfRangeException(nameof(Task), Task, "Unknown Whisper Task.");
+        if (Temperatures.IsDefaultOrEmpty || Temperatures.Length > 16 || Temperatures.Any(t => !double.IsFinite(t) || t < 0 || t > 2)) throw new ArgumentException("Whisper Temperatures requires 1–16 finite values in [0,2].", nameof(Temperatures));
+        if (!double.IsFinite(MaxInitialTimestamp) || MaxInitialTimestamp is < 0 or > 30) throw new ArgumentOutOfRangeException(nameof(MaxInitialTimestamp), MaxInitialTimestamp, "Whisper MaxInitialTimestamp must be 0–30 seconds.");
+        if (CompressionRatioThreshold is { } compression && (!double.IsFinite(compression) || compression <= 0)) throw new ArgumentOutOfRangeException(nameof(CompressionRatioThreshold), compression, "Whisper CompressionRatioThreshold must be finite and positive, or null.");
+        if (LogProbabilityThreshold is { } probability && !double.IsFinite(probability)) throw new ArgumentOutOfRangeException(nameof(LogProbabilityThreshold), probability, "Whisper LogProbabilityThreshold must be finite, or null.");
+        if (NoSpeechThreshold is { } silence && (!double.IsFinite(silence) || silence is < 0 or > 1)) throw new ArgumentOutOfRangeException(nameof(NoSpeechThreshold), silence, "Whisper NoSpeechThreshold must be in [0,1], or null.");
     }
 }

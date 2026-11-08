@@ -25,6 +25,7 @@ OmniSmoke.Run();
 var word = new Word { Text = "test", Start = TimeSpan.Zero, End = TimeSpan.FromSeconds(1), TimingMethod = TimingMethod.Native, Speaker = SpeakerLabel.Unassigned };
 var original = new Transcript { Text = "test", Duration = TimeSpan.FromTicks(2798640000), Words = [word] };
 var copy = Transcript.FromJson(original.ToJson());
+JsonSmoke.Run(original);
 if (copy.Text != original.Text || copy.Words[0] != word || copy.Duration != original.Duration) throw new InvalidOperationException("Transcript round-trip failed.");
 
 if (OneSpeech.Catalog.ModelCatalog.Default.Get("openai/whisper-tiny").Revision != "169d4a4341b33bc18d8881c4b69c2e104e1cc0af" ||

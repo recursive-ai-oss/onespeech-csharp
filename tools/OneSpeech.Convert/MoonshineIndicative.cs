@@ -10,7 +10,7 @@ internal static class MoonshineIndicative
     {
         var clip = OneAudio.Audio.Load(path, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
         var load = Stopwatch.StartNew();
-        using var model = MoonshineRecognizer.Load(directory, new MoonshineOptions { IntraOpThreads = 1 });
+        using var model = MoonshineRecognizer.Load(directory, new MoonshineOptions { Threads = 1 });
         using var vad = new SileroVad();
         load.Stop();
         Measure(); // Warm JIT, kernels and tensor pools before the recorded repetitions.

@@ -11,7 +11,7 @@ internal static class MoonshineLiveMetrics
 {
     internal static void Inspect(string directory, string output)
     {
-        using var model = MoonshineRecognizer.Load(directory, new MoonshineOptions { IntraOpThreads = 1 });
+        using var model = MoonshineRecognizer.Load(directory, new MoonshineOptions { Threads = 1 });
         using var workspace = new MoonshineLiveWorkspace(model);
         using var file = File.Create(output); using var json = new Utf8JsonWriter(file);
         json.WriteStartObject();
@@ -34,7 +34,7 @@ internal static class MoonshineLiveMetrics
             for (int i = 0; i < samples.Length; i++) samples[i] = clip.Samples.Span[i % clip.Samples.Length];
             pcm = samples;
         }
-        using var model = MoonshineRecognizer.Load(directory, new MoonshineOptions { IntraOpThreads = threads });
+        using var model = MoonshineRecognizer.Load(directory, new MoonshineOptions { Threads = threads });
         bool streaming = MoonshineConfiguration.Load(directory).Streaming;
         using var vad = new SileroVad();
         Measure();

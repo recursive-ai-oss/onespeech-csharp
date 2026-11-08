@@ -7,10 +7,11 @@ using OneSpeech.Whisper;
 
 namespace OneSpeech.Pipeline;
 
-internal static class SpeechServices
+internal static partial class SpeechServices
 {
     internal static async IAsyncEnumerable<Segment> TranscribeStream(string path, string? language, string? model, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        language = LanguageTag.Normalize(language);
         cancellationToken.ThrowIfCancellationRequested();
         using (AudioFileSource.Open(path, cancellationToken)) { }
         var store = ModelStore.Default;
@@ -43,6 +44,7 @@ internal static class SpeechServices
 
     internal static async IAsyncEnumerable<LiveEvent> Listen(IAsyncEnumerable<AudioBuffer> source, string? language, string? model, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        language = LanguageTag.Normalize(language);
         ArgumentNullException.ThrowIfNull(source);
         cancellationToken.ThrowIfCancellationRequested();
         var store = ModelStore.Default;
@@ -68,9 +70,9 @@ internal static class SpeechServices
     {
         public override ModelInfo Model => aligner.Model;
         public override Capabilities Capabilities => aligner.Capabilities;
-        public override Transcript Align(AudioBuffer audio, string text, string? language, CancellationToken cancellationToken) => aligner.Align(audio, text, language, cancellationToken);
-        public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken) => aligner.Align(audio, transcript, language, cancellationToken);
-        public void Dispose() => ((IDisposable)aligner).Dispose();
+        public override Transcript Align(AudioBuffer audio, string text, string? language = null, CancellationToken cancellationToken = default) => aligner.Align(audio, text, language, cancellationToken);
+        public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language = null, CancellationToken cancellationToken = default) => aligner.Align(audio, transcript, language, cancellationToken);
+        protected override void Dispose(bool disposing) { try { if (disposing) ((IDisposable)aligner).Dispose(); } finally { base.Dispose(disposing); } }
     }
 
     private static async ValueTask<AlignerLease> ResolvePublicAlignerAsync(ModelStore store, string? model, CancellationToken cancellationToken)
@@ -87,6 +89,7 @@ internal static class SpeechServices
 
     internal static Transcript Align(string path, string? text, Transcript? transcript, string? language, string? model, CancellationToken cancellationToken)
     {
+        language = LanguageTag.Normalize(language);
         cancellationToken.ThrowIfCancellationRequested();
         using var source = AudioFileSource.Open(path, cancellationToken);
         var audio = ReadAlignmentAudio(source, cancellationToken);
@@ -96,24 +99,9 @@ internal static class SpeechServices
 
     internal static async ValueTask<Transcript> AlignAsync(Stream stream, string? text, Transcript? transcript, string? language, string? model, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(stream);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (!stream.CanRead) throw new ArgumentException("Input stream must be readable.", nameof(stream));
-        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        await using var spool = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 65536, FileOptions.Asynchronous | FileOptions.DeleteOnClose);
-        byte[] buffer = new byte[65536];
-        long total = 0; int count;
-        while ((count = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) != 0)
-        {
-            total += count;
-            if (total > 512L * 1024 * 1024) throw new CapabilityNotSupportedException("Encoded alignment streams are limited to 512 MiB. Use a local file for larger encoded inputs.");
-            await spool.WriteAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
-        }
-        spool.Position = 0;
-        using var source = AudioFileSource.Open(spool, true, cancellationToken);
-        var audio = ReadAlignmentAudio(source, cancellationToken);
-        using var aligner = await ResolvePublicAlignerAsync(ModelStore.Default, model, cancellationToken).ConfigureAwait(false);
-        return transcript is null ? aligner.Align(audio, text!, language, cancellationToken) : aligner.Align(audio, transcript, language, cancellationToken);
+        language = LanguageTag.Normalize(language);
+        await using var spool = await SpoolAsync(stream, cancellationToken).ConfigureAwait(false);
+        return await AlignPathAsync(spool.Name, text, transcript, language, model, cancellationToken).ConfigureAwait(false);
     }
 
     private static AudioBuffer ReadAlignmentAudio(AudioFileSource source, CancellationToken cancellationToken)
@@ -188,12 +176,12 @@ internal static class SpeechServices
     {
         public override ModelInfo Model => recognizer.Model;
         public override Capabilities Capabilities => recognizer.Capabilities;
-        public override Transcript Transcribe(AudioBuffer audio, string? language, CancellationToken cancellationToken) => recognizer.Transcribe(audio, language, cancellationToken);
-        public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken) => recognizer.TranscribeStream(audio, language, cancellationToken);
-        public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken) => recognizer.DetectLanguage(audio, cancellationToken);
-        public override LiveSession CreateLiveSession(SileroVad detector, string? language = null) => recognizer.CreateLiveSession(detector, language);
+        public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default) => recognizer.Transcribe(audio, language, cancellationToken);
+        public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default) => recognizer.TranscribeStream(audio, language, cancellationToken);
+        public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken = default) => recognizer.DetectLanguage(audio, cancellationToken);
+        public override LiveSession CreateLiveSession(VoiceActivityDetector detector, string? language = null) => recognizer.CreateLiveSession(detector, language);
         private bool disposed;
-        public void Dispose() { if (disposed) return; disposed = true; owner.Dispose(); alignment?.Dispose(); }
+        protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return; if (disposed) return; disposed = true; owner.Dispose(); alignment?.Dispose(); }
     }
 
     private static async ValueTask<CampPlusEmbedder> ResolveEmbedderAsync(ModelStore store, string? language, CancellationToken cancellationToken)
@@ -204,7 +192,7 @@ internal static class SpeechServices
             dimension: IsChinese(language) ? 192 : 512, cancellationToken: cancellationToken);
     }
 
-    internal static string EmbedderId(string? language) => IsChinese(language)
+    internal static string EmbedderId(string? language) => IsChinese(LanguageTag.Normalize(language))
         ? "iic/speech_campplus_sv_zh-cn_16k-common" : "iic/speech_campplus_sv_en_voxceleb_16k";
 
     private static bool IsChinese(string? language) => language is not null &&
@@ -235,6 +223,7 @@ internal static class SpeechServices
 
     internal static Transcript Transcribe(string path, string? language, string? model, CancellationToken cancellationToken)
     {
+        language = LanguageTag.Normalize(language);
         cancellationToken.ThrowIfCancellationRequested();
         // Refuse invalid input before first-use model downloads.
         using (AudioFileSource.Open(path, cancellationToken)) { }
@@ -259,49 +248,64 @@ internal static class SpeechServices
         return DiarizeAsync(source, transcript, language, store, cancellationToken).AsTask().GetAwaiter().GetResult();
     }
 
-    internal static async ValueTask<Transcript> TranscribeAsync(Stream stream, string? language, string? model, CancellationToken cancellationToken)
+    internal static async ValueTask<Transcript> TranscribeAsync(string path, string? language, string? model, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(stream);
+        language = LanguageTag.Normalize(language);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!stream.CanRead) throw new ArgumentException("Input stream must be readable.", nameof(stream));
+        // Refuse invalid input before first-use model downloads.
+        using (AudioFileSource.Open(path, cancellationToken)) { }
         var store = ModelStore.Default;
+        await PrefetchAsync(language, model, cancellationToken).ConfigureAwait(false);
         using var recognizer = await ResolveAsync(store, model, cancellationToken).ConfigureAwait(false);
         using var timing = recognizer.Capabilities.NativeTimestamps ? null : new OrderedTimingAligner(store);
         using var vad = ResolveVad(store, cancellationToken);
-        // Retain only encoded input so recognition can select a language before the diarization pass.
-        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        await using var spool = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 65536, FileOptions.Asynchronous | FileOptions.DeleteOnClose);
-        await stream.CopyToAsync(spool, cancellationToken).ConfigureAwait(false);
-        await spool.FlushAsync(cancellationToken).ConfigureAwait(false);
-        spool.Position = 0;
         var deferred = timing is null ? null : new DeferredTiming();
-        Transcript transcript;
-        using (var recognitionSource = AudioFileSource.Open(spool, true, cancellationToken))
-            transcript = new VadTranscriptionPipeline(recognizer, vad)
-            {
-                RecognizedChunk = deferred is null ? null : deferred.Add
-            }.TranscribeBlocks(VadChunker.Blocks(recognitionSource, cancellationToken), language, cancellationToken);
+        var transcript = new VadTranscriptionPipeline(recognizer, vad)
+        {
+            RecognizedChunk = deferred is null ? null : deferred.Add
+        }.Transcribe(path, language, cancellationToken);
         recognizer.Dispose();
         if (deferred is not null && timing is not null)
         {
-            spool.Position = 0;
-            using var replay = AudioFileSource.Open(spool, true, cancellationToken);
+            using var replay = AudioFileSource.Open(path, cancellationToken);
             using var replayVad = ResolveVad(store, cancellationToken);
             transcript = deferred.Apply(VadChunker.Blocks(replay, cancellationToken), replayVad, transcript, timing, cancellationToken);
         }
         timing?.Dispose();
-        spool.Position = 0;
-        using var source = AudioFileSource.Open(spool, true, cancellationToken);
+        using var source = AudioFileSource.Open(path, cancellationToken);
         return await DiarizeAsync(source, transcript, language, store, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async ValueTask<Transcript> TranscribeAsync(Stream stream, string? language, string? model, CancellationToken cancellationToken)
+    {
+        language = LanguageTag.Normalize(language);
+        await using var spool = await SpoolAsync(stream, cancellationToken).ConfigureAwait(false);
+        return await TranscribeAsync(spool.Name, language, model, cancellationToken).ConfigureAwait(false);
     }
 
     internal static string DetectLanguage(string path, string? language, string? model, CancellationToken cancellationToken)
     {
+        language = LanguageTag.Normalize(language);
         if (language is not null) throw new CapabilityNotSupportedException("Language detection determines the language from audio; omit the language hint.");
         cancellationToken.ThrowIfCancellationRequested();
         using (AudioFileSource.Open(path, cancellationToken)) { }
         var store = ModelStore.Default;
         using var recognizer = ResolveAsync(store, model, cancellationToken).AsTask().GetAwaiter().GetResult();
+        using var vad = ResolveVad(store, cancellationToken);
+        using var source = AudioFileSource.Open(path, cancellationToken);
+        var chunker = new VadChunker(vad);
+        foreach (var chunk in chunker.Read(VadChunker.Blocks(source, cancellationToken), null, cancellationToken))
+            return recognizer.DetectLanguage(chunk.Audio, cancellationToken);
+        throw new UnsupportedAudioException("No speech was detected; language cannot be determined.");
+    }
+    internal static async ValueTask<string> DetectLanguageAsync(string path, string? language, string? model, CancellationToken cancellationToken)
+    {
+        language = LanguageTag.Normalize(language);
+        if (language is not null) throw new CapabilityNotSupportedException("Language detection determines the language from audio; omit the language hint.");
+        cancellationToken.ThrowIfCancellationRequested();
+        using (AudioFileSource.Open(path, cancellationToken)) { }
+        var store = ModelStore.Default;
+        using var recognizer = await ResolveAsync(store, model, cancellationToken).ConfigureAwait(false);
         using var vad = ResolveVad(store, cancellationToken);
         using var source = AudioFileSource.Open(path, cancellationToken);
         var chunker = new VadChunker(vad);

@@ -14,12 +14,12 @@ public sealed record NemotronAsrOptions
 {
     /// <summary>Chunk duration in milliseconds: 80, 320 (default), 560, or 1120. Offline inference uses the same attention context.</summary>
     public int ChunkMilliseconds { get; init; } = 320;
-    /// <summary>Intra-op CPU thread limit, nonnegative; zero (default) selects the runtime default.</summary>
-    public int Threads { get; init; }
+    /// <summary>Intra-op CPU thread limit, 1 by default, nonnegative; zero selects the runtime default.</summary>
+    public int Threads { get; init; } = 1;
 }
 
 /// <summary>Publisher-only tier-2 Nemotron 3.5 ASR, with caller-owned cache state and genuine live partials. Not thread-safe; borrowed sessions must be disposed before the recognizer.</summary>
-public sealed class NemotronAsrRecognizer : SpeechRecognizer, IDisposable
+public sealed partial class NemotronAsrRecognizer : SpeechRecognizer, IDisposable
 {
     internal Session First { get; }
     internal Session Last { get; }
@@ -93,17 +93,19 @@ public sealed class NemotronAsrRecognizer : SpeechRecognizer, IDisposable
         return id;
     }
     /// <inheritdoc />
-    public override LiveSession CreateLiveSession(SileroVad detector, string? language = null)
+    public override LiveSession CreateLiveSession(VoiceActivityDetector detector, string? language = null)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ArgumentNullException.ThrowIfNull(detector); int id = PromptId(language);
         return new Live.UtteranceLiveSession(this, detector, new NemotronAsrState(this, id, CancellationToken.None), language);
     }
-    /// <summary>Transcribes mono 16 kHz finite PCM. Inputs over 30 s use bounded VAD chunks. Shorter than one mel hop returns empty. Language null selects the auto prompt. Throws UnsupportedAudioException, CapabilityNotSupportedException, ObjectDisposedException or OperationCanceledException.</summary>
+    /// <summary>Transcribes mono 16 kHz finite PCM. Inputs over 30 s use bounded VAD chunks. Shorter than one mel hop returns empty. Language null selects the auto prompt. Throws ArgumentException for invalid PCM, CapabilityNotSupportedException, ObjectDisposedException or OperationCanceledException.</summary>
     public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ArgumentNullException.ThrowIfNull(audio); int id = PromptId(language); cancellationToken.ThrowIfCancellationRequested();
-        if (audio.SampleRate != 16000 || audio.Channels != 1) throw new UnsupportedAudioException("Nemotron requires mono 16000 Hz PCM.");
-        foreach (float value in audio.Samples.Span) if (!float.IsFinite(value)) throw new UnsupportedAudioException("PCM must be finite.");
+        if (audio.SampleRate != 16000 || audio.Channels != 1) throw new ArgumentException("Nemotron requires mono 16000 Hz PCM.");
+        foreach (float value in audio.Samples.Span) if (!float.IsFinite(value)) throw new ArgumentException("PCM must be finite.");
         if (audio.FrameCount > 480000) { using var vad = new SileroVad(cancellationToken: cancellationToken); return new Pipeline.VadTranscriptionPipeline(this, vad).Transcribe(audio, language, cancellationToken); }
         using var state = new NemotronAsrState(this, id, cancellationToken, padFinalChunk: false); state.Push(audio.Samples.Span, true, cancellationToken);
         var segment = Snapshot(state.Tokens, TimeSpan.Zero, audio.Duration, language ?? state.DetectedLanguage, cancellationToken);
@@ -120,8 +122,9 @@ public sealed class NemotronAsrRecognizer : SpeechRecognizer, IDisposable
     /// <inheritdoc />
     public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ArgumentNullException.ThrowIfNull(audio); _ = PromptId(language); cancellationToken.ThrowIfCancellationRequested();
-        if (audio.SampleRate != 16000 || audio.Channels != 1) throw new UnsupportedAudioException("Nemotron requires mono 16000 Hz PCM.");
+        if (audio.SampleRate != 16000 || audio.Channels != 1) throw new ArgumentException("Nemotron requires mono 16000 Hz PCM.");
         using var vad = new SileroVad(cancellationToken: cancellationToken);
         using var session = CreateLiveSession(vad, language);
         for (int offset = 0; offset < audio.FrameCount; offset += 1600)
@@ -130,7 +133,7 @@ public sealed class NemotronAsrRecognizer : SpeechRecognizer, IDisposable
         foreach (var update in session.Complete(cancellationToken)) if (update is FinalEvent final) yield return final.Segment;
     }
     /// <summary>Runs automatic-prompt transcription and returns its emitted language tag. No confidence is invented. Throws UnsupportedAudioException if no tag was emitted; other errors follow Transcribe.</summary>
-    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken) => Transcribe(audio, null, cancellationToken).Language ?? throw new UnsupportedAudioException("No language tag was emitted; provide a longer speech sample or an explicit language.");
+    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken = default) => Transcribe(audio, null, cancellationToken).Language ?? throw new UnsupportedAudioException("No language tag was emitted; provide a longer speech sample or an explicit language.");
     /// <summary>Releases model graph resources. Idempotent; dispose borrowed live sessions first.</summary>
-    public void Dispose() { if (disposed) return; disposed = true; First.Dispose(); Last.Dispose(); Tail.Dispose(); Prompt.Dispose(); Predictor.Dispose(); Joint.Dispose(); }
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return; if (disposed) return; disposed = true; First.Dispose(); Last.Dispose(); Tail.Dispose(); Prompt.Dispose(); Predictor.Dispose(); Joint.Dispose(); }
 }

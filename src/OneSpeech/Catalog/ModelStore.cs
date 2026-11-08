@@ -52,7 +52,7 @@ public sealed class ModelStore
         cancellationToken.ThrowIfCancellationRequested();
         var entry = catalog.Get(id);
         token ??= Environment.GetEnvironmentVariable("ONESPEECH_MODEL_TOKEN");
-        if (entry.Gated && string.IsNullOrWhiteSpace(token)) throw new ModelTokenRequiredException("Accept the publisher gate and pass a token or set ONESPEECH_MODEL_TOKEN.");
+        if (entry.Gated && string.IsNullOrWhiteSpace(token)) throw new ModelTokenRequiredException($"Model '{entry.Id}' requires gate acceptance at {entry.Source} and a token; pass one or set ONESPEECH_MODEL_TOKEN.") { ModelId = entry.Id };
         string key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(entry.Id + "\n" + entry.Revision + "\n" + string.Join('\n', entry.Files.Select(f => f.Name + ":" + f.Sha256)))));
         string directory = Path.Combine(CacheDirectory, key);
         System.IO.Directory.CreateDirectory(directory);
@@ -79,7 +79,7 @@ public sealed class ModelStore
             string temporary = Path.Combine(directory, ".download");
             try
             {
-                using var input = await source.OpenReadAsync(entry, file, token, cancellationToken).ConfigureAwait(false);
+                using var input = await OpenSourceAsync(entry, file, token, cancellationToken).ConfigureAwait(false);
                 await using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan))
                 {
                     using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -104,7 +104,7 @@ public sealed class ModelStore
                 var info = new FileInfo(path);
                 verified[path] = (info.Length, info.LastWriteTimeUtc.Ticks);
             }
-            catch (HttpRequestException) { throw new ModelNetworkException("Model transfer failed; retry the pull."); }
+            catch (HttpRequestException) { throw new ModelNetworkException($"Model '{entry.Id}' file '{file.Name}' transfer failed; retry the pull.") { ModelId = entry.Id }; }
             finally { File.Delete(temporary); }
         }
         await EnsureRuntimeAsync(entry, directory, cancellationToken).ConfigureAwait(false);
@@ -160,6 +160,12 @@ public sealed class ModelStore
                 File.Move(Path.Combine(staging, file.Name), Path.Combine(directory, file.Name), overwrite: true);
         }
         finally { System.IO.Directory.Delete(staging, recursive: true); }
+    }
+
+    private async ValueTask<Stream> OpenSourceAsync(CatalogEntry entry, CatalogFile file, string? token, CancellationToken cancellationToken)
+    {
+        try { return await source.OpenReadAsync(entry, file, token, cancellationToken).ConfigureAwait(false); }
+        catch (IOException ex) { throw new ModelUnavailableException($"Model '{entry.Id}' file '{file.Name}' is unavailable from the selected source. {ex.Message}", ex) { ModelId = entry.Id }; }
     }
 
     private static async ValueTask<bool> MatchesAsync(string path, string expected, CancellationToken cancellationToken)

@@ -12,30 +12,9 @@ public static class MediaInput
     public static void Register() => AudioFileSource.AdditionalDecoder = Open;
 
     /// <summary>Yields final segments from a caller-owned encoded media stream after asynchronously spooling to a seekable temporary file (512 MiB limit, bounded copy buffer). Call Register first. Core's streaming pipeline then decodes in bounded chunks; no whole-file diarization pass is performed. Optional language/model have the same meaning as Speech.TranscribeStream. Enumeration disposal or cancellation removes the spool and closes models, not the input stream. Throws UnsupportedAudioException on the size limit; core model/audio errors and I/O errors propagate. No pending final is emitted on early disposal.</summary>
-    public static async IAsyncEnumerable<Segment> TranscribeStreamAsync(Stream stream, string? language = null, string? model = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public static async IAsyncEnumerable<Segment> TranscribeStream(Stream stream, string? language = null, string? model = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(stream);
-        cancellationToken.ThrowIfCancellationRequested();
-        string path = Path.Combine(Path.GetTempPath(), "onespeech-media-" + Guid.NewGuid().ToString("N"));
-        bool created = false;
-        try
-        {
-            await using (var spool = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
-            {
-                created = true;
-                var buffer = new byte[65536];
-                long total = 0;
-                int count;
-                while ((count = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) != 0)
-                {
-                    total += count;
-                    if (total > 512L * 1024 * 1024) throw new UnsupportedAudioException("Encoded media exceeds the 512 MiB stream spool limit; supply a local path instead.");
-                    await spool.WriteAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
-                }
-            }
-            await foreach (var segment in Speech.TranscribeStream(path, cancellationToken, language, model).ConfigureAwait(false)) yield return segment;
-        }
-        finally { if (created) File.Delete(path); }
+        await foreach (var segment in Speech.TranscribeStream(stream, language, model, cancellationToken).ConfigureAwait(false)) yield return segment;
     }
 
     private static OwnedDecoder Open(Stream stream, CancellationToken cancellationToken)

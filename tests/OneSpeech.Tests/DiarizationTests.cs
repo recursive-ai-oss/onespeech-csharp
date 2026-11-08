@@ -134,7 +134,7 @@ public sealed class DiarizationTests
     private sealed class FakeRecognizer : SpeechRecognizer
     {
         public override ModelInfo Model => TestModel;
-        public override Capabilities Capabilities { get; } = new();
+        public override Capabilities Capabilities { get; } = new() { Languages = ["en"] };
         public override Transcript Transcribe(AudioBuffer audio, string? language, CancellationToken cancellationToken)
         {
             var words = ImmutableArray.Create(W(0.1, 0.5), W(1.1, 1.5));

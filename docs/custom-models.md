@@ -69,3 +69,5 @@ precede duration logits. Default packed widths (640/3200), duration table
 Other predictor/state layouts need an adapted graph, not an implicit shim.
 All calls are synchronous, cancellation-aware at graph/search steps, and not
 thread-safe; dispose the recognizer to release its owned sessions.
+
+Language hints are never an implicit capability: declare the supported language labels with the `languages` constructor argument on `GraphSpeechRecognizer`, for example `languages: ["en", "fr"]`. The default is empty (no hints accepted). Hints normalize through the shared rule and label output; this adapter has no language-conditioning or detection head. An undeclared hint throws `CapabilityNotSupportedException` instead of being silently treated as supported.

@@ -73,13 +73,25 @@ public sealed class ContractsTests
     }
 
     [Fact]
+    public void HappyPathRefusesUnsupportedLargeGraphWithoutDownloading()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "1089-134686-0001.flac");
+        var error = Assert.Throws<CapabilityNotSupportedException>(() => Speech.Transcribe(path, model: "openai/whisper-large-v3"));
+        Assert.Contains("2 GiB", error.Message, StringComparison.Ordinal);
+        Assert.Throws<ModelNotFoundException>(() => Speech.Transcribe(path, model: "missing/model"));
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        Assert.Throws<OperationCanceledException>(() => Speech.Transcribe(path, canceled.Token));
+    }
+
+    [Fact]
     public void AudioAndErrorsHaveExplicitBehavior()
     {
         var audio = new AudioBuffer(new float[32000], 16000, 2);
         Assert.Equal(TimeSpan.FromSeconds(1), audio.Duration);
         Assert.Throws<ArgumentException>(() => new AudioBuffer(new float[3], 16000, 2));
         Assert.Throws<ArgumentOutOfRangeException>(() => new AudioBuffer(default, 0));
-        Assert.Throws<FeatureUnavailableException>(() => Speech.Transcribe("missing.wav"));
+        Assert.Throws<FileNotFoundException>(() => Speech.Transcribe("missing.wav"));
         Assert.IsAssignableFrom<OneSpeechException>(new ModelNotFoundException("fetch model"));
         Assert.IsAssignableFrom<OneSpeechException>(new ModelIntegrityException("hash mismatch"));
         Assert.IsAssignableFrom<OneSpeechException>(new ModelTokenRequiredException("supply token"));

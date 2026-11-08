@@ -42,10 +42,20 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## Downloaded Whisper checkpoints
+
+Whisper weights are not embedded. First use downloads the pinned publisher files and
+converts them locally. The five catalog entries retain the original OpenAI MIT notice,
+including "Copyright (c) 2022 OpenAI", in the embedded catalog attribution. The pinned
+Hugging Face cards declare Apache-2.0 for tiny, base, small and large-v3, and MIT for
+large-v3-turbo. The Apache-2.0 text is included in LICENSE-APACHE. Source repositories,
+revisions and file digests are recorded in the catalog and model provenance.
+
 ## Optional speaker checkpoints
 
-The development fetch tool pins the following publisher checkpoints. They are not included in
-this package, and checkpoint inspection does not implement their inference graphs. The model
+The following publisher checkpoints are not included in this package. English CAM++ is
+downloaded and converted on first use of the default diarizer; the other entries are
+pinned by the development fetch tool. The model
 cards declare Apache-2.0; the licence text is included in LICENSE-APACHE. These are published
 pretrained weights, not models trained or fine-tuned by this project. The training-data statements
 below are the publishers' descriptions, not an independent audit or a licence grant for that data.

@@ -73,6 +73,16 @@ if (args is ["--ecapa", var ecapaGraph, var ecapaAudio])
     Console.WriteLine("ECAPA real graph NativeAOT extraction passed.");
 }
 
+string? happyPathClip = Environment.GetEnvironmentVariable("ONESPEECH_HAPPY_PATH_CLIP");
+if (happyPathClip is not null)
+{
+    var document = Speech.Transcribe(happyPathClip, language: "en", model: "openai/whisper-tiny");
+    if (document.Words.IsEmpty || document.Turns.IsEmpty || document.Language != "en" ||
+        document.Words.Any(w => w.Start is null || w.End is null || w.Confidence is null))
+        throw new InvalidOperationException("Speech.Transcribe NativeAOT document is incomplete.");
+    Console.WriteLine("Speech.Transcribe tiny NativeAOT happy path passed.");
+}
+
 internal sealed class SmokeEmbedder(ModelInfo model) : SpeakerEmbedder
 {
     public override ModelInfo Model => model;

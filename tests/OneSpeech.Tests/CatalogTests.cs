@@ -17,13 +17,48 @@ public sealed class CatalogTests
     };
 
     [Fact]
-    public void EmbeddedCatalogHasPinnedCompleteEntriesAndNoUnmeasuredDefault()
+    public void EmbeddedCatalogHasPinnedCompleteEntriesAndExplicitDefaults()
     {
         var catalog = ModelCatalog.Default;
         Assert.Equal(9, catalog.Entries.Length);
         Assert.All(catalog.Entries, e => { Assert.Equal(ModelTier.Tier1, e.Tier); Assert.False(e.Gated); Assert.All(e.Files, f => Assert.Null(f.MirrorUrl)); });
-        Assert.Throws<ModelNotFoundException>(() => catalog.GetDefault("whisper"));
+        Assert.Equal("openai/whisper-large-v3-turbo", catalog.GetDefault("whisper").Id);
         Assert.Equal("169d4a4341b33bc18d8881c4b69c2e104e1cc0af", catalog.Get("openai/whisper-tiny").Revision);
+    }
+
+    [Fact]
+    public async Task CachedConvertedFilesAreVerifiedWithoutCallingSource()
+    {
+        string root = Temp();
+        var converted = Entry.Files[0] with { Name = "runtime.onemodel", UpstreamUrl = "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/test/runtime.onemodel" };
+        var entry = Entry with { ConvertedFiles = [converted] };
+        try
+        {
+            var initial = await new ModelStore(root, new FakeSource(), new([Entry])).PullAsync(Entry.Id, cancellationToken: TestContext.Current.CancellationToken);
+            string path = Path.Combine(initial.Directory, converted.Name);
+            await File.WriteAllBytesAsync(path, Bytes, TestContext.Current.CancellationToken);
+            var result = await new ModelStore(root, new FailingSource(), new([entry])).PullAsync(entry.Id, cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal(2, result.Info.Files.Length);
+            await File.WriteAllBytesAsync(path, [3, 2, 1], TestContext.Current.CancellationToken);
+            await Assert.ThrowsAsync<ModelIntegrityException>(async () => await new ModelStore(root, new FailingSource(), new([entry])).PullAsync(entry.Id, cancellationToken: TestContext.Current.CancellationToken));
+            Assert.False(File.Exists(path));
+            await Assert.ThrowsAsync<CapabilityNotSupportedException>(async () => await new ModelStore(root, new FailingSource(), new([entry])).PullAsync(entry.Id, cancellationToken: TestContext.Current.CancellationToken));
+            Assert.Empty(Directory.GetDirectories(initial.Directory, ".convert-*"));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void AllWhisperCatalogEntriesHavePinnedRuntimeArtifacts()
+    {
+        foreach (var entry in ModelCatalog.Default.Entries.Where(e => e.Family == "whisper"))
+        {
+            Assert.Contains(entry.ConvertedFiles, f => f.Name == "encoder.onemodel");
+            Assert.Contains(entry.ConvertedFiles, f => f.Name == "decoder.onemodel");
+            Assert.All(entry.ConvertedFiles, f => { Assert.Equal(64, f.Sha256.Length); Assert.True(f.Size > 0); });
+        }
+        Assert.Equal("silero/vad-v6.2.3", ModelCatalog.Default.GetDefault("silero").Id);
+        Assert.Equal("iic/speech_campplus_sv_en_voxceleb_16k", ModelCatalog.Default.GetDefault("speaker-campplus").Id);
     }
 
     [Fact]

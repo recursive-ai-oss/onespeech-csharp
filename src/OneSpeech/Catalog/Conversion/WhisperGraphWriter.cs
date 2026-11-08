@@ -3,7 +3,7 @@ using System.Text.Json;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
 
-namespace OneSpeech.Convert;
+namespace OneSpeech.Catalog.Conversion;
 
 // The graph follows Radford et al. §2.2, with names taken only from published tensor data.
 internal sealed class WhisperGraphWriter(SafeTensorFile weights, bool diagnostics = false)

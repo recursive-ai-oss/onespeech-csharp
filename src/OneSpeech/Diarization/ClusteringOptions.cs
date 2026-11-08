@@ -77,7 +77,7 @@ public sealed record EmbeddingWindow
     public required ReadOnlyMemory<float> Embedding { get; init; }
 }
 
-/// <summary>Optional post-clustering stage, for a compatible published resegmentation backend. No backend is installed by default.</summary>
+/// <summary>Optional post-clustering stage for algorithmic resegmentation or a compatible published backend. The low-level diarizer installs none by default.</summary>
 public abstract class EmbeddingResegmenter
 {
     /// <summary>Returns one nonnegative label per window, using only labels present in initialLabels. Called synchronously before turn construction.

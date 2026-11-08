@@ -9,7 +9,7 @@ using OneSpeech.Vad;
 namespace OneSpeech.Evaluation;
 
 // Development-only activity ablations. No speaker labels from truth reach the embedder or clusterer.
-internal static class ActivityAblation
+internal static partial class ActivityAblation
 {
     private sealed record Setting(float Threshold, int Speech, int Silence, int Pad, int Cutoff = 100)
     {
@@ -24,6 +24,7 @@ internal static class ActivityAblation
 
     internal static int Run(string[] args)
     {
+        if (args.Length > 0 && args[0].StartsWith("refine-", StringComparison.Ordinal)) return Refinement(args);
         if (args is ["shortlist", var results]) { Select(results, "sad.jsonl", "sadErrorSeconds", "shortlist.txt", 3); return 0; }
         if (args is ["freeze", var resultsRoot]) { Select(resultsRoot, "cluster.jsonl", "errorSeconds", "frozen.txt", 1); return 0; }
         if (args is ["grid", var root, var id, var output]) { Dev(root, id); Grid(root, id, output); return 0; }

@@ -66,7 +66,7 @@ The symmetric eigensolver uses cyclic Jacobi rotations, at most 60 sweeps, stopp
 
 Only the embedding sequence and interval metadata grow with file duration. Temporary PCM is bounded by 30-second buffers (plus the decoder's bounded state); dense clustering is O(L²), capped at L=256. Retained sequence storage is O(ND+N), with float embeddings requiring 4ND bytes plus window/interval/collection overhead, labels and O(KD) centroids. This is **not** constant total memory independent of duration. Default `MaxWindows=100000` (configurable up to 1000000) refuses further windows explicitly instead of growing without a limit. At the default stride, continuous speech produces approximately 14400 windows/hour; dimension 192 needs approximately 11 MB/hour of vector payload, dimension 256 approximately 15 MB/hour, before metadata. Caller-owned in-memory PCM is outside this bound.
 
-An optional `EmbeddingResegmenter` receives borrowed windows/initial labels synchronously and returns a label per window before turn construction. The output must use only initial labels and respect count hints. No implementation is installed by default; in particular **VBx is deferred**. Landini §§2.1–2.3 requires a compatible pretrained PLDA mean, whitening/LDA transform and between-speaker variances. None is fitted or substituted here. Embeddings are never written to disk or retained by the diarizer after the call.
+An optional `EmbeddingResegmenter` receives borrowed windows/initial labels synchronously and returns a label per window before turn construction. The output must use only initial labels and respect count hints. The low-level constructor installs none by default; file helpers use the cosine-centroid profile below. In particular **VBx is deferred**. Landini §§2.1–2.3 requires a compatible pretrained PLDA mean, whitening/LDA transform and between-speaker variances. None is fitted or substituted here. Embeddings are never written to disk or retained by the diarizer after the call.
 
 ### Development parameters and evaluation
 
@@ -147,3 +147,92 @@ The selected setting `T20-M250-S250-P150-C100` was frozen before held-out scorin
 | R8003_M8001_MS801 |27.2741% / 29.8615%|418.452 / 117.852 / 81.658|26.8887% / 28.5758%|414.640 / 127.700 / 66.890|
 
 All four DER/JER pairs improve versus their earlier same-embedder floors. R8003 DER is within 0.5 points of the bundle; its JER and both metrics on the other meetings remain outside that bound. Single-file intervals remain unavailable. On AMI, the remaining bundle gap is primarily confusion (excess 23.558 / 44.876 seconds), not activity misses alone. R8001 still has a substantial missed-speech gap. No new segmentation/speaker-change model or overlap detector is added, and these different-system comparisons do not establish numerical parity.
+
+## Cosine-centroid resegmentation
+
+`CosineResegmenter` is an optional embedding-only algorithm, not a learned
+speaker-change model or VBx replacement. It uses the existing 1.5-second
+windows at 0.25-second hop; it does not extract finer audio windows or claim
+sub-hop precision. VAD coverage and the midpoint ownership rule stay unchanged.
+No extra waveform pass, model, biometric persistence or overlap detection is
+introduced.
+
+For each initial cluster, average the unit embeddings of stable windows, then
+normalize the sum. A window is stable when its initial label and the labels of
+`StableRadius` neighbors on either side agree, with no activity gap in that
+support. If a cluster has no stable windows, use all its windows. A near-zero
+centroid norm (less than 1e-12) leaves the whole initial labeling unchanged.
+Cosine distance to these fixed centroids is the per-window assignment cost.
+An exact minimum-cost path minimizes the sum of assignment costs plus
+`SwitchPenalty` for each label change. Costs are per window, not per second;
+the penalty is soft smoothing, not a hard minimum-turn duration. The path is
+reset at a positive gap between embedding windows. Ties prefer staying, then
+the lowest original label. Speaker IDs are canonicalized by the enclosing
+diarizer after refinement. No speaker outside the initial labels is created;
+a speaker can disappear, and the enclosing diarizer still enforces explicit
+count/min/max constraints. It refuses a violating result rather than ignoring
+a count request.
+
+This is our own deterministic centroid/path design. It does not implement the
+publisher's acoustic transformer locator: its public API returned rounded
+change-point text, while its published card and paper do not specify a complete
+inference graph. That learned locator is not loaded by these helpers.
+
+Public algorithm defaults are penalty 0.1 and radius 2; these are starting
+values, not a universal calibration. Limits: up to 1,000,000 windows, 32 distinct
+speakers and dimensions 1–4096, matching the clustering bounds. Path storage
+uses NK bytes for byte predecessors plus 4N bytes for output labels; centroid
+accumulators require at most 16KD bytes, plus small DP buffers and collection
+overhead. There is no additional PCM storage. Existing embedding-sequence
+storage remains O(ND), explicitly capped by `MaxWindows`, not constant total
+memory for arbitrarily long input. At the default N cap of 100,000, additional
+path payload is at most 3.6 MB. Cancellation is checked per window and during
+traceback.
+
+### Selected file-helper profile
+
+The file helpers use `CosineResegmenter(switchPenalty: 0.4, stableRadius: 2)`.
+Low-level `ClusteringDiarizer` remains opt-in via its existing resegmenter
+argument. The development-only search compared no resegmentation with all
+15 combinations of radius {0,2,4} and penalty {0,0.05,0.1,0.2,0.4}, using the
+already selected activity profile and S128 clustering unchanged. All windows
+were the original 1.5 s / 0.25 s windows. Selection minimizes pooled development
+speaker-time DER, then macro JER and ordinal setting ID; no resegmentation wins
+a tie against the baseline. No AliMeeting Eval or AMI test labels were used.
+
+| AMI development | No resegmentation DER / JER | Selected DER / JER |
+|---|---:|---:|
+| ES2011a |33.1123% / 48.2213%|31.5613% / 47.1127%|
+| ES2011b |23.5827% / 25.3175%|22.1844% / 23.0626%|
+| Pooled |27.3133% / 36.7694%|25.8552% / 35.0877%|
+
+Pooled development confusion falls from 130.535 to 95.589 seconds. Miss
+427.738 seconds and false alarm 96.369 seconds are unchanged: this algorithm
+cannot recover activity or represent overlap. Profile `R2-P400` was frozen
+before holdout inference, SHA-256
+`1d57269880fdccc38b635a53cf19776041c178a06e3419c5bcfd42bda7d53f13`.
+`onespeech-eval diarize activity refine-dev`, `refine-freeze` and
+`refine-holdout` reproduce the search and fixed holdouts; the holdout command
+checks the freeze digest and refuses to overwrite scores. Development embeddings
+are cached only in RAM and cleared after each meeting.
+
+The four complete holdouts were each run once with that frozen profile.
+Precision, machine, model pins, activity settings and no-collar/overlap-inclusive
+scoring are the same as the preceding activity rows. CPU float32, eight graph
+threads; OneModel 1.0.0, OneAudio 1.7.2, SDK 10.0.403/runtime 10.0.14. The
+reference remains the pinned ModelScope 1.40.2 published bundle, not this
+centroid algorithm. No new reference inference was needed.
+
+| Meeting | Before DER / JER | Refined DER / JER | Refined miss / FA / confusion (s) | Published bundle DER / JER |
+|---|---:|---:|---:|---:|
+| ES2004a |28.8213% / 31.0004%|28.2116% / 29.6213%|180.754 / 42.453 / 37.308|26.5359% / 29.6337%|
+| ES2004b |21.1057% / 19.9543%|20.9156% / 19.7743%|298.314 / 90.640 / 78.102|18.1017% / 19.2563%|
+| R8001_M8004_MS801 |42.4480% / 42.3801%|41.5741% / 41.1256%|771.504 / 19.706 / 60.743|34.5196% / 34.0168%|
+| R8003_M8001_MS801 |27.2741% / 29.8615%|26.7902% / 28.9546%|418.452 / 117.852 / 70.694|26.8887% / 28.5758%|
+
+All four improve over the preceding same-activity results, but the confusion
+gap is not closed. Using a 0.5-point single-file difference bound, only ES2004a
+JER and both R8003 metrics agree with the reference; ES2004b JER differs by
+0.518 points and also misses. Single-file confidence intervals are unavailable.
+These fixed meetings do not establish population quality. This is not parity
+with the learned locator or the reference's full system.

@@ -15,6 +15,7 @@ public sealed class Qwen3Tokenizer
     private readonly char[] byteCharacters = new char[256];
     private readonly Dictionary<char, byte> characterBytes = [];
     private readonly HashSet<int> specialIds = [];
+    private readonly HashSet<int> omittedIds = [];
     private readonly HashSet<int> addedIds = [];
 
     /// <summary>Loads vocab.json, merges.txt and tokenizer_config.json from a local directory. Vocabulary is limited to 200,000 entries, each file to 16 MiB.</summary>
@@ -46,6 +47,22 @@ public sealed class Qwen3Tokenizer
                     value.GetProperty("normalized").GetBoolean())
                     throw new InvalidDataException("Unsupported added-token behavior.");
                 Add(value.GetProperty("content").GetString() ?? throw new InvalidDataException("Missing token content."), id, value.GetProperty("special").GetBoolean(), true);
+            }
+            omittedIds.UnionWith(specialIds);
+            if (doc.RootElement.TryGetProperty("additional_special_tokens", out var named))
+            {
+                // Observed in the toolkit's pinned Transformers 4.57.6: omission uses the named
+                // special-token list, not every added-token special flag (blank tokens survive).
+                omittedIds.Clear();
+                foreach (var token in named.EnumerateArray()) Omit(token);
+                foreach (string name in new[] { "bos_token", "eos_token", "pad_token", "unk_token" })
+                    if (doc.RootElement.TryGetProperty(name, out var token) && token.ValueKind != JsonValueKind.Null) Omit(token);
+            }
+            void Omit(JsonElement token)
+            {
+                string text = token.GetString() ?? throw new InvalidDataException("Missing named special token.");
+                if (!vocabulary.TryGetValue(text, out int id)) throw new InvalidDataException("Named special token is absent from vocabulary.");
+                omittedIds.Add(id);
             }
         }
         if (vocabulary.Count == 0) throw new InvalidDataException("Empty vocabulary.");
@@ -173,7 +190,7 @@ public sealed class Qwen3Tokenizer
             for (int i = 0; i >= 0 && i < encoded.Length; i = next[i]) result.Add(vocabulary[symbols[i]]);
         }
     }
-    /// <summary>Decodes IDs as UTF-8, replacing incomplete byte sequences. By default only tokens marked special by the model data are omitted; ordinary added tokens are retained.</summary>
+    /// <summary>Decodes IDs as UTF-8, replacing incomplete byte sequences. By default the model's named special tokens are omitted, matching the toolkit's Transformers 4.57.6; blank and timestamp tokens are retained. If no named list exists, added-token special flags determine omission.</summary>
     /// <exception cref="ArgumentOutOfRangeException">An ID is not in the vocabulary.</exception>
     public string Decode(ReadOnlySpan<int> tokens, bool includeSpecialTokens = false)
     {
@@ -181,7 +198,7 @@ public sealed class Qwen3Tokenizer
         foreach (int token in tokens)
         {
             if ((uint)token >= bytes.Length || bytes[token] == null) throw new ArgumentOutOfRangeException(nameof(tokens));
-            if (includeSpecialTokens || !specialIds.Contains(token)) output.Write(bytes[token]);
+            if (includeSpecialTokens || !omittedIds.Contains(token)) output.Write(bytes[token]);
         }
         return Encoding.UTF8.GetString(output.GetBuffer(), 0, checked((int)output.Length));
     }

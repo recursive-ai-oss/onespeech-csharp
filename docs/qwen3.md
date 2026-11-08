@@ -118,9 +118,13 @@ vocabulary IDs and merge counts are below 200,000. Input text is limited to
 Text undergoes Unicode NFC normalization before byte-level BPE. Splitting is
 Unicode-scalar-aware, including astral letters, individual numeric scalars,
 case-insensitive contractions and significant whitespace/newline grouping.
-Merge rank ties go left-to-right. Added tokens are atomic, but not all added
-tokens are special: `<asr_text>` and the aligner's `<timestamp>` remain when
-special tokens are omitted. Encoding special tokens requires permission.
+Merge rank ties go left-to-right. Added tokens are atomic. Encoding tokens
+marked special by model data requires permission. Omission during decoding
+matches the released toolkit's Transformers 4.57.6: the named special-token
+list plus BOS/EOS/padding/unknown tokens, rather than every added-token flag.
+Thus `<tts_text_eod>`, blank tokens, `<asr_text>` and the aligner's `<timestamp>`
+remain when special tokens are omitted. Transformers 5.22.2 differs on blank
+and `<tts_text_eod>` omission; it is not the decoding reference for this API.
 Unknown IDs are rejected; incomplete UTF-8 decoding uses replacement characters.
 
 ## Reproduction

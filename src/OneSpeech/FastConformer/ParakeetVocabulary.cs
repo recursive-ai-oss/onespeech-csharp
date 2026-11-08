@@ -4,11 +4,18 @@ using OneSpeech.Decoding;
 
 namespace OneSpeech.FastConformer;
 
-// Only decoding is needed: transducer hypotheses already contain vocabulary IDs.
+// Contextual phrases additionally use the publisher's BPE merge ranks and normalization data.
 // The pinned tokenizer declares Metaspace decoding (no ByteFallback decoder).
 internal sealed class ParakeetVocabulary
 {
     private readonly string[] pieces = new string[8192];
+    private ParakeetPhraseTokenizer? phraseTokenizer;
+    internal System.Collections.Immutable.ImmutableArray<int> EncodePhrase(string text, CancellationToken ct)
+    {
+        var ids = (phraseTokenizer ?? throw new CapabilityNotSupportedException("Tokenizer data does not include phrase encoding.")).Encode(text, ct);
+        if (ids.Contains(0)) throw new CapabilityNotSupportedException("A contextual phrase contains characters unknown to this tokenizer; biasing the shared unknown ID is refused.");
+        return ids;
+    }
     internal ParakeetVocabulary(string path) : this(ReadFile(path)) { }
 
     private static byte[] ReadFile(string path)
@@ -21,7 +28,7 @@ internal sealed class ParakeetVocabulary
     {
         if (bytes.Length > 2 * 1024 * 1024) throw new InvalidDataException("Parakeet tokenizer exceeds 2 MiB.");
         try { Parse(bytes); }
-        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or DecoderFallbackException)
+        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or ArgumentException or IndexOutOfRangeException)
         { throw new InvalidDataException("Invalid Parakeet vocabulary.", exception); }
     }
 
@@ -40,6 +47,8 @@ internal sealed class ParakeetVocabulary
             pieces[id] = property.Name; count++;
         }
         if (count != pieces.Length) throw new InvalidDataException("Incomplete Parakeet vocabulary.");
+        if (document.RootElement.TryGetProperty("normalizer", out _) && model.TryGetProperty("merges", out _))
+            phraseTokenizer = new ParakeetPhraseTokenizer(document.RootElement, pieces);
     }
 
     internal string Decode(ReadOnlySpan<int> ids)

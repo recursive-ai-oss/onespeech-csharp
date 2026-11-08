@@ -5,6 +5,7 @@
   <Project Path="tools/OneSpeech.Integration/OneSpeech.Integration.csproj" />
   <Project Path="fuzz/OneSpeech.MoonshineFuzz/OneSpeech.MoonshineFuzz.csproj" /><Project Path="tools/OneSpeech.TimingFloor/OneSpeech.TimingFloor.csproj" />
   <Project Path="tools/OneSpeech.OnlineDiarization/OneSpeech.OnlineDiarization.csproj" />
+  <Project Path="tools/OneSpeech.BiasingEval/OneSpeech.BiasingEval.csproj" />
   <Project Path="tools/OneSpeech.NemoProbe/OneSpeech.NemoProbe.csproj" />
   <Project Path="fuzz/OneSpeech.ParakeetFuzz/OneSpeech.ParakeetFuzz.csproj" />
   <Project Path="tests/OneSpeech.Media.Tests/OneSpeech.Media.Tests.csproj" />

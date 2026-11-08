@@ -76,7 +76,10 @@ if (tinyDirectory is not null && clipPath is not null)
     var clip = OneAudio.Audio.Load(clipPath, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
     var transcript = recognizer.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", CancellationToken.None);
     if (transcript.Text != " Stuffed into you, his belly, cowtled him." || transcript.Words.Length == 0) throw new InvalidOperationException("Whisper tiny NativeAOT transcription failed.");
-    Console.WriteLine("Whisper tiny NativeAOT transcription passed.");
+    var conditioned = recognizer.WithPhrases([new Phrase("Stephen")]);
+    if (conditioned.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", CancellationToken.None).Words.IsEmpty)
+        throw new InvalidOperationException("Whisper contextual wrapper NativeAOT failed.");
+    Console.WriteLine("Whisper tiny NativeAOT transcription and borrowed prompt passed.");
     await LiveSmoke.Run(vad, recognizer, clipPath);
     using var beam = OneSpeech.Whisper.WhisperRecognizer.Load(tinyDirectory, new OneSpeech.Whisper.WhisperOptions { BeamSize = 1, Temperatures = [0], WordTimestamps = false });
     if (beam.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", CancellationToken.None).Text != transcript.Text) throw new InvalidOperationException("Whisper beam-width-one smoke failed.");
@@ -100,6 +103,8 @@ string? moonshineDirectory = Environment.GetEnvironmentVariable("ONESPEECH_MOONS
 if (moonshineDirectory is not null && clipPath is not null)
 {
     using var moonshine = OneSpeech.Moonshine.MoonshineRecognizer.Load(moonshineDirectory);
+    try { moonshine.WithPhrases([new Phrase("Stephen")]); throw new InvalidOperationException("Moonshine silently accepted biasing."); }
+    catch (CapabilityNotSupportedException) { }
     await LiveSmoke.Run(vad, moonshine, clipPath, expectPartials: true);
 }
 

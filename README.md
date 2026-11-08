@@ -17,3 +17,35 @@ See [Qwen3 recognition and alignment](docs/qwen3.md), [the transcript JSON forma
 ## Containers and captions
 
 `RecursiveAI.OneSpeech.Media` adds OneMedia container audio input, subtitle export and MP4 caption muxing. Call `OneSpeech.Media.MediaInput.Register()` once at startup; then `Speech.Transcribe("meeting.mkv")` uses the container's audio track. Transcript extensions `ToSrt`, `ToVtt`, `ToAss` and `ToTtml` use OneMedia's writers. See [container audio and captions](docs/media.md) for untimed words, fidelity reports, streams and muxing.
+
+## Contextual biasing
+
+Biasing is a low-level request; `Speech.*` stays unchanged. A loaded recognizer
+returns a borrowed wrapper with its own immutable phrase list:
+
+```csharp
+using var model = OneSpeech.Whisper.WhisperRecognizer.Load(modelDirectory);
+SpeechRecognizer biased = model.WithPhrases([new Phrase("Acme Photonics"), new Phrase("Marisol")]);
+Transcript result = biased.Transcribe(audio, "en", cancellationToken);
+// The same biased recognizer can be passed to VadTranscriptionPipeline.
+```
+
+Keep the owning model alive until the wrappers and their sessions are finished.
+Wrappers do not own or dispose it; the model's concurrency limits still apply.
+Calling `WithPhrases` again replaces the list; an empty list returns the original
+unbiased recognizer. The original recognizer is never modified.
+
+Whisper conditions each window with ordinary prompt tokens. Qwen3-ASR appends
+phrases to its existing system context. These prompt methods refuse explicit
+numeric weights rather than pretending to apply a score bonus. Parakeet TDT
+uses token-level shallow fusion; `new Phrase("Acme", 0.5)` supplies a natural-log
+bonus per token (null defaults to 1). Custom CTC/transducer graphs use the same
+fusion after the caller supplies `TokenVocabulary.WithPhraseEncoder` for their
+exact tokenizer. CTC biasing uses prefix beam search, even if the unbiased
+recognizer is greedy. Moonshine does not support biasing: a nonempty request
+throws `CapabilityNotSupportedException`, as declared by `Capabilities.Biasing`.
+
+Biasing is not a spelling replacement or a guarantee that a term will be spoken.
+It can introduce false alarms. Check both phrase recall and overall WER, with
+absent-phrase controls, on your audio. See [contextual scoring and bounds](docs/contextual-biasing.md)
+for prompt budgets, weights, decoder semantics and the repeatable evaluation.

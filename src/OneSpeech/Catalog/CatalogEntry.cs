@@ -32,6 +32,10 @@ public sealed record CatalogEntry
     public required string Revision { get; init; }
     /// <summary>Files required to load this model.</summary>
     public ImmutableArray<CatalogFile> Files { get; init; } = [];
+    /// <summary>Converted runtime files; empty while conversion metadata is pending. Never populated for tier 2.</summary>
+    public ImmutableArray<CatalogFile> ConvertedFiles { get; init; } = [];
+    /// <summary>Whether this entry is the measured family default; false unless explicitly declared. Tier 2 cannot be a default.</summary>
+    public bool IsDefault { get; init; }
     /// <summary>Distribution tier.</summary>
     public required ModelTier Tier { get; init; }
     /// <summary>SPDX licence identifier.</summary>
@@ -55,4 +59,6 @@ public abstract class ModelSource
 {
     /// <summary>Opens a readable file stream at offset zero. Caller disposes it. Throws ModelNotFoundException if absent and OperationCanceledException on cancellation.</summary>
     public abstract ValueTask<Stream> OpenReadAsync(CatalogEntry model, CatalogFile file, CancellationToken cancellationToken);
+    /// <summary>Opens pinned bytes with an ephemeral publisher token. The default delegates to the tokenless host hook. Implementations must never persist or log tokens.</summary>
+    public virtual ValueTask<Stream> OpenReadAsync(CatalogEntry model, CatalogFile file, string? token, CancellationToken cancellationToken) => OpenReadAsync(model, file, cancellationToken);
 }

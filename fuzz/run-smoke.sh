@@ -14,6 +14,11 @@ fi
 dotnet publish fuzz/OneSpeech.Fuzz -c Release -o "$work/pub" -m:2 -v quiet
 DOTNET_ROLL_FORWARD=Major "$work/tools/sharpfuzz" "$work/pub/OneSpeech.dll"
 cp fuzz/corpus/*.json "$work/corpus/"
+if [[ "${ONESPEECH_FUZZ_CATALOG:-0}" == 1 ]]; then
+  rm -f "$work/corpus/"*.json
+  cp src/OneSpeech/Catalog/models.json "$work/corpus/catalog.json"
+  echo '{"schemaVersion":1,"models":[]}' > "$work/corpus/empty.json"
+fi
 "$work/libfuzzer-dotnet" --target_path="$work/pub/OneSpeech.Fuzz" "$work/corpus" \
   -max_total_time="$seconds" -timeout=10 -rss_limit_mb=2048 -max_len=65536 \
   -artifact_prefix="$work/findings/" -print_final_stats=1

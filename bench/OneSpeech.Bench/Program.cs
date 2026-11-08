@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
@@ -13,7 +14,7 @@ using OneSpeech.Embedders;
 using OneSpeech.Moonshine;
 using OneSpeech.Vad;
 
-if (args is ["--self-test"]) { MemorySamples.CheckSlope(); Console.WriteLine("Slope checks passed."); return 0; }
+if (args is ["--self-test"]) { MemorySamples.CheckSlope(); Console.WriteLine("Slope checks passed; OneModel " + Machine.ModelPackageVersion); return 0; }
 if (args is ["--prepare-data", var corpus, var meeting, var destination])
 {
     Fixtures.Prepare(corpus, meeting, destination);
@@ -74,7 +75,7 @@ foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
     if (name == "live")
     {
         long setup = Stopwatch.GetTimestamp();
-        using var recognizer = MoonshineRecognizer.Load(resolved.Directory, new() { IntraOpThreads = threads });
+        using var recognizer = MoonshineRecognizer.Load(resolved.Directory);
         using var vad = new SileroVad();
         modelLoadSeconds = Stopwatch.GetElapsedTime(setup).TotalSeconds;
         var audio = Fixtures.ReadMono(file);
@@ -190,6 +191,7 @@ internal static class Payload
 
 internal static class Machine
 {
+    internal static string ModelPackageVersion => typeof(RecursiveAI.OneModel.Graph.Session).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "unknown";
     internal static string Command(string command, string argument)
     {
         using var process = Process.Start(new ProcessStartInfo(command, argument) { RedirectStandardOutput = true, UseShellExecute = false });
@@ -206,7 +208,7 @@ internal static class Machine
         json.WriteString("cpu", OperatingSystem.IsLinux() ? File.ReadLines("/proc/cpuinfo").FirstOrDefault(l => l.StartsWith("model name", StringComparison.Ordinal)) : Command("sysctl", "-n machdep.cpu.brand_string"));
         json.WriteNumber("processCores", Environment.ProcessorCount);
         json.WriteString("onlineCores", OperatingSystem.IsLinux() ? Command("getconf", "_NPROCESSORS_ONLN") : Command("sysctl", "-n hw.logicalcpu"));
-        json.WriteString("oneModelPackage", "1.2.0-preview.2");
+        json.WriteString("oneModelPackage", ModelPackageVersion);
         json.WriteString("isa", $"AVX2={Avx2.IsSupported};AVX512F={Avx512F.IsSupported};FMA={Fma.IsSupported};AdvSimd={AdvSimd.IsSupported}");
         json.WriteString("oneModel", typeof(RecursiveAI.OneModel.Graph.Session).Assembly.GetName().Version?.ToString());
         json.WriteString("oneAudio", typeof(OneAudio.Audio).Assembly.GetName().Version?.ToString());

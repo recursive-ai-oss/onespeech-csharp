@@ -86,8 +86,9 @@ public sealed class OmniAsrAligner : Aligner, IDisposable
                 using var waveform = Tensor.FromSpan<float>(audio.Samples.Span, Shape.Create(1, 1, audio.Samples.Length));
                 using var output = session.Run(new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["waveform"] = waveform });
                 cancellationToken.ThrowIfCancellationRequested();
-                float[] probabilities = output["logits"].Data<float>().ToArray();
-                if (probabilities.Length != expectedFrames * 9812) throw new InvalidDataException("CTC graph returned an unexpected emission shape.");
+                var emissions = output["logits"].Data<float>();
+                if (emissions.Length != expectedFrames * 9812) throw new InvalidDataException("CTC graph returned an unexpected emission shape.");
+                float[] probabilities = emissions.ToArray();
                 int frames = expectedFrames;
                 for (int frame = 0; frame < frames; frame++)
                 {

@@ -35,6 +35,7 @@ if (clustering.Diarize(new AudioBuffer(new float[3200], 16000), CancellationToke
 Console.WriteLine("Clustering NativeAOT smoke passed.");
 
 SpeakerSmoke.Run();
+Qwen3Smoke.Run();
 Console.WriteLine("Speaker arithmetic and in-memory registry NativeAOT smoke passed.");
 
 if (args is ["--camp" or "--camp-zh", var campGraph, var campAudio])

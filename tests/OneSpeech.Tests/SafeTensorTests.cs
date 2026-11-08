@@ -20,6 +20,9 @@ public sealed class SafeTensorTests
         using var copy = new MemoryStream();
         file.CopyTensorTo("weight", copy, CancellationToken.None);
         Assert.Equal(data, copy.ToArray());
+        using var expanded = new MemoryStream();
+        file.CopyFloat32To("weight", expanded, CancellationToken.None);
+        Assert.Equal(System.Convert.FromHexString("0000803F000000C0"), expanded.ToArray());
         Assert.Equal(2, file.Tensors["weight"].ElementCount);
         file.Dispose();
         Assert.True(stream.CanRead);

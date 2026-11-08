@@ -99,6 +99,22 @@ internal static class NemotronTools
     }
     internal static void CacheProbe(string directory)
     {
+        var uniform = new ArrivalOrderSpeakerCache(new float[512]);
+        for (int step = 0; step < 2; step++)
+        {
+            float[] chunk = new float[340 * 512];
+            for (int t = 0; t < 340; t++) Array.Fill(chunk, step * 340 + t + 1, t * 512, 512);
+            float[] window = uniform.Window(chunk), probabilities = new float[window.Length / 512 * 64];
+            float low = 1 / (1 + MathF.Exp(8)), high = 1 / (1 + MathF.Exp(-8));
+            Array.Fill(probabilities, low);
+            for (int t = 0; t < probabilities.Length / 8; t++) probabilities[t * 8 + step] = high;
+            uniform.Update(window, probabilities, 340);
+            float[] actual = uniform.Window([]), expected = Read(Path.Combine(directory, "cache" + step + ".f32"));
+            int matches = Enumerable.Range(0, expected.Length).Count(t => actual[t * 512] == expected[t]);
+            Console.WriteLine($"uniform{step}_cache_matches={matches}/{expected.Length}");
+            Write(Path.Combine(directory, "native-uniform" + step + ".selected"), Enumerable.Range(0, expected.Length).Select(t => actual[t * 512]).ToArray());
+            if (matches != expected.Length) throw new InvalidDataException("Public uniform speaker-cache fixture mismatch: " + step);
+        }
         foreach (string name in new[] { "default", "quota-2", "quota-4", "quota-8" })
         {
             string probabilitiesPath = name == "default" ? "scoring-probs.f32" : name + ".probs";

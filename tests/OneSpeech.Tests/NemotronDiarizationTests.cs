@@ -35,6 +35,27 @@ public sealed class NemotronDiarizationTests
         }
     }
     [Fact]
+    public void TiedCacheSelectionRetainsOriginalActivityAcrossSpeakerChanges()
+    {
+        // Digests of 304 numerical frame IDs from the released Transformers 5.22.2
+        // public cache API, Torch 2.15 CPU. No audio or biometric embeddings are used.
+        string[] expected = ["FAA14044D3C6BC6B385957A1A0C4CDA3F1D9F69A12CE6586DF4AEC8994DA9EB3", "009211D1F7EBBD575350498DE99C18A896195F7701DF5CAC0A090C10E0F31D4A"];
+        var cache = new ArrivalOrderSpeakerCache(new float[512]);
+        for (int step = 0; step < 2; step++)
+        {
+            float[] chunk = new float[340 * 512];
+            for (int t = 0; t < 340; t++) Array.Fill(chunk, step * 340 + t + 1, t * 512, 512);
+            float[] window = cache.Window(chunk), probabilities = new float[window.Length / 512 * 64];
+            Array.Fill(probabilities, 1 / (1 + MathF.Exp(8)));
+            for (int t = 0; t < probabilities.Length / 8; t++) probabilities[t * 8 + step] = 1 / (1 + MathF.Exp(-8));
+            cache.Update(window, probabilities, 340);
+            float[] state = cache.Window([]);
+            byte[] ids = new byte[304 * 4];
+            for (int t = 0; t < 304; t++) System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(ids.AsSpan(t * 4), state[t * 512]);
+            Assert.Equal(expected[step], System.Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(ids)));
+        }
+    }
+    [Fact]
     public void CachePlacesUnusedSilenceAtTheTailAndKeepsABoundedFifo()
     {
         // Numerical frame identifiers, not voice or biometric speaker embeddings.

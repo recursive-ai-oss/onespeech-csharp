@@ -60,8 +60,12 @@ p[s]=0.5. If a speaker has at least 16 frames whose joint exclusive activity exc
 its nonexclusive frames are excluded before bonuses. Recency adds 0.05 starting at the nominal
 264-frame cache boundary, including the first compression when the cache was empty. These
 boundary/filter semantics were established with crafted public-cache probes. Per-speaker representation boosts are 24 frames
-by 2 log(2), and 48 frames by log(2). The 256 best non-silence slots are grouped by speaker and
-original frame order. Learned silence follows represented speakers; unused/invalid slots sort to
+by 2 log(2), and 48 frames by log(2). Strong selection precedes weak selection, which uses the already boosted scores. A partition-based
+TopK includes one infinite-score learned-silence candidate per speaker in the global 264-slot
+selection; its treatment of tied scores matches the released CPU oracle on crafted cache probes.
+Selected non-silence slots are grouped by speaker and original frame order. Cached frames retain
+their original activity scores rather than being relabelled by later chunks, as verified by a
+two-update probe switching the active speaker. Learned silence follows represented speakers; unused/invalid slots sort to
 the tail. This silence placement was checked with both crafted cache inputs and observed public
 cache outputs; placing unused slots in front changes arrival-order identities.
 

@@ -12,6 +12,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     private readonly VadChunker chunker;
     private readonly IProgress<TimeSpan>? progress;
     private readonly Diarizer? diarizer;
+    internal Action<TimeSpan, TimeSpan, int, int, string?>? RecognizedChunk { get; init; }
 
     /// <summary>Borrowed forced aligners in priority order (for example Qwen3, then CTC). Empty by default. Native timings win; unsuccessful or unsupported alignment leaves existing DTW as last resort. Aligners must preserve the supplied written words and support each chunk duration.</summary>
     public ImmutableArray<Aligner> TimingAligners { get; init; } = [];
@@ -163,6 +164,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
             var result = ApplyTiming(chunk.Audio, recognizer.Transcribe(chunk.Audio, language, cancellationToken), language, cancellationToken);
             if (result.Text.Length != 0) text.Add(result.Text);
             language ??= result.Language;
+            RecognizedChunk?.Invoke(chunk.Start, chunk.Audio.Duration, words.Count, result.Words.Length, language);
             words.AddRange(result.Words.Select(w => Shift(w, chunk.Start)));
             segments.AddRange(result.Segments.Select(s => Shift(s, chunk.Start)));
             turns.AddRange(result.Turns.Select(t => t with { Start = t.Start + chunk.Start, End = t.End + chunk.Start, Words = [.. t.Words.Select(w => Shift(w, chunk.Start))] }));
@@ -192,15 +194,25 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
 
     private Transcript ApplyTiming(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken)
     {
-        if (TimingAligners.IsDefaultOrEmpty || transcript.Words.IsEmpty) return transcript;
+        return ApplyTiming(audio, transcript, language, TimingAligners, cancellationToken);
+    }
+
+    internal static Transcript ApplyTiming(AudioBuffer audio, Transcript transcript, string? language, IEnumerable<Aligner> aligners, CancellationToken cancellationToken)
+    {
+        if (transcript.Words.IsEmpty) return transcript;
         language ??= transcript.Language;
         Word[] words = transcript.Words.ToArray();
         bool[] timed = words.Select(w => (w.TimingMethod is TimingMethod.Native or TimingMethod.ForcedAligner) && w.Start.HasValue && w.End.HasValue).ToArray();
-        foreach (var aligner in TimingAligners)
+        using var candidates = aligners.GetEnumerator();
+        while (!timed.All(t => t) && candidates.MoveNext())
         {
-            if (timed.All(t => t)) break;
+            cancellationToken.ThrowIfCancellationRequested();
+            var aligner = candidates.Current;
             if (!aligner.Capabilities.ForcedAlignment || (language is not null && !aligner.Capabilities.Languages.Contains(language, StringComparer.Ordinal))) continue;
-            var aligned = aligner.Align(audio, transcript, language, cancellationToken);
+            Transcript aligned;
+            try { aligned = aligner.Align(audio, transcript, language, cancellationToken); }
+            catch (UnsupportedAudioException) { continue; }
+            catch (CapabilityNotSupportedException) { continue; }
             if (aligned.Words.Length != words.Length || !aligned.Words.Select(w => w.Text).SequenceEqual(transcript.Words.Select(w => w.Text), StringComparer.Ordinal))
                 throw new InvalidDataException("Forced aligner changed written word boundaries.");
             for (int i = 0; i < words.Length; i++)

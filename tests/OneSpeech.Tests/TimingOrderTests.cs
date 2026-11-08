@@ -46,6 +46,89 @@ public sealed class TimingOrderTests
         Assert.Null(aligner.Align(new AudioBuffer(new float[16000], 16000), unsplittable, "en", TestContext.Current.CancellationToken).Words[0].Start);
     }
 
+    [Fact]
+    public void PriorityIsPerWordAndDoesNotLoadAnUnusedFallback()
+    {
+        var audio = new AudioBuffer(new float[16000], 16000);
+        var original = new Transcript { Text = "one two", Words = [new Word { Text = "one", Confidence = .9 }, new Word { Text = "two", Confidence = .8 }] };
+        var first = new PartialAligner();
+        var second = new TestAligner(succeeds: true);
+        var result = VadTranscriptionPipeline.ApplyTiming(audio, original, "en", [first, second], TestContext.Current.CancellationToken);
+        Assert.Equal(TimingMethod.ForcedAligner, result.Words[0].TimingMethod);
+        Assert.Equal(TimingMethod.CtcAligner, result.Words[1].TimingMethod);
+        Assert.Equal(.9, result.Words[0].Confidence);
+        Assert.Equal(.8, result.Words[1].Confidence);
+        IEnumerable<Aligner> Lazy()
+        {
+            yield return second;
+            throw new InvalidOperationException("A successful alignment must not load the next model.");
+        }
+        Assert.All(VadTranscriptionPipeline.ApplyTiming(audio, original, "en", Lazy(), TestContext.Current.CancellationToken).Words, w => Assert.Equal(TimingMethod.CtcAligner, w.TimingMethod));
+    }
+
+    [Fact]
+    public void WindowFailureFallsBackAndCancellationIsNotSwallowed()
+    {
+        var audio = new AudioBuffer(new float[16000], 16000);
+        var original = new Transcript { Text = "word", Words = [new Word { Text = "word" }] };
+        var result = VadTranscriptionPipeline.ApplyTiming(audio, original, "en", [new FailingAligner(), new TestAligner(true)], TestContext.Current.CancellationToken);
+        Assert.Equal(TimingMethod.CtcAligner, result.Words[0].TimingMethod);
+        Assert.Null(VadTranscriptionPipeline.ApplyTiming(audio, original, "en", [new FailingAligner()], TestContext.Current.CancellationToken).Words[0].Start);
+        using var canceled = new CancellationTokenSource(); canceled.Cancel();
+        Assert.Throws<OperationCanceledException>(() => VadTranscriptionPipeline.ApplyTiming(audio, original, "en", [new FailingAligner()], canceled.Token));
+        Assert.True(OrderedTimingAligner.CanUseQwen(audio, "en"));
+        Assert.False(OrderedTimingAligner.CanUseQwen(audio, "ar"));
+        Assert.False(OrderedTimingAligner.CanUseQwen(audio, null));
+        Assert.False(OrderedTimingAligner.CanUseQwen(new AudioBuffer(new float[200], 16000), "en"));
+        Assert.False(OrderedTimingAligner.CanUseQwen(new AudioBuffer(new float[4800001], 16000), "en"));
+    }
+
+    [Fact]
+    public void ExplicitRealignmentDoesNotReuseOldAudioTimingsWhenNoWindowFits()
+    {
+        var audio = new AudioBuffer(new float[61 * 16000], 16000);
+        var original = new Transcript { Text = "word", Words = [new Word { Text = "word", Start = TimeSpan.Zero, End = TimeSpan.FromSeconds(1), TimingMethod = TimingMethod.Native }] };
+        using var aligner = new OrderedTimingAligner(new OneSpeech.Catalog.ModelStore(), realign: true);
+        var result = aligner.Align(audio, original, "ar", TestContext.Current.CancellationToken);
+        Assert.Null(result.Words[0].Start);
+        Assert.Null(result.Words[0].End);
+        Assert.Equal(TimingMethod.None, result.Words[0].TimingMethod);
+        using var pipelineTiming = new OrderedTimingAligner(new OneSpeech.Catalog.ModelStore());
+        Assert.Equal(original.Words, pipelineTiming.Align(audio, original, "ar", TestContext.Current.CancellationToken).Words);
+    }
+
+    [Fact]
+    public void DeferredTimingReplaysTheSameChunksAndProjectsSegmentWords()
+    {
+        var audio = new AudioBuffer(new float[61 * 16000], 16000);
+        var deferred = new DeferredTiming();
+        var first = new VadTranscriptionPipeline(new TestRecognizer(false), new TestVad()) { RecognizedChunk = deferred.Add };
+        var original = first.Transcribe(audio, "en", TestContext.Current.CancellationToken);
+        var timed = deferred.Apply([audio], new TestVad(), original, new TestAligner(true), TestContext.Current.CancellationToken);
+        var direct = new VadTranscriptionPipeline(new TestRecognizer(false), new TestVad()) { TimingAligners = [new TestAligner(true)] }.Transcribe(audio, "en", TestContext.Current.CancellationToken);
+        Assert.Equal(direct.Text, timed.Text);
+        Assert.Equal(direct.Words, timed.Words);
+        Assert.Equal(direct.Segments.SelectMany(s => s.Words), timed.Segments.SelectMany(s => s.Words));
+        Assert.Throws<InvalidDataException>(() => deferred.Apply([new AudioBuffer(new float[16000], 16000)], new TestVad(), original, new TestAligner(true), TestContext.Current.CancellationToken));
+    }
+
+    private sealed class PartialAligner : Aligner
+    {
+        public override ModelInfo Model => Info;
+        public override Capabilities Capabilities => new() { ForcedAlignment = true, Languages = ["en"] };
+        public override Transcript Align(AudioBuffer audio, string text, string? language, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken) => transcript with
+        {
+            Words = [transcript.Words[0] with { Start = TimeSpan.Zero, End = TimeSpan.FromSeconds(.1), TimingMethod = TimingMethod.ForcedAligner }, transcript.Words[1]]
+        };
+    }
+    private sealed class FailingAligner : Aligner
+    {
+        public override ModelInfo Model => Info;
+        public override Capabilities Capabilities => new() { ForcedAlignment = true, Languages = ["en"] };
+        public override Transcript Align(AudioBuffer audio, string text, string? language, CancellationToken cancellationToken) => throw new UnsupportedAudioException("Constructed window limit.");
+    }
+
     private sealed class TextOnlyAligner : Aligner
     {
         public override ModelInfo Model => Info;

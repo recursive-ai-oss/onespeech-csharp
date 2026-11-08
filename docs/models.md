@@ -45,6 +45,15 @@ Directory source layout is `root/<model-id>/<revision>/<filename>`; the root is 
 
 ## Catalog schema 1
 
+Optional `defaultRoles` is an array of up to 16 unique lower-case ASCII role names
+(letters and hyphens, at most 64 characters). It is empty when omitted. Each role
+has at most one default across the catalog, independently of `isDefault` family
+picks; only ungated tier-1 entries qualify. `GetRoleDefault("transcription")`
+selects the file recognizer for `Speech.Transcribe` when no model is specified.
+The built-in pick remains `openai/whisper-large-v3-turbo`. Changing that catalog
+role assignment changes the pick without changing recognition code. A missing
+role default throws `ModelNotFoundException`, never a hidden family fallback.
+
 The envelope is `{ "schemaVersion": 1, "models": [...] }`. Model properties are the camel-case `CatalogEntry` fields: ID, family, source repository, 40-hex revision, files, convertedFiles, tier, licence, exact attribution, gated, isDefault and capabilities. `files` contains the publisher file set. `convertedFiles` is a separate, possibly empty array of local runtime outputs, with SHA-256 and size. Tier-1 output URLs describe OneSpeech release assets. Tier-2 output URLs must exactly match one of the pinned publisher input URLs: they identify provenance, not a downloadable output. `PullAsync` fetches **only publisher files** and produces registered missing converted files locally, then verifies their sizes and hashes before atomic installation. Silero uses publisher ONNX directly. Upstream and converted bytes must never be assigned the same name in one entry.
 
 File metadata is name, size, sha256, upstreamUrl and optional mirrorUrl. Relative names use slash-separated ASCII letters/digits, hyphens, underscores and dots, with an alphanumeric first character per component; Windows device names are also refused; traversal, absolute paths and hidden components are refused. Names are unique ignoring case. Maximum file size is 64 GiB. URLs require HTTPS, no credentials or custom port, and upstream paths pinned to the declared source repository and revision. The publisher forms supported are `<repository>/resolve/<revision>/<file>` and GitHub's `raw.githubusercontent.com/<owner>/<repo>/<revision>/<file>`.

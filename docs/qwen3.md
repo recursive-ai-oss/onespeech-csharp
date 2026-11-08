@@ -44,11 +44,10 @@ IDs. Special tokens in user context are refused. A language tag such as
 and true live partials are not declared by this family.
 
 Low-level recognition does not download a timing model. Its word timings
-remain null unless a timing stage supplies them. The Qwen file resolver
-attaches Qwen3-ForcedAligner for supported languages.
-An additive preferred-aligner resolver allows the general alignment dispatcher
-to select it before CTC/DTW fallbacks and returns no selection outside the
-eleven supported languages.
+remain null unless a timing stage supplies them. File transcription uses the
+shared timing dispatcher, selecting Qwen3-ForcedAligner before CTC/DTW for its
+eleven supported languages. Models are loaded only when needed, not attached
+eagerly to the recognizer.
 
 ## Forced alignment
 
@@ -78,7 +77,9 @@ morphological segmentation.
 Valid predictions carry `TimingMethod.ForcedAligner`. Predictions with reversed
 bounds or an end beyond the audio duration retain null times. Confidence is
 the mean of the two slot-class probabilities, not a calibrated probability
-that the written word was spoken. No boundaries are interpolated or invented.
+that the written word was spoken. The transcript overload instead preserves
+existing word confidence and other non-timing fields, projecting character slots
+back to the caller's written-word boundaries. No boundaries are interpolated or invented.
 Independent slot predictions are not repaired for monotonicity across words;
 valid intervals may overlap. These direct model predictions do not promise
 identity with the toolkit's postprocessed boundaries.
@@ -154,3 +155,18 @@ the committed tokenizer fixture contains only synthetic strings.
 `qwen-convert-bf16`, `qwen-reproduce`, probe and fixed-slice commands. Fetching,
 weight expansion and graph construction are C#. The runtime uses the same
 converter and checks converted sizes/digests before installing any graphs.
+
+## Offline Qwen memory lifetime
+
+Qwen file transcription recognizes all bounded VAD chunks first, recording only
+chunk boundaries and written-word ranges with the transcript. It releases the
+recognizer graphs before loading timing graphs, then replays decoded audio
+through a fresh VAD with the same settings. Replay boundaries must match exactly;
+a mismatch is an error, never a shifted word assignment. Timing is projected
+back onto the original words and segments on the same audio clock. This adds a
+bounded decoding/VAD pass, not a second recognition pass. Encoded-stream input
+replays its existing temporary spool. No full-file PCM or KV history is retained.
+Live and file-segment streaming retain their one-pass session policy; they
+cannot defer finals until the end of the file. Other whole-file recognizers
+without native timing use the same lifetime separation. Decoder shape caches retain
+one plan: an older KV length is not reused by autoregressive generation.

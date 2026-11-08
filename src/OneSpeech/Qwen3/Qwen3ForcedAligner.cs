@@ -34,7 +34,7 @@ public sealed class Qwen3ForcedAligner : Aligner, IDisposable
     /// <inheritdoc/>
     public override ModelInfo Model { get; } = new() { Id = "Qwen/Qwen3-ForcedAligner-0.6B", Source = "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B", Revision = "c7cbfc2048c462b0d63a45797104fc9db3ad62b7", License = "Apache-2.0", Tier = ModelTier.Tier1, Attribution = "Qwen Team, Qwen3-ForcedAligner, Apache License 2.0.", Files = [new ModelFileInfo { Name = "model.safetensors", Sha256 = "47831d0e82f96b20e9034dba01a075ee06436654719f6a68289e49f1b65ce0e7" }] };
     /// <inheritdoc/>
-    public override Capabilities Capabilities { get; } = new() { Languages = SupportedLanguages, NativeTimestamps = true };
+    public override Capabilities Capabilities { get; } = new() { Languages = SupportedLanguages, NativeTimestamps = true, ForcedAlignment = true };
 
     /// <summary>Aligns whitespace-delimited written units, or individual Han/Japanese characters, to native 80-ms slots. Text is preserved on the document.
     /// Null or unsupported language throws CapabilityNotSupportedException; invalid audio/oversized input throws UnsupportedAudioException.
@@ -85,6 +85,27 @@ public sealed class Qwen3ForcedAligner : Aligner, IDisposable
         var result = words.ToImmutable();
         return new Transcript { Text = text, Language = language, Duration = audio.Duration, Words = result, Models = [Model], Segments = [new Segment { Text = text, Start = TimeSpan.Zero, End = audio.Duration, Words = result, Language = language }] };
     }
+    /// <summary>Aligns existing written words, preserving their boundaries and non-timing fields. Character slots for Chinese and Japanese are projected back to each written word only when every slot is valid; punctuation-only words remain untimed. Limits and exceptions follow text alignment.</summary>
+    public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(transcript);
+        language ??= transcript.Language;
+        var timed = Align(audio, string.Join(' ', transcript.Words.Select(w => w.Text)), language, cancellationToken);
+        int cursor = 0;
+        var words = transcript.Words.Select(word =>
+        {
+            int count = Units(word.Text, language!).Count();
+            var slots = timed.Words.AsSpan(cursor, count);
+            cursor += count;
+            bool valid = count != 0;
+            foreach (var slot in slots) valid &= slot.Start.HasValue && slot.End.HasValue;
+            return word with { Start = valid ? slots[0].Start : null, End = valid ? slots[^1].End : null,
+                TimingMethod = valid ? TimingMethod.ForcedAligner : TimingMethod.None };
+        }).ToImmutableArray();
+        return Alignment.AlignedWords.Replace(transcript, words) with { Duration = timed.Duration,
+            Models = [.. transcript.Models.Concat(timed.Models).DistinctBy(m => (m.Id, m.Revision))] };
+    }
+
     internal static string SpokenForm(string written) => string.Concat(written.EnumerateRunes().Where(rune => Rune.IsLetterOrDigit(rune) || rune.Value == '\'').Select(rune => rune.ToString()));
     private static IEnumerable<(string Written, string Spoken)> Units(string text, string language)
     {

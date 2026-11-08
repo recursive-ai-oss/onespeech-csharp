@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using OneSpeech.Catalog.Conversion;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
+if (args is ["custom-fixture", var customFixture]) { CustomGraphProbe.Fixture(customFixture); return 0; }
+if (args is ["custom-probe", var customKind, var customDirectory, var customCorpus, var customOutput]) { CustomGraphProbe.Run(customKind, customDirectory, customCorpus, customOutput); return 0; }
 if (args is ["parakeet-vocabulary", var parakeetTokenizerDirectory, var parakeetTokenizerFixtures]) { ParakeetTools.Vocabulary(parakeetTokenizerDirectory, parakeetTokenizerFixtures); return 0; }
 if (args is ["parakeet-eval", var parakeetEvalCorpus, var parakeetOurs, var parakeetReference, var parakeetEvalOutput]) { ParakeetEvaluation.Prepare(parakeetEvalCorpus, parakeetOurs, parakeetReference, parakeetEvalOutput); return 0; }
 if (args is ["parakeet-timing", var parakeetTimingReference, var parakeetTimingHypothesis]) { ParakeetEvaluation.Timing(parakeetTimingReference, parakeetTimingHypothesis); return 0; }

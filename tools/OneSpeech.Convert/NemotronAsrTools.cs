@@ -118,7 +118,7 @@ internal static class NemotronAsrTools
         using var stepFirst = Session.Load(Path.Combine(directory, "encoder-step0.onemodel"), options);
         using var stepSecond = Session.Load(Path.Combine(directory, "encoder-step1.onemodel"), options);
         using var tailFirst = Session.Load(Path.Combine(directory, "encoder-tail0.onemodel"), options);
-        string file = Directory.EnumerateFiles(probes, "*.mel").Order(StringComparer.Ordinal).Skip(1).First();
+        string file = Directory.EnumerateFiles(probes, "*.mel").Order(StringComparer.Ordinal).First();
         float[] physicalMel = Read(file); int physicalFrames = physicalMel.Length / 128;
         int frames = checked((int)(new FileInfo(Path.ChangeExtension(file, ".pcm")).Length / 4 / 160));
         int encodedFrames = ((frames / 2 + 1) / 2 + 1) / 2 + 1;

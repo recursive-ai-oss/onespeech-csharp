@@ -8,8 +8,16 @@ namespace OneSpeech.FastConformer;
 // The pinned tokenizer declares Metaspace decoding (no ByteFallback decoder).
 internal sealed class ParakeetVocabulary
 {
-    private readonly string[] pieces = new string[8192];
-    internal ParakeetVocabulary(string path) : this(ReadFile(path)) { }
+    private readonly string[] pieces;
+    private readonly HashSet<int> specials = [];
+    internal bool IsSpecial(int id) => specials.Contains(id);
+    internal string? Language(int id)
+    {
+        if (!specials.Contains(id) || (uint)id >= pieces.Length) return null;
+        string value = pieces[id];
+        return value.Length == 7 && value[0] == '<' && value[3] == '-' && value[6] == '>' ? value.Substring(1, 2) : null;
+    }
+    internal ParakeetVocabulary(string path, int count = 8192) : this(ReadFile(path), count) { }
 
     private static byte[] ReadFile(string path)
     {
@@ -17,8 +25,10 @@ internal sealed class ParakeetVocabulary
         return File.ReadAllBytes(path);
     }
 
-    internal ParakeetVocabulary(ReadOnlyMemory<byte> bytes)
+    internal ParakeetVocabulary(ReadOnlyMemory<byte> bytes, int count = 8192)
     {
+        if (count is not (8192 or 13087)) throw new ArgumentOutOfRangeException(nameof(count));
+        pieces = new string[count];
         if (bytes.Length > 2 * 1024 * 1024) throw new InvalidDataException("Parakeet tokenizer exceeds 2 MiB.");
         try { Parse(bytes); }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or DecoderFallbackException)
@@ -40,6 +50,14 @@ internal sealed class ParakeetVocabulary
             pieces[id] = property.Name; count++;
         }
         if (count != pieces.Length) throw new InvalidDataException("Incomplete Parakeet vocabulary.");
+        if (pieces.Length == 13087 && document.RootElement.TryGetProperty("added_tokens", out var added))
+            foreach (var item in added.EnumerateArray())
+                if (item.GetProperty("special").GetBoolean())
+                {
+                    int id = item.GetProperty("id").GetInt32();
+                    if ((uint)id >= 13089) throw new InvalidDataException("Invalid special token ID.");
+                    specials.Add(id);
+                }
     }
 
     internal string Decode(ReadOnlySpan<int> ids)
@@ -47,6 +65,7 @@ internal sealed class ParakeetVocabulary
         var text = new StringBuilder();
         foreach (int id in ids)
         {
+            if (specials.Contains(id)) continue;
             if ((uint)id >= pieces.Length) throw new InvalidDataException("Invalid Parakeet token ID.");
             // SentencePiece's unknown surface is spaced U+2047, as observed through NeMo's public tokenizer.
             text.Append(pieces[id] == "<unk>" ? " ⁇ " : pieces[id]);

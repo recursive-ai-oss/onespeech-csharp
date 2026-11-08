@@ -125,6 +125,12 @@ internal static class SpeechServices
     {
         if (model is not null && model.StartsWith("moonshine-ai/", StringComparison.Ordinal)) _ = Moonshine.MoonshineProvenance.Get(model);
         var entry = model is null ? store.Catalog.GetDefault("whisper") : store.Catalog.Get(model);
+        if (entry.Family == "nemotron-asr")
+        {
+            var resolvedNemotron = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var recognizer = FastConformer.NemotronAsrRecognizer.Load(resolvedNemotron, cancellationToken: cancellationToken);
+            return new RecognizerLease(recognizer, recognizer);
+        }
         if (entry.Family == "parakeet-tdt")
         {
             var resolvedParakeet = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);

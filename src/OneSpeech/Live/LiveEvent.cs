@@ -23,6 +23,8 @@ public sealed record FinalEvent : LiveEvent
 {
     /// <summary>FinalEvent hypothesis on the session audio clock, using the same Segment shape as file streaming.</summary>
     public required Segment Segment { get; init; }
+    /// <summary>Committed speaker activity for this final, on the same audio clock; empty when diarization was not performed. May contain multiple speakers. Available even when word timing is missing; does not invent word-to-speaker assignments.</summary>
+    public System.Collections.Immutable.ImmutableArray<Turn> SpeakerTurns { get; init; } = [];
 }
 
 /// <summary>Why an utterance closed, independent of whether speech produced any text.</summary>

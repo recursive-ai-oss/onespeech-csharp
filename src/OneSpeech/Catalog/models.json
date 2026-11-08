@@ -2332,6 +2332,107 @@
         "biasing": false,
         "nativeTimestamps": true
       }
+    },
+    {
+      "id": "nvidia/parakeet-tdt-0.6b-v3",
+      "family": "parakeet-tdt",
+      "source": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
+      "revision": "541d1f99c6b0c3cd0b11a95167540bb8edefd82b",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 2508311120,
+          "sha256": "3a2026366188c8c68598edbbff92f8d11590a08e0ae2e6775544e7b07d6a5e11",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "config.json",
+          "size": 1153,
+          "sha256": "e747b85e1bdfd300c8b8ac63bac8dd5221f8fe9bc275b48d06c735fcd6971b6e",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 1159960,
+          "sha256": "bd321b096832a3f270bd3b2a88823957920f1a5c5ada71114a26ea729d0cbe91",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/tokenizer.json",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "embedding.f32",
+          "size": 20974080,
+          "sha256": "569bbbad3b00263b7b86f870845e834e722a67a433fd49fbd820c0c09e5316bb",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "encoder-part0.onemodel",
+          "size": 1226691200,
+          "sha256": "fd42845f5f55e5db47525d7928f23b4d08fd3387c1c4a235a874cfef2667508e",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "encoder-part1.onemodel",
+          "size": 1209349824,
+          "sha256": "ed74599b259f7435a3a9166d8b5ff81b87379c4a3082c4b73fc1142f23946aa0",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "joint.onemodel",
+          "size": 25287704,
+          "sha256": "22906ea4e2f9f13864c13ff075eea46802041d28a223df10fb15d62b641a5673",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "predictor.onemodel",
+          "size": 26265928,
+          "sha256": "6e49dfbddcec4ae253858f03fec3d90bce8da4d8ec0c403cea7bd9d046eae075",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        }
+      ],
+      "isDefault": false,
+      "tier": "Tier2",
+      "license": "CC-BY-4.0",
+      "attribution": "NVIDIA, parakeet-tdt-0.6b-v3, https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3. Licensed under CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/). Converted locally to OneModel format; weights unchanged.",
+      "gated": false,
+      "capabilities": {
+        "languages": [
+          "en",
+          "es",
+          "fr",
+          "de",
+          "bg",
+          "hr",
+          "cs",
+          "da",
+          "nl",
+          "et",
+          "fi",
+          "el",
+          "hu",
+          "it",
+          "lv",
+          "lt",
+          "mt",
+          "pl",
+          "pt",
+          "ro",
+          "sk",
+          "sl",
+          "sv",
+          "ru",
+          "uk"
+        ],
+        "nativeTimestamps": true
+      }
     }
   ]
 }

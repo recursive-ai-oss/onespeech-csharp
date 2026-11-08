@@ -122,6 +122,12 @@ internal static class SpeechServices
     {
         if (model is not null && model.StartsWith("moonshine-ai/", StringComparison.Ordinal)) _ = Moonshine.MoonshineProvenance.Get(model);
         var entry = model is null ? store.Catalog.GetDefault("whisper") : store.Catalog.Get(model);
+        if (entry.Family == "parakeet-tdt")
+        {
+            var resolvedParakeet = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var recognizer = FastConformer.ParakeetRecognizer.Load(resolvedParakeet, cancellationToken: cancellationToken);
+            return new RecognizerLease(recognizer, recognizer);
+        }
         if (entry.Family == "qwen3-asr")
         {
             var qwenModel = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -207,9 +213,9 @@ internal static class SpeechServices
         using (AudioFileSource.Open(path, cancellationToken)) { }
         var store = ModelStore.Default;
         using var recognizer = ResolveAsync(store, model, cancellationToken).AsTask().GetAwaiter().GetResult();
-        using var timing = ResolveAlignerAsync(store, null, cancellationToken).AsTask().GetAwaiter().GetResult();
+        using var timing = recognizer.Capabilities.NativeTimestamps ? null : ResolveAlignerAsync(store, null, cancellationToken).AsTask().GetAwaiter().GetResult();
         using var vad = ResolveVad(store, cancellationToken);
-        var transcript = new VadTranscriptionPipeline(recognizer, vad) { TimingAligners = [timing] }.Transcribe(path, language, cancellationToken);
+        var transcript = new VadTranscriptionPipeline(recognizer, vad) { TimingAligners = timing is null ? [] : [timing] }.Transcribe(path, language, cancellationToken);
         using var source = AudioFileSource.Open(path, cancellationToken);
         return DiarizeAsync(source, transcript, language, store, cancellationToken).AsTask().GetAwaiter().GetResult();
     }
@@ -221,7 +227,7 @@ internal static class SpeechServices
         if (!stream.CanRead) throw new ArgumentException("Input stream must be readable.", nameof(stream));
         var store = ModelStore.Default;
         using var recognizer = await ResolveAsync(store, model, cancellationToken).ConfigureAwait(false);
-        using var timing = await ResolveAlignerAsync(store, null, cancellationToken).ConfigureAwait(false);
+        using var timing = recognizer.Capabilities.NativeTimestamps ? null : await ResolveAlignerAsync(store, null, cancellationToken).ConfigureAwait(false);
         using var vad = ResolveVad(store, cancellationToken);
         // Retain only encoded input so recognition can select a language before the diarization pass.
         string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -231,7 +237,7 @@ internal static class SpeechServices
         spool.Position = 0;
         Transcript transcript;
         using (var recognitionSource = AudioFileSource.Open(spool, true, cancellationToken))
-            transcript = new VadTranscriptionPipeline(recognizer, vad) { TimingAligners = [timing] }.TranscribeBlocks(VadChunker.Blocks(recognitionSource, cancellationToken), language, cancellationToken);
+            transcript = new VadTranscriptionPipeline(recognizer, vad) { TimingAligners = timing is null ? [] : [timing] }.TranscribeBlocks(VadChunker.Blocks(recognitionSource, cancellationToken), language, cancellationToken);
         spool.Position = 0;
         using var source = AudioFileSource.Open(spool, true, cancellationToken);
         return await DiarizeAsync(source, transcript, language, store, cancellationToken).ConfigureAwait(false);

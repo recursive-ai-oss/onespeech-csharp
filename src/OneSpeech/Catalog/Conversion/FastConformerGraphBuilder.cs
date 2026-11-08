@@ -55,7 +55,7 @@ internal sealed class FastConformerGraphBuilder
     private string Subsample(string x)
     {
         int c = dimensions.SubsamplingChannels;
-        x = graph.Op("Unsqueeze", [x, graph.Ints(1)]);
+        x = graph.Op("Unsqueeze", [graph.Transpose(x, 0, 2, 1), graph.Ints(1)]);
         for (int stage = 0; stage < 3; stage++)
         {
             string prefix = "encoder.subsampling." + stage;
@@ -68,7 +68,7 @@ internal sealed class FastConformerGraphBuilder
             x = graph.Op("Relu", [x]);
         }
         int flattened = c * ((dimensions.MelBins + 7) / 8);
-        x = graph.Reshape(graph.Transpose(x, 0, 3, 1, 2), 1, -1, flattened);
+        x = graph.Reshape(graph.Transpose(x, 0, 2, 1, 3), 1, -1, flattened);
         return graph.Linear(x, "encoder.subsampling.projection", flattened, dimensions.Width, bias: true);
     }
 

@@ -2,6 +2,12 @@ using System.Security.Cryptography;
 using OneSpeech.Catalog.Conversion;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
+if (args is ["parakeet-vocabulary", var parakeetTokenizerDirectory, var parakeetTokenizerFixtures]) { ParakeetTools.Vocabulary(parakeetTokenizerDirectory, parakeetTokenizerFixtures); return 0; }
+if (args is ["parakeet-eval", var parakeetEvalCorpus, var parakeetOurs, var parakeetReference, var parakeetEvalOutput]) { ParakeetEvaluation.Prepare(parakeetEvalCorpus, parakeetOurs, parakeetReference, parakeetEvalOutput); return 0; }
+if (args is ["parakeet-timing", var parakeetTimingReference, var parakeetTimingHypothesis]) { ParakeetEvaluation.Timing(parakeetTimingReference, parakeetTimingHypothesis); return 0; }
+if (args is ["parakeet-batch", var parakeetDirectory, var parakeetCorpus, var parakeetResults, var parakeetBegin, var parakeetCount]) { ParakeetTools.Batch(parakeetDirectory, parakeetCorpus, parakeetResults, int.Parse(parakeetBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(parakeetCount, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
+if (args is ["parakeet-convert", var parakeetInput, var parakeetOutput]) { ParakeetConverter.Convert(parakeetInput, parakeetOutput, CancellationToken.None); return 0; }
+if (args is ["parakeet-probe", var parakeetModel, var parakeetProbe]) { ParakeetTools.Probe(parakeetModel, parakeetProbe); return 0; }
 if (args is ["qwen-precision-repro", var precisionRepro]) { QwenPrecisionProbe.Run(precisionRepro); return 0; }
 if (args is ["qwen-cache-paths", var cachePathsRoot]) { QwenTools.CachePaths(cachePathsRoot); return 0; }
 if (args is ["qwen-e2e", var e2eCache, var e2eAudio, var e2eJson]) { QwenTools.EndToEnd(e2eCache, e2eAudio, e2eJson); return 0; }

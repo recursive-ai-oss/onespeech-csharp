@@ -109,7 +109,6 @@ public sealed class ModelCatalog
         }
         else if (e.Tier != ModelTier.Tier2 || e.IsDefault || e.License is not ("MIT" or "Apache-2.0" or "BSD-2-Clause" or "BSD-3-Clause" or "CC-BY-4.0" or "OpenMDW-1.1"))
             Fail("Unsupported tier, licence, or tier-2 default.");
-        if (e.Tier == ModelTier.Tier2 && !e.ConvertedFiles.IsEmpty) Fail("Tier 2 cannot have redistributed converted files.");
         var source = Https(e.Source);
         if (source.Query.Length != 0 || source.Fragment.Length != 0 || source.AbsolutePath.Trim('/').Split('/').Length < 2) Fail("Expected a publisher repository URL.");
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -122,7 +121,9 @@ public sealed class ModelCatalog
             bool publisher = upstream.Host == source.Host && upstream.AbsolutePath.StartsWith(repo + "/resolve/" + e.Revision + "/", StringComparison.Ordinal);
             publisher |= source.Host == "github.com" && upstream.Host == "raw.githubusercontent.com" && upstream.AbsolutePath.StartsWith(repo + "/" + e.Revision + "/", StringComparison.Ordinal);
             bool converted = e.ConvertedFiles.Contains(f);
-            if (converted) publisher = e.Tier == ModelTier.Tier1 && upstream.Host == "github.com" && upstream.AbsolutePath.StartsWith("/recursive-ai-oss/onespeech-csharp/releases/download/", StringComparison.Ordinal);
+            if (converted && e.Tier == ModelTier.Tier1) publisher = upstream.Host == "github.com" && upstream.AbsolutePath.StartsWith("/recursive-ai-oss/onespeech-csharp/releases/download/", StringComparison.Ordinal);
+            // Tier-2 output metadata points to its verified publisher input, never to downloadable converted bytes.
+            if (converted && e.Tier == ModelTier.Tier2) publisher &= e.Files.Any(input => input.UpstreamUrl == f.UpstreamUrl);
             // ModelScope publishes pinned data through an API query rather than a resolve path.
             // Accept only this exact repository, revision and filename; no extra query keys.
             bool modelScope = !converted && source.Host == "modelscope.cn" && upstream.Host == source.Host &&

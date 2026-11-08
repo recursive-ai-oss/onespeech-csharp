@@ -159,7 +159,7 @@ public sealed class NemotronDiarizationTests
     public void EmptyWrongRateNonFiniteAndCancellationHaveExplicitBehavior()
     {
         Assert.Empty(NemotronFeatureChunks.Read([new AudioBuffer(Array.Empty<float>(), 16000)], Token));
-        Assert.Throws<UnsupportedAudioException>(() => NemotronFeatureChunks.Read([new AudioBuffer(new float[100], 8000)], Token).ToArray());
+        Assert.Throws<ArgumentException>(() => NemotronFeatureChunks.Read([new AudioBuffer(new float[100], 8000)], Token).ToArray());
         Assert.Throws<ArgumentException>(() => NemotronFeatureChunks.Read([new AudioBuffer(new[] { float.NaN }, 16000)], Token).ToArray());
         Assert.Throws<OperationCanceledException>(() => NemotronFeatureChunks.Read([], new CancellationToken(true)).ToArray());
     }

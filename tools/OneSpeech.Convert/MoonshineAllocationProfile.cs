@@ -36,7 +36,7 @@ internal static class MoonshineAllocationProfile
         json.WriteStartObject();
         json.WriteString("status", "indicative allocation profile; fixed warmed shapes; one inference thread");
         json.WriteString("runtime", Environment.Version.ToString());
-        json.WriteString("oneModel", "1.2.0-preview.2");
+        json.WriteString("oneModel", "1.2.0");
         string tiny = Path.Combine(Path.GetDirectoryName(output)!, "add-repro.onemodel");
         WriteAdd(tiny);
         using (var session = Session.Load(tiny, new ModelOptions { IntraOpThreads = 1 }))

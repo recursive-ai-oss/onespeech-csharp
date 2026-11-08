@@ -74,7 +74,7 @@ public sealed class OmniAlignmentTests
     public async Task EncodedStreamsUseAsyncReadsAndRemainCallerOwnedOnFailure()
     {
         using var stream = new AsyncOnlyStream();
-        await Assert.ThrowsAsync<UnsupportedAudioException>(() => Speech.AlignAsync(stream, "test", TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<UnsupportedAudioException>(() => Speech.AlignAsync(stream, "test", cancellationToken: TestContext.Current.CancellationToken).AsTask());
         Assert.True(stream.CanRead);
         Assert.True(stream.ReadCalls > 0);
     }
@@ -85,7 +85,7 @@ public sealed class OmniAlignmentTests
         using var source = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         source.Cancel();
         using var stream = new AsyncOnlyStream();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Speech.AlignAsync(stream, "test", source.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Speech.AlignAsync(stream, "test", cancellationToken: source.Token).AsTask());
         Assert.Equal(0, stream.ReadCalls);
     }
 

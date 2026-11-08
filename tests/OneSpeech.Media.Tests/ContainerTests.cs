@@ -97,7 +97,7 @@ public sealed class ContainerTests
         using var stream = new NonseekableStream(bytes);
         await Assert.ThrowsAnyAsync<MediaException>(async () =>
         {
-            await foreach (var _ in MediaInput.TranscribeStreamAsync(stream, cancellationToken: Token)) { }
+            await foreach (var _ in MediaInput.TranscribeStream(stream, cancellationToken: Token)) { }
         });
         Assert.True(bytes.CanRead);
     }
@@ -113,24 +113,24 @@ public sealed class ContainerTests
             using var aac = ContainerFixture.Aac(Path.Combine(AppContext.BaseDirectory, "Fixtures/1089-134686-0001.flac"));
             using var mkv = ContainerFixture.Matroska(aac, Token);
             File.WriteAllBytes(path, mkv.ToArray());
-            var transcript = Speech.Transcribe(path, Token, language: "en", model: "openai/whisper-tiny");
+            var transcript = Speech.Transcribe(path, language: "en", model: "openai/whisper-tiny", cancellationToken: Token);
             Assert.Contains("stuff", transcript.Text, StringComparison.OrdinalIgnoreCase);
             Assert.NotEmpty(transcript.Words);
             Assert.NotEmpty(transcript.Turns);
             var segments = new List<Segment>();
-            await foreach (var segment in Speech.TranscribeStream(path, Token, language: "en", model: "openai/whisper-tiny")) segments.Add(segment);
+            await foreach (var segment in Speech.TranscribeStream(path, language: "en", model: "openai/whisper-tiny", cancellationToken: Token)) segments.Add(segment);
             Assert.NotEmpty(segments);
             // The asynchronous stream path spools nonseekable input without taking ownership.
             mkv.Position = 0;
             using var nonseekable = new NonseekableStream(mkv);
-            var fromStream = await Speech.TranscribeAsync(nonseekable, Token, language: "en", model: "openai/whisper-tiny");
+            var fromStream = await Speech.TranscribeAsync(nonseekable, language: "en", model: "openai/whisper-tiny", cancellationToken: Token);
             Assert.Equal(transcript.Text, fromStream.Text);
             Assert.True(mkv.CanRead);
             mkv.Position = 0;
             var streamedSegments = new List<Segment>();
-            await foreach (var segment in MediaInput.TranscribeStreamAsync(nonseekable, "en", "openai/whisper-tiny", Token)) streamedSegments.Add(segment);
+            await foreach (var segment in MediaInput.TranscribeStream(nonseekable, "en", "openai/whisper-tiny", Token)) streamedSegments.Add(segment);
             Assert.Equal(segments.Select(s => s.Text), streamedSegments.Select(s => s.Text));
-            var aligned = Speech.Align(path, transcript.Text, Token, language: "en");
+            var aligned = Speech.Align(path, transcript.Text, language: "en", cancellationToken: Token);
             Assert.NotEmpty(aligned.Words);
             Assert.Contains(aligned.Words, w => w.Start is not null);
         }

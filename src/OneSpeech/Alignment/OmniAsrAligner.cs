@@ -10,7 +10,7 @@ namespace OneSpeech.Alignment;
 
 /// <summary>CPU forced alignment with the published omniASR-CTC-300M character model. Instances own a OneModel session and serialize calls.</summary>
 /// <remarks>Calls accept at most 60 seconds and a 16-million-cell blank-expanded target trellis. Larger audio/text combinations throw CapabilityNotSupportedException and must be split together.</remarks>
-public sealed class OmniAsrAligner : Aligner, IDisposable
+public sealed partial class OmniAsrAligner : Aligner, IDisposable
 {
     private readonly Session session;
     private readonly Dictionary<Rune, int> characters = [];
@@ -45,16 +45,18 @@ public sealed class OmniAsrAligner : Aligner, IDisposable
     }
 
     /// <summary>Splits text on Unicode whitespace, retaining punctuation and casing in each written word. Empty text returns an empty word list. Speech absent or unalignable words keep null times. Maximum audio length is 60 seconds.</summary>
-    public override Transcript Align(AudioBuffer audio, string text, string? language, CancellationToken cancellationToken)
+    public override Transcript Align(AudioBuffer audio, string text, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ArgumentNullException.ThrowIfNull(text);
         var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(w => new Word { Text = w, Language = language }).ToImmutableArray();
         return Align(audio, new Transcript { Text = text, Words = words, Language = language }, language, cancellationToken);
     }
 
     /// <summary>Aligns the supplied written words in their existing order without re-splitting them. All non-timing word fields and written text are preserved. Unknown graphemes and weak emissions have null times. Input is limited to mono 16 kHz, 60 s; invalid input throws ArgumentException or CapabilityNotSupportedException, and cancellation throws OperationCanceledException.</summary>
-    public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken)
+    public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language ?? transcript?.Language, Capabilities, Model.Id);
         ArgumentNullException.ThrowIfNull(audio); ArgumentNullException.ThrowIfNull(transcript);
         lock (gate)
         {
@@ -166,5 +168,5 @@ public sealed class OmniAsrAligner : Aligner, IDisposable
         throw new InvalidOperationException("Cardinal range error.");
     }
     /// <summary>Releases the session. Repeated disposal is harmless; subsequent alignment throws ObjectDisposedException.</summary>
-    public void Dispose() { lock (gate) { if (disposed) return; disposed = true; session.Dispose(); } }
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return; lock (gate) { if (disposed) return; disposed = true; session.Dispose(); } }
 }

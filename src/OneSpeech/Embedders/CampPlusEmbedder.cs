@@ -6,7 +6,7 @@ namespace OneSpeech.Embedders;
 
 /// <summary>CAM++ speaker embeddings from a locally converted, verified OneModel graph.
 /// Instances serialize inference; dispose after consumers stop. No network access or persistence.</summary>
-public sealed class CampPlusEmbedder : SpeakerEmbedder
+public sealed partial class CampPlusEmbedder : SpeakerEmbedder
 {
     private readonly Session graph;
     private readonly SpeakerFbank features = new();

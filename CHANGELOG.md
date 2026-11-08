@@ -4,6 +4,26 @@ All notable changes are documented here, following Keep a Changelog.
 
 ## [Unreleased]
 
+### Added
+- Mixed-int8 variants of Whisper large-v3-turbo, Whisper small and Moonshine streaming-tiny, selected by model ID (`-int8`) and converted locally from the same pinned weights; defaults remain fp32.
+- Contextual phrase biasing through `SpeechRecognizer.WithPhrases`: Whisper prompt conditioning, Qwen3-ASR context, and shallow fusion over a phrase trie for Parakeet and custom CTC/RNN-T/TDT models. Families that cannot bias refuse with `CapabilityNotSupportedException`.
+- `Speech.Enroll`, `Speech.Identify`, `Speech.Verify` and `Speech.ClearSpeakers`, with enrolled names on transcript speakers.
+- `Speech.PrefetchAsync(language, model)` fetches every model a call would need.
+- Path-input `*Async` overloads for every verb, and stream input for `TranscribeStream` and `DetectLanguageAsync`.
+- Uniform `Load(ResolvedModel, ...)` and `LoadAsync(store, model, ...)` on every downloadable family.
+- `ModelUnavailableException`, and `ModelId` on model errors.
+- `TranscriptJsonConverter`, so plain System.Text.Json writes the documented schema-1 shape; value equality for `Transcript`, `Segment`, `Turn` and `ModelInfo`.
+
+### Changed
+- Requires RecursiveAI.OneModel 1.2.0.
+- One language-tag rule for every entry point; unsupported languages are refused, and `Align` no longer returns untimed words when no aligner applies.
+- The role base classes implement `IDisposable`. Wrappers and sessions borrow, and never dispose, the models they use.
+- `CreateLiveSession` accepts any `VoiceActivityDetector`.
+- Consistent optional `language` and `cancellationToken` parameters, with the token last everywhere; `MediaInput.TranscribeStreamAsync` is renamed `TranscribeStream`.
+- `WhisperOptions.Progress` is `IProgress<TimeSpan>`; `MoonshineOptions.IntraOpThreads` is renamed `Threads`; thread counts default to 1.
+- Invalid in-memory PCM throws `ArgumentException`.
+- The Silero VAD provenance ID is the catalog ID `silero/vad-v6.2.3`.
+
 ## [0.4.0-preview.1]
 
 ### Added

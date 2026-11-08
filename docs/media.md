@@ -16,12 +16,12 @@ var alignment = Speech.Align("meeting.mp4", "the supplied words", language: "en"
 await foreach (var segment in Speech.TranscribeStream("lecture.webm"))
     Console.WriteLine(segment.Text);
 await using var encoded = File.OpenRead("meeting.mkv");
-var streamedInput = await Speech.TranscribeAsync(encoded, CancellationToken.None);
+var streamedInput = await Speech.TranscribeAsync(encoded, cancellationToken: CancellationToken.None);
 ```
 
 The normal transcription pass includes diarization; core's low-level audio source exposes the same demuxed/resampled PCM to custom pipelines. The adapter uses OneMedia's default audio track and codecs, not video decoding. Supported containers include MP4/MOV, Matroska/WebM, AVI, transport streams, ASF and FLV, subject to OneMedia.Audio codec support. No claim is made that every codec inside those containers is decodable. Core downmixing, resampling, duration limits, timing and cancellation policies are unchanged. Disposing the adapter decoder releases its media file, not a caller-owned stream.
 
-For nonseekable encoded input, `MediaInput.TranscribeStreamAsync(stream, language: "en", cancellationToken: token)` asynchronously copies at most 512 MiB to a temporary disk file, then yields core streaming final segments. The copy uses a 64 KiB buffer. It does not produce live partials while copying, nor run whole-file diarization. Cancellation, errors and early enumeration disposal remove the temporary file; the caller's stream is never closed. For larger files use a local path.
+For nonseekable encoded input, `MediaInput.TranscribeStream(stream, language: "en", cancellationToken: token)` asynchronously copies at most 512 MiB to a temporary disk file, then yields core streaming final segments. The copy uses a 64 KiB buffer. It does not produce live partials while copying, nor run whole-file diarization. Cancellation, errors and early enumeration disposal remove the temporary file; the caller's stream is never closed. For larger files use a local path.
 
 ## Caption policy
 

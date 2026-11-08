@@ -16,7 +16,7 @@ internal static class SpeechExcerpt
         string crop = Path.Combine(output, id + "-first300s.wav");
         DiarizationExcerpt.Crop(Path.Combine(root, entry.Audio), crop);
         var transcript = scoreOnly ? Transcript.FromJson(File.ReadAllText(Path.Combine(output, "transcript.json")))
-            : Speech.Transcribe(crop, CancellationToken.None, language: "en", model: model);
+            : Speech.Transcribe(crop, language: "en", model: model, cancellationToken: CancellationToken.None);
         File.WriteAllText(Path.Combine(output, "transcript.json"), transcript.ToJson());
         File.WriteAllText(Path.Combine(output, "hypothesis.txt"), transcript.Text);
         var words = new List<(double Start, string Speaker, string Text)>();

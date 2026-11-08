@@ -13,7 +13,7 @@ public abstract class BlockDiarizer : Diarizer
     public abstract ImmutableArray<Turn> DiarizeBlocks(IEnumerable<AudioBuffer> blocks, CancellationToken cancellationToken);
 
     /// <summary>Diarizes one borrowed buffer on its own clock; cancellation and format limits follow DiarizeBlocks.</summary>
-    public override ImmutableArray<Turn> Diarize(AudioBuffer audio, CancellationToken cancellationToken)
+    public override ImmutableArray<Turn> Diarize(AudioBuffer audio, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(audio);
         return DiarizeBlocks([audio], cancellationToken);

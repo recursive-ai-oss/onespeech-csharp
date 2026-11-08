@@ -6,7 +6,7 @@ namespace OneSpeech.Embedders;
 
 /// <summary>ECAPA-TDNN speaker embeddings from a locally converted, verified OneModel graph.
 /// Instances serialize inference; dispose after consumers stop. No network access or persistence.</summary>
-public sealed class EcapaTdnnEmbedder : SpeakerEmbedder
+public sealed partial class EcapaTdnnEmbedder : SpeakerEmbedder
 {
     private readonly Session graph;
     private readonly EcapaFbank features = new();

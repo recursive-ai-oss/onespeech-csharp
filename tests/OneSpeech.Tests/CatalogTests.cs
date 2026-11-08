@@ -20,7 +20,7 @@ public sealed class CatalogTests
     public void EmbeddedCatalogHasPinnedCompleteEntriesAndExplicitDefaults()
     {
         var catalog = ModelCatalog.Default;
-        Assert.Equal(23, catalog.Entries.Length);
+        Assert.Equal(26, catalog.Entries.Length);
         var ctc = catalog.GetDefault("omniasr-ctc");
         Assert.True(ctc.Capabilities.ForcedAlignment);
         Assert.Equal("68de1b359aca88f025dbaeec5801d845900941b9a6548ba02e50dd0ec0987870", ctc.ConvertedFiles[0].Sha256);

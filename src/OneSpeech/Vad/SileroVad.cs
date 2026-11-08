@@ -26,7 +26,7 @@ public sealed class SileroVad : VoiceActivityDetector, IDisposable
     /// <inheritdoc />
     public override ModelInfo Model { get; } = new()
     {
-        Id = "silero-vad-v6.2.3", Source = "https://raw.githubusercontent.com/snakers4/silero-vad/5cd7945676eb32225748052e2e6a0580e4686a08/src/silero_vad/data/silero_vad.onnx",
+        Id = "silero/vad-v6.2.3", Source = "https://raw.githubusercontent.com/snakers4/silero-vad/5cd7945676eb32225748052e2e6a0580e4686a08/src/silero_vad/data/silero_vad.onnx",
         Revision = "5cd7945676eb32225748052e2e6a0580e4686a08", License = "MIT", Tier = ModelTier.Tier1,
         Attribution = "Copyright (c) 2020-present Silero Team",
         Files = [new() { Name = "silero_vad.onnx", Sha256 = "1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3" }]
@@ -36,11 +36,11 @@ public sealed class SileroVad : VoiceActivityDetector, IDisposable
     public SileroVadState CreateState(int sampleRate) => new(graph, sampleRate);
 
     /// <summary>Detects intervals using 32 ms frames, zero-padding the last frame. Resets recurrence for each call; cancellation is checked every frame.</summary>
-    public override ImmutableArray<SpeechInterval> Detect(AudioBuffer audio, CancellationToken cancellationToken)
+    public override ImmutableArray<SpeechInterval> Detect(AudioBuffer audio, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(audio);
         cancellationToken.ThrowIfCancellationRequested();
-        if (audio.Channels != 1) throw new ArgumentException("Silero VAD requires mono PCM.", nameof(audio));
+        if (audio.SampleRate is not (8000 or 16000) || audio.Channels != 1) throw new ArgumentException("Silero VAD audio requires mono PCM at 8000 or 16000 Hz.", nameof(audio));
         using var state = CreateState(audio.SampleRate);
         var segments = new SpeechSegmenter(audio.SampleRate, options);
         var raw = new List<SpeechInterval>();
@@ -57,7 +57,7 @@ public sealed class SileroVad : VoiceActivityDetector, IDisposable
     }
 
     /// <summary>Releases graph resources. Do not dispose during a call or while a state is in use.</summary>
-    public void Dispose() => graph.Dispose();
+    protected override void Dispose(bool disposing) { try { if (disposing) graph.Dispose(); } finally { base.Dispose(disposing); } }
 }
 
 /// <summary>Independent recurrent Silero state. Not thread-safe; one frame must be exactly 512 samples at 16 kHz or 256 at 8 kHz.</summary>

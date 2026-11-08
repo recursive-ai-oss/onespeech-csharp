@@ -35,6 +35,7 @@ internal static class SpeakerServices
 
     internal static void Enroll(string name, string path, string? language, string? model, CancellationToken token)
     {
+        language = LanguageTag.Normalize(language);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         RunAsync(name, path, null, language, model, token).AsTask().GetAwaiter().GetResult();
     }
@@ -45,6 +46,7 @@ internal static class SpeakerServices
 
     internal static async ValueTask EnrollAsync(string name, Stream stream, string? language, string? model, CancellationToken token)
     {
+        language = LanguageTag.Normalize(language);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         await SpoolAsync(stream, path => RunAsync(name, path, null, language, model, token), token).ConfigureAwait(false);
     }
@@ -65,8 +67,16 @@ internal static class SpeakerServices
         return await action(path).ConfigureAwait(false);
     }
 
+    internal static async ValueTask EnrollAsync(string name, string path, string? language, string? model, CancellationToken token) =>
+        _ = await RunAsync(name, path, null, language, model, token).ConfigureAwait(false);
+    internal static ValueTask<SpeakerMatch> IdentifyAsync(string path, string? language, string? model, CancellationToken token) =>
+        RunAsync(null, path, null, language, model, token);
+    internal static async ValueTask<double> VerifyAsync(string first, string second, string? language, string? model, CancellationToken token) =>
+        (await RunAsync(null, first, second, language, model, token).ConfigureAwait(false)).Score;
+
     private static async ValueTask<SpeakerMatch> RunAsync(string? name, string path, string? second, string? language, string? model, CancellationToken token)
     {
+        language = LanguageTag.Normalize(language);
         if (name is not null) ArgumentException.ThrowIfNullOrWhiteSpace(name);
         string id = model ?? SpeechServices.EmbedderId(language);
         if (id != SpeechServices.EmbedderId(null) && id != SpeechServices.EmbedderId("zh"))

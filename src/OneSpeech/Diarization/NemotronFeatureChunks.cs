@@ -62,7 +62,7 @@ internal static class NemotronFeatureChunks
                     if (!blocks.MoveNext()) break;
                     current = blocks.Current ?? throw new ArgumentException("Null PCM block.");
                     position = 0;
-                    if (current.SampleRate != 16000) throw new UnsupportedAudioException("Nemotron diarization requires 16 kHz PCM. Resample with OneAudio.");
+                    if (current.SampleRate != 16000) throw new ArgumentException("Nemotron diarization requires 16 kHz PCM. Resample with OneAudio.");
                     if (current.FrameCount == 0) continue;
                 }
                 int count = Math.Min(destination.Length - written, current.FrameCount - position);

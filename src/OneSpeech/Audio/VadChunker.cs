@@ -38,7 +38,7 @@ public sealed class VadChunker
         foreach (var block in blocks)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (block.SampleRate != 16000) throw new UnsupportedAudioException("Chunk input must be 16000 Hz; resample through AudioFileSource first.");
+            if (block.SampleRate != 16000) throw new ArgumentException("Chunk input must be 16000 Hz; resample in-memory PCM with OneAudio first.");
             int position = 0;
             while (position < block.FrameCount)
             {

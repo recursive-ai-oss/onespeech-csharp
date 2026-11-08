@@ -96,26 +96,32 @@ public static class TdtGreedy
     /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
     public static ImmutableArray<FrameToken> Decode(int frameCount, int vocabularySize, int blankId, ReadOnlySpan<int> durations, TransducerLogits joint, int maxSymbolsPerFrame = 10, int maxTokens = 65536, CancellationToken cancellationToken = default)
     {
+        ValidateDurations(durations);
+        return TransducerGreedy.Decode(frameCount, vocabularySize, blankId, durations, joint, maxSymbolsPerFrame, maxTokens, cancellationToken);
+    }
+
+    internal static void ValidateDurations(ReadOnlySpan<int> durations)
+    {
         if (durations.Length is < 2 or > 1024 || durations[0] != 0) throw new ArgumentException("Durations must start at zero and contain 2..1024 entries.", nameof(durations));
         for (int i = 1; i < durations.Length; i++)
             if (durations[i] <= durations[i - 1] || durations[i] > 1024) throw new ArgumentException("Durations must be increasing and at most 1024 frames.", nameof(durations));
-        return TransducerGreedy.Decode(frameCount, vocabularySize, blankId, durations, joint, maxSymbolsPerFrame, maxTokens, cancellationToken);
     }
 }
 
 internal static class TransducerGreedy
 {
-    internal static ImmutableArray<FrameToken> Decode(int frames, int vocabulary, int blank, ReadOnlySpan<int> durations, TransducerLogits joint, int perFrame, int maxTokens, CancellationToken ct)
+    internal static ImmutableArray<FrameToken> Decode(int frames, int vocabulary, int blank, ReadOnlySpan<int> durations, TransducerLogits joint, int perFrame, int maxTokens, CancellationToken ct, PhraseTrie? phrases = null)
     {
         ArgumentNullException.ThrowIfNull(joint);
         GreedyMath.ValidateVocabulary(vocabulary, blank);
+        phrases?.ValidateVocabulary(vocabulary, blank);
         if (frames < 0 || perFrame is < 1 or > 1024 || maxTokens is < 1 or > 1000000) throw new ArgumentException("Invalid transducer bounds.");
         ct.ThrowIfCancellationRequested();
         if (frames == 0) return [];
         float[] logits = new float[vocabulary], durationLogits = new float[durations.Length];
         int[] prefix = new int[maxTokens];
         var result = ImmutableArray.CreateBuilder<FrameToken>();
-        int frame = 0, symbols = 0;
+        int frame = 0, symbols = 0, phraseState = 0;
         while (frame < frames)
         {
             ct.ThrowIfCancellationRequested();
@@ -123,10 +129,20 @@ internal static class TransducerGreedy
             Array.Fill(logits, float.NaN); Array.Fill(durationLogits, float.NaN);
             joint(frame, prefix.AsSpan(0, result.Count), logits, durationLogits, ct);
             int id = GreedyMath.ArgMax(logits);
+            if (phrases != null)
+            {
+                double best = double.NegativeInfinity;
+                for (int token = 0; token < vocabulary; token++)
+                {
+                    double score = logits[token] + (token == blank ? 0 : phrases.Advance(phraseState, token, out _));
+                    if (score > best) { best = score; id = token; }
+                }
+            }
             int skip = durations.IsEmpty ? (id == blank ? 1 : 0) : durations[GreedyMath.ArgMax(durationLogits)];
             if (id != blank)
             {
                 if (symbols == perFrame || result.Count == maxTokens) throw new InvalidOperationException("Transducer symbol bound exceeded.");
+                if (phrases != null) { phrases.Advance(phraseState, id, out int next); phraseState = next; }
                 prefix[result.Count] = id;
                 result.Add(new(id, frame, (int)Math.Min(frames, (long)frame + (durations.IsEmpty ? 1 : skip)), GreedyMath.Probability(logits, id)));
                 symbols++;

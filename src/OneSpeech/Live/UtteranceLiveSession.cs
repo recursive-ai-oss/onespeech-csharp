@@ -2,7 +2,7 @@ using OneSpeech.Vad;
 
 namespace OneSpeech.Live;
 
-/// <summary>VAD-endpointed, finals-only recognition for offline families. Borrows the recognizer and Silero model, owns independent recurrent VAD state. PCM memory is bounded by the maximum utterance length plus padding and one frame.</summary>
+/// <summary>VAD-endpointed, finals-only recognition for offline families. Borrows the recognizer and detector, owning independent recurrent state for Silero. Custom detectors are evaluated on each 32 ms mono frame and should be stateless or dedicated to this session. PCM memory is bounded by the maximum utterance length plus padding and one frame.</summary>
 public sealed class UtteranceLiveSession : LiveSession
 {
     private readonly SpeechRecognizer recognizer;
@@ -25,14 +25,15 @@ public sealed class UtteranceLiveSession : LiveSession
     private long lastEnd;
 
     /// <summary>Creates a finals-only session. Input is mono 16 kHz. Maximum utterances default to 30 s (range 1–300 s, rounded up to the next 32 ms VAD frame at closure). Options default to Silero's threshold 0.5, negative threshold 0.35, 250 ms minimum speech, 100 ms silence, 30 ms padding. Language null uses model detection. Models must outlive the session; cancellation is checked every frame and recognition call.</summary>
-    public UtteranceLiveSession(SpeechRecognizer recognizer, SileroVad detector, string? language = null, TimeSpan? maximumUtteranceDuration = null, SileroVadOptions? options = null)
+    public UtteranceLiveSession(SpeechRecognizer recognizer, VoiceActivityDetector detector, string? language = null, TimeSpan? maximumUtteranceDuration = null, SileroVadOptions? options = null)
         : this(recognizer, language, maximumUtteranceDuration, options)
     {
         ArgumentNullException.ThrowIfNull(detector);
-        state = detector.CreateState(16000);
+        if (detector is SileroVad silero) state = silero.CreateState(16000);
+        else probability = (samples, ct) => detector.Detect(new AudioBuffer(samples, 16000), ct).IsEmpty ? 0f : 1f;
     }
 
-    internal UtteranceLiveSession(SpeechRecognizer recognizer, SileroVad detector, IIncrementalUtteranceRecognizer incremental, string? language)
+    internal UtteranceLiveSession(SpeechRecognizer recognizer, VoiceActivityDetector detector, IIncrementalUtteranceRecognizer incremental, string? language)
         : this(recognizer, detector, language) => this.incremental = incremental;
 
     internal UtteranceLiveSession(SpeechRecognizer recognizer, Func<ReadOnlyMemory<float>, CancellationToken, float> probability, string? language = null, TimeSpan? maximumUtteranceDuration = null, SileroVadOptions? options = null)
@@ -45,7 +46,7 @@ public sealed class UtteranceLiveSession : LiveSession
     {
         ArgumentNullException.ThrowIfNull(recognizer);
         this.recognizer = recognizer;
-        this.language = language;
+        this.language = LanguageTag.Require(language, recognizer.Capabilities, recognizer.Model.Id);
         this.options = options ?? new();
         this.options.Validate();
         var maximum = maximumUtteranceDuration ?? TimeSpan.FromSeconds(30);

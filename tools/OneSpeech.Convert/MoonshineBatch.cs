@@ -27,7 +27,7 @@ internal static class MoonshineBatch
     internal static void Run(string model, string splitRoot, string output, int begin, int count, bool refreshIncomplete = false)
     {
         Directory.CreateDirectory(output);
-        using var recognizer = MoonshineRecognizer.Load(model, new MoonshineOptions { IntraOpThreads = 2 });
+        using var recognizer = MoonshineRecognizer.Load(model, new MoonshineOptions { Threads = 2 });
         var files = Directory.EnumerateFiles(splitRoot, "*.flac", SearchOption.AllDirectories).OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Skip(begin).Take(count);
         foreach (string file in files)
         {
@@ -47,7 +47,7 @@ internal static class MoonshineBatch
             {
                 writer.WriteStartObject(); writer.WriteString("id", id); writer.WriteString("text", result.Text);
                 writer.WriteStartArray("ids"); foreach (int token in ids) writer.WriteNumberValue(token); writer.WriteEndArray();
-                writer.WriteNumber("duration", clip.Samples.Length / 16000d); writer.WriteString("precision", "fp32"); writer.WriteNumber("tokensPerSecond", 6.5); writer.WriteEndObject();
+                writer.WriteNumber("duration", clip.Samples.Length / 16000d); writer.WriteString("precision", recognizer.Model.Id.EndsWith("-int8", StringComparison.Ordinal) ? "mixed-int8" : "fp32"); writer.WriteNumber("tokensPerSecond", 6.5); writer.WriteEndObject();
             }
             File.Move(path + ".part", path);
             Console.WriteLine(id);

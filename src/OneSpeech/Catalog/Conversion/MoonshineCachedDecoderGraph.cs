@@ -55,6 +55,7 @@ internal sealed partial class MoonshineGraphWriter
         }
         Output(Op("Concat", updates.ToArray(), A("axis", 0)), "new_cache", c.DecoderLayers * 2, c.DecoderHeads, c.DecoderHeadDimension);
         string projection = weights.Tensors.ContainsKey("proj_out.weight") ? "proj_out.weight" : "model.decoder.embed_tokens.weight";
-        Output(Op("MatMul", [Norm(x, "model.decoder.norm"), Transpose(Weight(projection), 1, 0)]), "logits", 1, 1, 32768);
+        x = Norm(x, "model.decoder.norm");
+        Output(int8 ? Int8Linear(x, projection) : Op("MatMul", [x, Transpose(Weight(projection), 1, 0)]), "logits", 1, 1, 32768);
     }
 }

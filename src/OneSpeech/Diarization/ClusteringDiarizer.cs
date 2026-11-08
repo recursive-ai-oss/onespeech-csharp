@@ -141,7 +141,7 @@ internal static class DiarizationBlocks
         {
             token.ThrowIfCancellationRequested();
             if (block.SampleRate != 16000 || block.Channels < 1 || block.Channels > 32 || channels != 0 && channels != block.Channels)
-                throw new UnsupportedAudioException("Diarization requires consecutive 16 kHz PCM blocks with a constant channel count in 1–32.");
+                throw new ArgumentException("Diarization requires consecutive 16 kHz PCM blocks with a constant channel count in 1–32.");
             channels = block.Channels; buffer ??= new float[30 * 16000 * channels];
             int offset = 0;
             while (offset < block.Samples.Length)

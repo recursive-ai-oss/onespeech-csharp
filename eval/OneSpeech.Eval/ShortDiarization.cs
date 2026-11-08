@@ -30,7 +30,7 @@ internal static class ShortDiarization
             string[] fields = row.Split('\t'); string id = fields[0];
             using var source = AudioFileSource.Open(fields[1], Token);
             var turns = mode == "transcribe"
-                ? Speech.Transcribe(fields[1], Token, language: "en", model: "openai/whisper-tiny").Turns
+                ? Speech.Transcribe(fields[1], language: "en", model: "openai/whisper-tiny", cancellationToken: Token).Turns
                 : mode.StartsWith("json:", StringComparison.Ordinal)
                 ? Transcript.FromJson(File.ReadAllBytes(Path.Combine(mode[5..], id + ".json"))).Turns
                 : diarizer.DiarizeBlocks(DiarizationRun.Blocks(source), Token);

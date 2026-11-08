@@ -30,6 +30,11 @@ internal static class RuntimeConversion
             using var checkpoint = File.OpenRead(Path.Combine(input, "campplus_voxceleb.bin"));
             new CampPlusConverter(TensorCheckpoint.Read(checkpoint)).Save(Path.Combine(output, "campplus-en-fp32.onemodel"));
         }
+        else if (entry.Id == "iic/speech_campplus_sv_zh-cn_16k-common")
+        {
+            using var checkpoint = File.OpenRead(Path.Combine(input, "campplus_cn_common.bin"));
+            new CampPlusConverter(TensorCheckpoint.Read(checkpoint)).Save(Path.Combine(output, "campplus-zh-fp32.onemodel"));
+        }
         else throw new CapabilityNotSupportedException($"No local converter is registered for '{entry.Id}'.");
         cancellationToken.ThrowIfCancellationRequested();
     }

@@ -19,11 +19,27 @@ internal static class SpeechServices
         return WhisperRecognizer.Load(resolved.Directory, cancellationToken: cancellationToken);
     }
 
-    private static async ValueTask<CampPlusEmbedder> ResolveEmbedderAsync(ModelStore store, CancellationToken cancellationToken)
+    private static async ValueTask<CampPlusEmbedder> ResolveEmbedderAsync(ModelStore store, string? language, CancellationToken cancellationToken)
     {
-        var entry = store.Catalog.GetDefault("speaker-campplus");
+        var entry = store.Catalog.Get(EmbedderId(language));
         var resolved = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
-        return new CampPlusEmbedder(Path.Combine(resolved.Directory, "campplus-en-fp32.onemodel"), resolved.Info, cancellationToken: cancellationToken);
+        return new CampPlusEmbedder(Path.Combine(resolved.Directory, entry.ConvertedFiles.Single().Name), resolved.Info,
+            dimension: IsChinese(language) ? 192 : 512, cancellationToken: cancellationToken);
+    }
+
+    internal static string EmbedderId(string? language) => IsChinese(language)
+        ? "iic/speech_campplus_sv_zh-cn_16k-common" : "iic/speech_campplus_sv_en_voxceleb_16k";
+
+    private static bool IsChinese(string? language) => language is not null &&
+        (language.Equals("Chinese", StringComparison.OrdinalIgnoreCase) || language.Equals("zh", StringComparison.OrdinalIgnoreCase) || language.StartsWith("zh-", StringComparison.OrdinalIgnoreCase));
+
+    private static async ValueTask<Transcript> DiarizeAsync(AudioFileSource source, Transcript transcript, string? language, ModelStore store, SileroVad vad, CancellationToken cancellationToken)
+    {
+        using var embedder = await ResolveEmbedderAsync(store, language ?? transcript.Language, cancellationToken).ConfigureAwait(false);
+        var diarizer = new ClusteringDiarizer(embedder, vad);
+        var turns = diarizer.DiarizeBlocks(VadChunker.Blocks(source, cancellationToken), cancellationToken);
+        var merged = TranscriptDiarization.Merge(transcript, turns.Select(t => new ActiveTurn { Turn = t }), cancellationToken);
+        return merged with { Models = [.. merged.Models.Concat(diarizer.Models).DistinctBy(m => (m.Id, m.Revision))] };
     }
 
     private static SileroVad ResolveVad(ModelStore store, CancellationToken cancellationToken)
@@ -41,9 +57,9 @@ internal static class SpeechServices
         var store = ModelStore.Default;
         using var recognizer = ResolveAsync(store, model, cancellationToken).AsTask().GetAwaiter().GetResult();
         using var vad = ResolveVad(store, cancellationToken);
-        using var embedder = ResolveEmbedderAsync(store, cancellationToken).AsTask().GetAwaiter().GetResult();
-        var diarizer = new ClusteringDiarizer(embedder, vad);
-        return new VadTranscriptionPipeline(recognizer, vad, null, null, diarizer).Transcribe(path, language, cancellationToken);
+        var transcript = new VadTranscriptionPipeline(recognizer, vad).Transcribe(path, language, cancellationToken);
+        using var source = AudioFileSource.Open(path, cancellationToken);
+        return DiarizeAsync(source, transcript, language, store, vad, cancellationToken).AsTask().GetAwaiter().GetResult();
     }
 
     internal static async ValueTask<Transcript> TranscribeAsync(Stream stream, string? language, string? model, CancellationToken cancellationToken)
@@ -54,9 +70,18 @@ internal static class SpeechServices
         var store = ModelStore.Default;
         using var recognizer = await ResolveAsync(store, model, cancellationToken).ConfigureAwait(false);
         using var vad = ResolveVad(store, cancellationToken);
-        using var embedder = await ResolveEmbedderAsync(store, cancellationToken).ConfigureAwait(false);
-        var diarizer = new ClusteringDiarizer(embedder, vad);
-        return await new VadTranscriptionPipeline(recognizer, vad, null, null, diarizer).TranscribeAsync(stream, language, cancellationToken).ConfigureAwait(false);
+        // Retain only encoded input so recognition can select a language before the diarization pass.
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        await using var spool = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 65536, FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+        await stream.CopyToAsync(spool, cancellationToken).ConfigureAwait(false);
+        await spool.FlushAsync(cancellationToken).ConfigureAwait(false);
+        spool.Position = 0;
+        Transcript transcript;
+        using (var recognitionSource = AudioFileSource.Open(spool, true, cancellationToken))
+            transcript = new VadTranscriptionPipeline(recognizer, vad).TranscribeBlocks(VadChunker.Blocks(recognitionSource, cancellationToken), language, cancellationToken);
+        spool.Position = 0;
+        using var source = AudioFileSource.Open(spool, true, cancellationToken);
+        return await DiarizeAsync(source, transcript, language, store, vad, cancellationToken).ConfigureAwait(false);
     }
 
     internal static string DetectLanguage(string path, string? language, string? model, CancellationToken cancellationToken)

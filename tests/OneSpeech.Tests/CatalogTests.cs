@@ -166,6 +166,15 @@ public sealed class CatalogTests
         finally { Directory.Delete(root, true); if (Directory.Exists(cache)) Directory.Delete(cache, true); }
     }
 
+    [Fact]
+    public async Task InvalidTokenIsRejectedWithoutEchoingItOrSendingARequest()
+    {
+        var entry = Entry with { Tier = ModelTier.Tier2, Gated = true };
+        var error = await Assert.ThrowsAsync<ModelTokenRequiredException>(async () =>
+            await new HttpModelSource().OpenReadAsync(entry, entry.Files[0], "sensitive\r\nvalue", TestContext.Current.CancellationToken));
+        Assert.DoesNotContain("sensitive", error.ToString(), StringComparison.Ordinal);
+    }
+
     private sealed class FakeSource(byte[]? bytes = null, bool delay = false) : ModelSource
     {
         internal int Calls;

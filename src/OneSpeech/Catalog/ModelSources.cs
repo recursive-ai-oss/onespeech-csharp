@@ -32,7 +32,10 @@ public sealed class HttpModelSource : ModelSource
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, uri);
                 if (redirects == 0 && token is not null && uri.AbsoluteUri == file.UpstreamUrl)
-                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                {
+                    try { request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token); }
+                    catch (FormatException) { throw new ModelTokenRequiredException("Invalid model token format. Supply a single publisher access token."); }
+                }
                 var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 if (response.StatusCode is HttpStatusCode.Moved or HttpStatusCode.Redirect or HttpStatusCode.RedirectMethod or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect)
                 {

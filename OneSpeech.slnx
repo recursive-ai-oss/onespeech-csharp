@@ -9,4 +9,8 @@
   <Project Path="fuzz/OneSpeech.ParakeetFuzz/OneSpeech.ParakeetFuzz.csproj" />
   <Project Path="tests/OneSpeech.Media.Tests/OneSpeech.Media.Tests.csproj" />
   <Project Path="tests/MediaAotSmoke/MediaAotSmoke.csproj" />
+  <Project Path="tests/AudioChecks/AudioChecks.csproj" />
+  <Project Path="tests/ModelPullProbe/ModelPullProbe.csproj" />
+  <Project Path="fuzz/OneSpeech.AudioFuzz/OneSpeech.AudioFuzz.csproj" />
+  <Project Path="fuzz/OneSpeech.CheckpointFuzz/OneSpeech.CheckpointFuzz.csproj" />
 </Solution>

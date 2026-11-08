@@ -46,7 +46,7 @@ public sealed class ModelStore
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Caches", "OneSpeech", "models")
             : Path.Combine(Environment.GetEnvironmentVariable("XDG_CACHE_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache"), "onespeech", "models");
 
-    /// <summary>Downloads missing publisher files, converts registered runtime graphs locally (tier-2 outputs remain in the per-user cache only), and verifies all present files on first open per store. Restartable, atomic per file, with an OS file lock across processes. A corrupt present file is deleted and reported, not silently replaced. Gate tokens come from the argument or ONESPEECH_MODEL_TOKEN and are never persisted. Throws typed model errors or OperationCanceledException. Progress counts bytes per file.</summary>
+    /// <summary>Downloads missing publisher files, converts registered runtime graphs locally (tier-2 outputs remain in the per-user cache only), and verifies selected publisher/runtime files on first open per store. Qwen3-ASR pulls select Binary32 graphs; BFloat16 graphs are verified or converted only by an explicitly requested BFloat16 recognizer load. Restartable, atomic per file, with an OS file lock across processes. A corrupt present file is deleted and reported, not silently replaced. Gate tokens come from the argument or ONESPEECH_MODEL_TOKEN and are never persisted. Throws typed model errors or OperationCanceledException. Progress counts bytes per file.</summary>
     public async ValueTask<ResolvedModel> PullAsync(string id, string? token = null, IProgress<ModelDownloadProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -113,9 +113,12 @@ public sealed class ModelStore
         {
             Id = entry.Id, Source = entry.Source, Revision = entry.Revision, Tier = entry.Tier,
             License = entry.License, Attribution = entry.Attribution, Gated = entry.Gated,
-            Files = entry.Files.Concat(entry.ConvertedFiles).Select(f => new ModelFileInfo { Name = f.Name, Sha256 = f.Sha256 }).ToImmutableArray()
+            Files = entry.Files.Concat(RuntimeFiles(entry)).Select(f => new ModelFileInfo { Name = f.Name, Sha256 = f.Sha256 }).ToImmutableArray()
         });
     }
+
+    internal static IEnumerable<CatalogFile> RuntimeFiles(CatalogEntry entry) =>
+        entry.ConvertedFiles.Where(file => entry.Family != "qwen3-asr" || !file.Name.EndsWith("-bf16.onemodel", StringComparison.Ordinal));
 
     private async ValueTask EnsureRuntimeAsync(CatalogEntry entry, string directory, CancellationToken cancellationToken)
     {
@@ -125,7 +128,7 @@ public sealed class ModelStore
             return;
         }
         bool missing = false;
-        foreach (var file in entry.ConvertedFiles)
+        foreach (var file in RuntimeFiles(entry))
         {
             string path = Path.Combine(directory, file.Name);
             if (!File.Exists(path)) { missing = true; continue; }
@@ -146,14 +149,14 @@ public sealed class ModelStore
         try
         {
             RuntimeConversion.Convert(entry, directory, staging, cancellationToken);
-            foreach (var file in entry.ConvertedFiles)
+            foreach (var file in RuntimeFiles(entry))
             {
                 string path = Path.Combine(staging, file.Name);
                 if (!File.Exists(path) || new FileInfo(path).Length != file.Size || !await MatchesAsync(path, file.Sha256, cancellationToken).ConfigureAwait(false))
                     throw new ModelIntegrityException($"Converted file '{file.Name}' differs from the catalog. No runtime files were installed.");
             }
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var file in entry.ConvertedFiles)
+            foreach (var file in RuntimeFiles(entry))
                 File.Move(Path.Combine(staging, file.Name), Path.Combine(directory, file.Name), overwrite: true);
         }
         finally { System.IO.Directory.Delete(staging, recursive: true); }

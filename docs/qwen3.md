@@ -103,6 +103,16 @@ eight-second boundary changes earlier encoder outputs. The CPU graphs
 therefore use full-input encoder attention within each bounded input. This
 is not a claim about a FlashAttention backend's window policy.
 
+First pull converts and verifies only the Binary32 runtime graphs. BFloat16 files
+remain catalogued but are not required or included in the resolved FP32 file list.
+Loading `Qwen3Recognizer` with `Precision = Qwen3Precision.BFloat16` verifies any
+existing BF16 graphs; if any are missing, it verifies the pinned publisher files,
+converts BF16 into a staging directory, checks every output size and SHA-256, then
+installs them in the same cache directory. This load never downloads. Corruption
+throws `ModelIntegrityException`; remove the named file and retry. Concurrent
+verification or conversion of that directory throws `IOException`; retry after it completes.
+FP32 remains the default and never converts or validates unrelated BF16 files.
+
 `Binary32` expands the original bfloat16 tensors exactly and retains float32
 activations. `BFloat16` stores published tensors as bfloat16 and rounds neural
 operator boundaries to nearest-even bfloat16; OneModel accumulates in float32.

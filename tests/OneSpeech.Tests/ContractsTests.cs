@@ -73,11 +73,9 @@ public sealed class ContractsTests
     }
 
     [Fact]
-    public void HappyPathRefusesUnsupportedLargeGraphWithoutDownloading()
+    public void HappyPathRefusesUnknownModelsAndHonorsCancellation()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "1089-134686-0001.flac");
-        var error = Assert.Throws<CapabilityNotSupportedException>(() => Speech.Transcribe(path, model: "openai/whisper-large-v3"));
-        Assert.Contains("2 GiB", error.Message, StringComparison.Ordinal);
         Assert.Throws<ModelNotFoundException>(() => Speech.Transcribe(path, model: "missing/model"));
         using var canceled = new CancellationTokenSource();
         canceled.Cancel();

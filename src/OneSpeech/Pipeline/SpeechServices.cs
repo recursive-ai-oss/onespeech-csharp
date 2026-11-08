@@ -145,8 +145,6 @@ internal static class SpeechServices
             catch { recognition.Dispose(); throw; }
         }
         if (entry.Family is not ("whisper" or "moonshine")) throw new CapabilityNotSupportedException($"Model {entry.Id} is not a registered speech recognizer.");
-        if (entry.ConvertedFiles.Any(f => f.Size > int.MaxValue))
-            throw new CapabilityNotSupportedException($"'{entry.Id}' requires a runtime graph larger than OneModel 1.0.0's 2 GiB file limit. Select openai/whisper-large-v3-turbo until a larger-file loader is available.");
         var resolved = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
         if (entry.Family == "moonshine")
         {

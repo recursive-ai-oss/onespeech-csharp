@@ -35,7 +35,6 @@ internal static class RuntimeConversion
         else if (entry.Family is "qwen3-asr" or "qwen3-aligner")
         {
             QwenConverter.Convert(input, output, cancellationToken);
-            if (entry.Family == "qwen3-asr") QwenConverter.Convert(input, output, cancellationToken, OneSpeech.Qwen3.Qwen3Precision.BFloat16);
         }
         else if (entry.Family == "moonshine")
         {

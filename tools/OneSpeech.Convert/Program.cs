@@ -2,6 +2,23 @@ using System.Security.Cryptography;
 using OneSpeech.Catalog.Conversion;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
+if (args is ["nemotron-asr-live-batch", var lbDir, var lbCorpus, var lbOut, var lbChunk, var lbBegin, var lbCount]) { NemotronAsrEvaluation.Batch(lbDir, lbCorpus, lbOut, int.Parse(lbChunk, System.Globalization.CultureInfo.InvariantCulture), int.Parse(lbBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(lbCount, System.Globalization.CultureInfo.InvariantCulture), publishedEvents: true); return 0; }
+if (args is ["nemotron-asr-latency-truth", var ltDir, var ltBase, var ltHyp, var ltTruth]) { NemotronAsrLatency.Run(ltDir, ltBase, ltHyp, ltTruth); return 0; }
+if (args is ["nemotron-asr-latency", var nlDir, var nlBase, var nlHyp]) { NemotronAsrLatency.Run(nlDir, nlBase, nlHyp); return 0; }
+if (args is ["nemotron-asr-eval-slice", var nsCorpus, var nsOurs, var nsRef, var nsOut, var nsCount]) { NemotronAsrChecks.Prepare(nsCorpus, nsOurs, nsRef, nsOut, int.Parse(nsCount, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
+if (args is ["nemotron-asr-metrics", var ntDir, var ntClip, var ntOut, var ntChunk, var ntThreads]) { NemotronAsrMetrics.Run(ntDir, ntClip, ntOut, int.Parse(ntChunk, System.Globalization.CultureInfo.InvariantCulture), int.Parse(ntThreads, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
+if (args is ["nemotron-asr-metrics", var nmDir, var nmClip, var nmOut, var nmChunk]) { NemotronAsrMetrics.Run(nmDir, nmClip, nmOut, int.Parse(nmChunk, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
+if (args is ["nemotron-asr-catalog", var ncPub, var ncConv, var ncCat, var ncLicense, var ncOut]) { NemotronAsrChecks.Catalog(ncPub, ncConv, ncCat, ncLicense, ncOut); return 0; }
+if (args is ["nemotron-asr-vocabulary", var nvDir, var nvFixture]) { NemotronAsrChecks.Vocabulary(nvDir, nvFixture); return 0; }
+if (args is ["nemotron-asr-eval", var neCorpus, var neOurs, var neRef, var neOut]) { NemotronAsrChecks.Prepare(neCorpus, neOurs, neRef, neOut); return 0; }
+if (args is ["nemotron-asr-batch", var nbDir, var nbCorpus, var nbOut, var nbChunk, var nbBegin, var nbCount]) { NemotronAsrEvaluation.Batch(nbDir, nbCorpus, nbOut, int.Parse(nbChunk, System.Globalization.CultureInfo.InvariantCulture), int.Parse(nbBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(nbCount, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
+if (args is ["nemotron-asr-probe-caches", var cacheModel, var cacheProbe]) { NemotronAsrTools.ProbeCaches(cacheModel, cacheProbe); return 0; }
+if (args is ["nemotron-asr-probe-decoder", var decoderModel, var decoderNative, var decoderHf]) { NemotronAsrTools.ProbeDecoder(decoderModel, decoderNative, decoderHf); return 0; }
+if (args is ["nemotron-asr-convert-streaming", var asrNemotronStreamInput, var asrNemotronStreamOutput]) { NemotronAsrConverter.Convert(asrNemotronStreamInput, asrNemotronStreamOutput, CancellationToken.None, streaming: true); return 0; }
+if (args is ["nemotron-asr-convert-probe", var asrNemotronProbeInput, var asrNemotronProbeOutput]) { NemotronAsrConverter.Convert(asrNemotronProbeInput, asrNemotronProbeOutput, CancellationToken.None, probeOutputs: true); return 0; }
+if (args is ["nemotron-asr-convert", var asrNemotronInput, var asrNemotronOutput]) { NemotronAsrConverter.Convert(asrNemotronInput, asrNemotronOutput, CancellationToken.None); return 0; }
+if (args is ["nemotron-asr-compare-encoder", var compareModel, var nativeProbe, var hfProbe]) { NemotronAsrTools.ProbeEncoder(compareModel, nativeProbe, transformerProbes: hfProbe); return 0; }
+if (args is ["nemotron-asr-probe-encoder", var nemotronModel, var nemotronProbe]) { NemotronAsrTools.ProbeEncoder(nemotronModel, nemotronProbe); return 0; }
 if (args is ["nemotron-topk-probe", var nemotronTopKDirectory]) { NemotronTools.TopKProbe(nemotronTopKDirectory); return 0; }
 if (args is ["nemotron-score", var nemotronScoreTruth, var nemotronScoreHypothesis, var nemotronScoreReference]) { NemotronBatch.ScoreOnly(nemotronScoreTruth, nemotronScoreHypothesis, nemotronScoreReference); return 0; }
 if (args is ["nemotron-cache-map", var nemotronMapNative, var nemotronMapReference, var nemotronMapSilence]) { NemotronTools.CacheMap(nemotronMapNative, nemotronMapReference, nemotronMapSilence); return 0; }

@@ -71,15 +71,15 @@ public static class DiarizationMetrics
 {
     /// <summary>Scores the union of recordings/channels and all times appearing in either side. Missing files are empty, not discarded.
     /// Same-speaker overlapping segments are unioned. At most 512 speakers per recording/channel are accepted.
-    /// Throws ArgumentException for invalid segments; cancellation is checked per interval and assignment row.</summary>
+    /// Endpoints must not exceed TimeSpan.MaxValue.TotalSeconds. Throws ArgumentException for invalid segments; cancellation is checked per interval and assignment row.</summary>
     public static DiarizationScore Score(IEnumerable<DiarizationSegment> reference, IEnumerable<DiarizationSegment> hypothesis, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reference); ArgumentNullException.ThrowIfNull(hypothesis);
         var r = reference.ToArray(); var h = hypothesis.ToArray();
         foreach (var s in r.Concat(h))
             if (s is null || string.IsNullOrWhiteSpace(s.Recording) || string.IsNullOrWhiteSpace(s.Channel) || string.IsNullOrWhiteSpace(s.Speaker) ||
-                !double.IsFinite(s.Start) || !double.IsFinite(s.End) || s.Start < 0 || s.End <= s.Start)
-                throw new ArgumentException("Segments need IDs and finite nonnegative positive-duration intervals.");
+                !double.IsFinite(s.Start) || !double.IsFinite(s.End) || s.Start < 0 || s.End <= s.Start || s.End > TimeSpan.MaxValue.TotalSeconds)
+                throw new ArgumentException("Segments need IDs and nonnegative positive-duration intervals within the TimeSpan audio clock.");
         double total = 0, miss = 0, fa = 0, confusion = 0, jer = 0; int speakers = 0;
         foreach (var key in r.Concat(h).Select(s => (s.Recording, s.Channel)).Distinct().OrderBy(k => k.Recording, StringComparer.Ordinal).ThenBy(k => k.Channel, StringComparer.Ordinal))
         {

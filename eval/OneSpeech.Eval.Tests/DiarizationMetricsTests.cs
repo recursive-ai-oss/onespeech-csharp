@@ -81,6 +81,12 @@ public sealed class DiarizationMetricsTests
     }
 
     [Fact]
+    public void ScoringRefusesUnrepresentableAudioClocks()
+    {
+        Assert.Throws<ArgumentException>(() => DiarizationMetrics.Score([S("a", 0, 1e308)], [S("b", 0, 1e308)], TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void ReaderBoundsAndUtf8()
     {
         using var huge = new MemoryStream(Encoding.UTF8.GetBytes(new string('x', 16385)));

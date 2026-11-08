@@ -9,18 +9,18 @@ using OneSpeech.Vad;
 
 internal static class NemotronAsrMetrics
 {
-    internal static void Run(string directory, string clipPath, string output, int chunk)
+    internal static void Run(string directory, string clipPath, string output, int chunk, int threads = 1)
     {
         string Load() => OperatingSystem.IsLinux() ? File.ReadAllText("/proc/loadavg").Trim() : "unavailable";
         string loadBefore = Load(); long loadTick = Stopwatch.GetTimestamp();
         var clip = OneAudio.Audio.Load(clipPath, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
-        using var model = NemotronAsrRecognizer.Load(new(directory, NemotronAsrEvaluation.Info()), new NemotronAsrOptions { Threads = 1, ChunkMilliseconds = chunk });
+        using var model = NemotronAsrRecognizer.Load(new(directory, NemotronAsrEvaluation.Info()), new NemotronAsrOptions { Threads = threads, ChunkMilliseconds = chunk });
         double modelLoadSeconds = Stopwatch.GetElapsedTime(loadTick).TotalSeconds;
         using var vad = new SileroVad();
         Measure();
         using var file = File.Create(output); using var json = new Utf8JsonWriter(file, new JsonWriterOptions { Indented = true });
         json.WriteStartObject(); json.WriteString("status", "indicative; immutable emitted payload excluded; actual VAD runtime allocation measured separately");
-        json.WriteString("runtime", Environment.Version.ToString()); json.WriteString("oneModel", "1.2.0-preview.2"); json.WriteString("oneAudio", "1.7.2"); json.WriteNumber("processorCount", Environment.ProcessorCount);
+        json.WriteString("runtime", Environment.Version.ToString()); json.WriteString("oneModel", "1.2.0-preview.2"); json.WriteString("oneAudio", "1.7.2"); json.WriteNumber("processorCount", Environment.ProcessorCount); json.WriteNumber("inferenceThreads", threads);
         json.WriteString("sdk", "10.0.403"); json.WriteString("loadBefore", loadBefore); json.WriteString("architecture", RuntimeInformation.ProcessArchitecture.ToString());
         json.WriteNumber("modelLoadSeconds", modelLoadSeconds); json.WriteString("modelLoadMethod", "warmed filesystem cache; includes clip decode and model construction, excludes VAD/session startup");
         json.WriteNumber("convertedBytes", OneSpeech.Catalog.ModelCatalog.Default.Get(NemotronAsrRecognizer.Identifier).ConvertedFiles.Sum(f => f.Size));

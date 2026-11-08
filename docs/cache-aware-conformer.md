@@ -84,3 +84,31 @@ IDs, including special tokens. End-to-end decoding on those clips was
 lexical-token-identical at 80, 320 and 560 ms. These probes are not full-corpus
 quality claims. The sanitized reference harnesses share the locked Transformers
 5.22.2 CPU environment under `tools/oracles/moonshine`.
+
+## Streaming measurement method
+
+The streaming comparison uses fp32 greedy RNN-T with at most ten symbols per
+frame, the English prompt, and identical publisher weights. Each input push
+contains the selected attention chunk's duration. Native rows exercise the live
+controller's actual partial publication on known utterances with speech activity
+assumed present; the reference uses its documented streaming generator and
+streamer. Both complete at the real input horizon. This isolates recognition
+from endpoint detection, which the reference API does not provide.
+
+Word finalisation latency here means stable-word publication: a word closes when
+the next word begins, or at EOF for the last word. Match words with the same
+English scoring normalizer and report matched/unmatched counts. Measure both
+implementations against the same offline native word ends; additionally report
+available MFA word ends as a separately named clock. Signed negative differences
+are retained because native endpoints have 80 ms resolution. EOF Final delay is
+reported separately; this method is not a claim about a vendor endpoint policy
+or wall-clock network latency.
+
+`nemotron-asr-metrics <converted> <clip> <output> <chunk-ms> [threads]` measures
+three warmed live repetitions; threads defaults to one. RTF includes `Push` and
+`Complete` processing, not model load or session startup (reported separately).
+Allocation accounting separates immutable emitted payloads and VAD-runtime
+allocations from working storage. Non-emitting pushes allocate no working bytes,
+but partial snapshot preparation and EOF currently do: an overall zero-working-
+allocation claim would be incorrect. Indicative shared-load measurements do not
+substitute for isolated release benchmarks.

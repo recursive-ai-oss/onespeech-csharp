@@ -6,6 +6,7 @@ if (args is ["nemotron-asr-live-batch", var lbDir, var lbCorpus, var lbOut, var 
 if (args is ["nemotron-asr-latency-truth", var ltDir, var ltBase, var ltHyp, var ltTruth]) { NemotronAsrLatency.Run(ltDir, ltBase, ltHyp, ltTruth); return 0; }
 if (args is ["nemotron-asr-latency", var nlDir, var nlBase, var nlHyp]) { NemotronAsrLatency.Run(nlDir, nlBase, nlHyp); return 0; }
 if (args is ["nemotron-asr-eval-slice", var nsCorpus, var nsOurs, var nsRef, var nsOut, var nsCount]) { NemotronAsrChecks.Prepare(nsCorpus, nsOurs, nsRef, nsOut, int.Parse(nsCount, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
+if (args is ["nemotron-asr-metrics", var ntDir, var ntClip, var ntOut, var ntChunk, var ntThreads]) { NemotronAsrMetrics.Run(ntDir, ntClip, ntOut, int.Parse(ntChunk, System.Globalization.CultureInfo.InvariantCulture), int.Parse(ntThreads, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
 if (args is ["nemotron-asr-metrics", var nmDir, var nmClip, var nmOut, var nmChunk]) { NemotronAsrMetrics.Run(nmDir, nmClip, nmOut, int.Parse(nmChunk, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
 if (args is ["nemotron-asr-catalog", var ncPub, var ncConv, var ncCat, var ncLicense, var ncOut]) { NemotronAsrChecks.Catalog(ncPub, ncConv, ncCat, ncLicense, ncOut); return 0; }
 if (args is ["nemotron-asr-vocabulary", var nvDir, var nvFixture]) { NemotronAsrChecks.Vocabulary(nvDir, nvFixture); return 0; }

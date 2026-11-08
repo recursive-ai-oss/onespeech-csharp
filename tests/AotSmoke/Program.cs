@@ -1,5 +1,10 @@
 using OneSpeech;
 
+var ctc = OneSpeech.Decoding.CtcTrellis.Align([-9, 0, 0, -9, -9, 0], 3, 2, [1, 1]);
+if (!ctc.Succeeded || ctc.Tokens.Length != 2 || ctc.Tokens[1].StartFrame != 2)
+    throw new InvalidOperationException("CTC trellis NativeAOT smoke failed.");
+Console.WriteLine("CTC trellis NativeAOT smoke passed.");
+
 var word = new Word { Text = "test", Start = TimeSpan.Zero, End = TimeSpan.FromSeconds(1), TimingMethod = TimingMethod.Native, Speaker = SpeakerLabel.Unassigned };
 var original = new Transcript { Text = "test", Duration = TimeSpan.FromSeconds(1), Words = [word] };
 var copy = Transcript.FromJson(original.ToJson());

@@ -19,7 +19,7 @@ try
     SameIds(hyp);if(second is not null)SameIds(second);
     string normalizer=options.GetValueOrDefault("--normalizer","en");
     string N(string s)=>Normalizer.Normalize(s,normalizer);
-    var rows=refs.OrderBy(p=>p.Key,StringComparer.Ordinal).Select(p=>new UtteranceScore(p.Key,Metrics.Score(N(p.Value.Text),N(hyp[p.Key].Text)),Metrics.Score(N(p.Value.Text),N(hyp[p.Key].Text),true),second is null?null:Metrics.Score(N(p.Value.Text),N(second[p.Key].Text)),p.Value.Words is null || hyp[p.Key].Words is null?null:TimingMetrics.Score(p.Value.Words,hyp[p.Key].Words!,normalizer))).ToArray();
+    var rows=refs.OrderBy(p=>p.Key,StringComparer.Ordinal).Select(p=>new UtteranceScore(p.Key,Metrics.Score(N(p.Value.Text),N(hyp[p.Key].Text)),Metrics.Score(N(p.Value.Text),N(hyp[p.Key].Text),true),second is null?null:Metrics.Score(N(p.Value.Text),N(second[p.Key].Text)),p.Value.Words is null || hyp[p.Key].Words is null || !p.Value.Words.Any(w=>w.Start is not null) || !hyp[p.Key].Words!.Any(w=>w.Start is not null)?null:TimingMetrics.Score(p.Value.Words,hyp[p.Key].Words!,normalizer))).ToArray();
     ErrorCounts Sum(IEnumerable<ErrorCounts> v)=>v.Aggregate(new ErrorCounts(0,0,0,0),(a,b)=>a+b);
     var bootstrap=Metrics.Bootstrap(rows.Select(r=>r.Wer).ToArray(),second is null?null:rows.Select(r=>r.SecondWer!).ToArray(),int.Parse(options.GetValueOrDefault("--resamples","1000"),System.Globalization.CultureInfo.InvariantCulture),ulong.Parse(options.GetValueOrDefault("--seed","1729"),System.Globalization.CultureInfo.InvariantCulture));
     var report=new ScoreReport(normalizer,"1",Sum(rows.Select(r=>r.Wer)),Sum(rows.Select(r=>r.Cer)),second is null?null:Sum(rows.Select(r=>r.SecondWer!)),bootstrap,rows);

@@ -122,6 +122,21 @@ if (happyPathClip is not null)
     Console.WriteLine("Speech.Transcribe tiny NativeAOT happy path passed.");
 }
 
+string? pyannoteSnapshot = Environment.GetEnvironmentVariable("ONESPEECH_PYANNOTE_SNAPSHOT");
+if (pyannoteSnapshot is not null)
+{
+    using var segmentation = OneSpeech.Diarization.PyannoteSegmentation.LoadLocal(pyannoteSnapshot);
+    float[] frames = segmentation.GetFrameLogProbabilities(new AudioBuffer(new float[160000], 16000));
+    if (frames.Length != 589 * 7 || frames.Any(value => !float.IsFinite(value)))
+        throw new InvalidOperationException("Segmentation NativeAOT frame shape or finiteness failed.");
+    using var segmentationEmbedder = new SmokeEmbedder(segmentation.Model);
+    using var segmentationDiarizer = new OneSpeech.Diarization.PyannoteDiarizer(segmentation, segmentationEmbedder);
+    var segmentationTurns = segmentationDiarizer.Diarize(new AudioBuffer(new float[160000], 16000));
+    if (segmentationTurns.Any(turn => turn.Start < TimeSpan.Zero || turn.End > TimeSpan.FromSeconds(10)))
+        throw new InvalidOperationException("Segmentation NativeAOT turn bounds failed.");
+    Console.WriteLine("Local segmentation and overlap-aware diarizer NativeAOT inference passed.");
+}
+
 internal sealed class SmokeEmbedder(ModelInfo model) : SpeakerEmbedder
 {
     public override ModelInfo Model => model;

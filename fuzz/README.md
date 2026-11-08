@@ -15,7 +15,11 @@ from the transcript target; all other smoke bounds are unchanged.
 container. With `ONESPEECH_CHECKPOINT_PICKLE=1` and a separate scratch directory, it mutates
 the pickle index inside a generated ZIP with two constant storage values. This reaches inert
 tensor parsing without first having to repair a mutated ZIP directory. Both targets use the
-same bounded reader, instrument only the converter assembly, and accept only `InvalidDataException`
+same bounded reader, instrument only the core assembly containing that reader, and accept only `InvalidDataException`
 and ordinary I/O errors. Seed checkpoints are constructed by our harness, without audio, Python
 execution or upstream fixtures. The normal executable creates seeds before instrumentation;
 only libFuzzer invokes the instrumented reader. Use one process at a time.
+
+Set `ONESPEECH_CHECKPOINT_SEGMENTATION=1` with pickle mode to exercise the nested
+`state_dict` and inert segmentation metadata path. Generated seeds include a
+synthetic metadata record; no gated checkpoint or derived weight bytes are used.

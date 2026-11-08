@@ -406,6 +406,23 @@ if (args is ["speaker-fetch", var root])
     await SpeakerTools.FetchAsync(root, CancellationToken.None).ConfigureAwait(false);
     return 0;
 }
+if (args is ["pyannote-diarize", var pyannoteSnapshot, var pyannoteModelCache, var pyannoteEmbedder, var pyannoteAudio, var pyannoteRttm])
+{
+    await PyannoteDiarizationProbe.Run(pyannoteSnapshot, pyannoteModelCache, pyannoteEmbedder, pyannoteAudio, pyannoteRttm);
+    return 0;
+}
+if (args is ["pyannote-probe", var pyannoteCheckpoint, var pyannoteCache, var pyannoteProbes])
+{
+    PyannoteProbe.Run(pyannoteCheckpoint, pyannoteCache, pyannoteProbes);
+    return 0;
+}
+if (args is ["pyannote-inspect", var segmentationCheckpoint])
+{
+    using var input = File.OpenRead(segmentationCheckpoint);
+    foreach (var pair in TensorCheckpoint.Read(input, segmentation: true))
+        Console.WriteLine(pair.Key + " " + string.Join(",", pair.Value.Shape));
+    return 0;
+}
 if (args is ["speaker-inspect", var checkpoint])
 {
     using var input = File.OpenRead(checkpoint);

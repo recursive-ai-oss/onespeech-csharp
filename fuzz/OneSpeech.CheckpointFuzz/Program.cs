@@ -22,6 +22,19 @@ if (args is ["seed", var directory])
         writer.Write((byte)'t'); writer.Write((byte)'R'); writer.Write((byte)'u'); writer.Write((byte)'.');
     }
     byte[] bytes = pickle.ToArray();
+    if (Environment.GetEnvironmentVariable("ONESPEECH_CHECKPOINT_SEGMENTATION") == "1")
+    {
+        using var nested = new MemoryStream();
+        using (var writer = new BinaryWriter(nested, Encoding.UTF8, leaveOpen: true))
+        {
+            writer.Write(new byte[] { 0x80, 2, (byte)'}', (byte)'(' }); Text(writer, "state_dict");
+            writer.Write(bytes.AsSpan(2, bytes.Length - 3));
+            Text(writer, "specification"); Global(writer, "pyannote.audio.core.task", "Specifications");
+            writer.Write((byte)')'); writer.Write((byte)0x81); writer.Write((byte)'}'); writer.Write((byte)'b');
+            writer.Write((byte)'u'); writer.Write((byte)'.');
+        }
+        bytes = nested.ToArray();
+    }
     File.WriteAllBytes(Path.Combine(directory, "tensor.pkl"), bytes);
     using var archive = Wrap(bytes);
     File.WriteAllBytes(Path.Combine(directory, "tensor.zip"), archive.ToArray());
@@ -35,7 +48,7 @@ Fuzzer.LibFuzzer.Run(data =>
     {
         if (Environment.GetEnvironmentVariable("ONESPEECH_SENTENCEPIECE") == "1") { _ = SentencePieceProto.Read(data); return; }
         using var stream = pickleMode ? Wrap(data) : new MemoryStream(data.ToArray(), writable: false);
-        _ = TensorCheckpoint.Read(stream, largeModel: Environment.GetEnvironmentVariable("ONESPEECH_CHECKPOINT_LARGE") == "1");
+        _ = TensorCheckpoint.Read(stream, largeModel: Environment.GetEnvironmentVariable("ONESPEECH_CHECKPOINT_LARGE") == "1", segmentation: Environment.GetEnvironmentVariable("ONESPEECH_CHECKPOINT_SEGMENTATION") == "1");
     }
     catch (InvalidDataException) { }
     catch (IOException) { }

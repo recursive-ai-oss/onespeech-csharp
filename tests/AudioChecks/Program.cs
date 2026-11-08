@@ -40,7 +40,7 @@ if (args[0] == "parity")
             maximumBoundary = Math.Max(maximumBoundary, Math.Max(ds, de));
         }
         Console.WriteLine($"{probe.GetProperty("id").GetString()}: frames={reference.Length}, max={max:G9}, mean={sum / reference.Length:G9}, segments={intervals.Length}, meanBoundaryMs={(expected.Length == 0 ? 0 : boundary / (2 * expected.Length)):G9}, maxBoundaryMs={maximumBoundary:G9}");
-        if (max > 1e-5 || maximumBoundary > 0.13) throw new InvalidOperationException("Silero parity tolerance exceeded.");
+        if (max > 1e-5 || maximumBoundary > 1000d / rate + 1e-6) throw new InvalidOperationException("Silero parity tolerance exceeded.");
     }
 }
 else if (args[0] == "memory")

@@ -146,6 +146,12 @@ internal static class SpeechServices
     {
         if (model is not null && model.StartsWith("moonshine-ai/", StringComparison.Ordinal)) _ = Moonshine.MoonshineProvenance.Get(model);
         var entry = model is null ? store.Catalog.GetRoleDefault("transcription") : store.Catalog.Get(model);
+        if (entry.Family == "nemotron-asr")
+        {
+            var resolvedNemotron = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var recognizer = FastConformer.NemotronAsrRecognizer.Load(resolvedNemotron, cancellationToken: cancellationToken);
+            return new RecognizerLease(recognizer, recognizer);
+        }
         if (entry.Family == "parakeet-tdt")
         {
             var resolvedParakeet = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -204,21 +210,14 @@ internal static class SpeechServices
     private static bool IsChinese(string? language) => language is not null &&
         (language.Equals("Chinese", StringComparison.OrdinalIgnoreCase) || language.Equals("zh", StringComparison.OrdinalIgnoreCase) || language.StartsWith("zh-", StringComparison.OrdinalIgnoreCase));
 
-    internal static SileroVadOptions DiarizationActivity => new()
-    {
-        Threshold = 0.2f, NegativeThreshold = 0.2f - 0.15f,
-        MinimumSpeech = TimeSpan.FromMilliseconds(250), MinimumSilence = TimeSpan.FromMilliseconds(250),
-        SpeechPadding = TimeSpan.FromMilliseconds(150)
-    };
-
-    internal static CosineResegmenter DiarizationResegmentation => new(0.4, 2);
+    internal static SileroVadOptions DiarizationActivity => SileroVadOptions.Diarization;
 
     private static async ValueTask<Transcript> DiarizeAsync(AudioFileSource source, Transcript transcript, string? language, ModelStore store, CancellationToken cancellationToken)
     {
         using var embedder = await ResolveEmbedderAsync(store, language ?? transcript.Language, cancellationToken).ConfigureAwait(false);
         // Activity coverage for diarization is fitted separately; ASR chunking keeps its original VAD.
         using var vad = ResolveVad(store, cancellationToken, DiarizationActivity);
-        var diarizer = new ClusteringDiarizer(embedder, vad, resegmenter: DiarizationResegmentation);
+        var diarizer = new ClusteringDiarizer(embedder, vad);
         var turns = diarizer.DiarizeBlocks(VadChunker.Blocks(source, cancellationToken), cancellationToken);
         var merged = TranscriptDiarization.Merge(transcript, turns.Select(t => new ActiveTurn { Turn = t }), cancellationToken);
         return merged with { Models = [.. merged.Models.Concat(diarizer.Models).DistinctBy(m => (m.Id, m.Revision))] };

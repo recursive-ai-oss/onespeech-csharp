@@ -8,7 +8,7 @@ var model = await store.PullAsync("openai/whisper-tiny", cancellationToken: canc
 // model.Directory: verified publisher files; model.Info: revision, digests and licence provenance.
 ```
 
-The tool provides `onespeech models list` and `onespeech models pull <id>`. Ctrl+C cancels a pull. List never downloads. No family default is declared until it has been selected from measurements; `GetDefault(family)` refuses when none is declared.
+The tool provides `onespeech models list` and `onespeech models pull <id>`. Ctrl+C cancels a pull. List never downloads. The current file default is Whisper large-v3-turbo; the live default is Moonshine streaming-tiny. `GetDefault(family)` refuses when that family has no declared default.
 
 ## Cache and trust
 
@@ -66,8 +66,8 @@ The CAM++ English entry records the verified publisher checkpoint and the SHA-25
 converted float32 graph. The converted file's content-addressed `models-v1` release URL is a
 **reserved, unpublished artifact location**, not a claim that bytes are downloadable. Nothing has
 been mirrored or published. Current `ModelStore.PullAsync` fetches publisher `files`, not
-`convertedFiles`; run the converter locally until an actual converted asset is available.
-No speaker default is selected. See [speaker inference](speakers.md).
+`convertedFiles`; registered conversions run locally in the cache.
+CAM++ English is the speaker default; Chinese speech selects CAM++ Chinese. See [speaker inference](speakers.md).
 
 ModelScope publisher files use its HTTPS data API, with exactly `Revision=<pinned commit>` and
 `FilePath=<catalog filename>` query fields in that order. The catalog checks the API host,

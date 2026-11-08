@@ -11,7 +11,8 @@ public sealed class ClusteringDiarizer : BlockDiarizer
     private readonly ClusteringOptions options;
     private readonly EmbeddingResegmenter? resegmenter;
 
-    /// <summary>Creates a diarizer for 16 kHz PCM, averaged over input channels. Defaults are ClusteringOptions defaults, not a dev-set fit.
+    /// <summary>Creates a diarizer for 16 kHz PCM, averaged over input channels. Defaults are ClusteringOptions defaults and cosine resegmentation (penalty 0.4, radius 2).
+    /// The supplied detector is never reconfigured; use SileroVadOptions.Diarization for the file-helper activity profile.
     /// Embedder must require 16 kHz with dimension 1–4096. Throws ArgumentException for invalid options and CapabilityNotSupportedException for unsupported embedder shape/rate.</summary>
     public ClusteringDiarizer(SpeakerEmbedder embedder, VoiceActivityDetector detector, ClusteringOptions? options = null, EmbeddingResegmenter? resegmenter = null)
     {
@@ -19,7 +20,11 @@ public sealed class ClusteringDiarizer : BlockDiarizer
         this.options = options ?? new ClusteringOptions(); this.options.Validate();
         if (embedder.SampleRate != 16000 || embedder.Dimension < 1 || embedder.Dimension > 4096)
             throw new CapabilityNotSupportedException("Clustering requires a 16 kHz speaker embedder with dimension 1–4096.");
-        this.embedder = embedder; this.detector = detector; this.resegmenter = resegmenter;
+        this.embedder = embedder; this.detector = detector;
+        // Unconstrained smoothing can remove a label. Preserve caller count hints without
+        // inventing a replacement label; explicit custom backends retain strict validation.
+        this.resegmenter = resegmenter ?? (this.options.Resegment && this.options.NumSpeakers is null && this.options.MinSpeakers == 1
+            ? new CosineResegmenter(0.4, 2) : null);
         Capabilities = new Capabilities { MaxSpeakers = this.options.MaxSpeakers };
     }
 

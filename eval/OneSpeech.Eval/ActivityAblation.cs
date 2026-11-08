@@ -85,7 +85,7 @@ internal static partial class ActivityAblation
         void Run(string name, Setting setting, ActivityVad vad)
         {
             vad.Options = setting.Options; vad.MinimumSeconds = setting.Cutoff / 1000.0; vad.Reset();
-            var options = new ClusteringOptions { MinimumSegmentSeconds = setting.Cutoff / 1000.0 };
+            var options = new ClusteringOptions { Resegment = false, MinimumSegmentSeconds = setting.Cutoff / 1000.0 };
             var diarizer = new ClusteringDiarizer(embedder, vad, options);
             var turns = diarizer.DiarizeBlocks(audio, CancellationToken.None);
             string hyp = Path.Combine(directory, name + ".hyp.rttm"); DiarizationRun.WriteTurns(hyp, id, turns);

@@ -66,7 +66,7 @@ internal static partial class ActivityAblation
         foreach (string name in settings)
         {
             probabilities.Options = new Setting(0.2f, 250, 250, 150).Options; probabilities.Reset();
-            var diarizer = new ClusteringDiarizer(embedder, probabilities, resegmenter: Refinements[name]);
+            var diarizer = new ClusteringDiarizer(embedder, probabilities, new ClusteringOptions { Resegment = false }, resegmenter: Refinements[name]);
             var turns = diarizer.DiarizeBlocks(audio, CancellationToken.None);
             string hyp = Path.Combine(directory, name + ".hyp.rttm"); DiarizationRun.WriteTurns(hyp, id, turns);
             using var input = File.OpenRead(hyp); var score = DiarizationMetrics.Score(reference, Rttm.Read(input));

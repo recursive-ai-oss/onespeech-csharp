@@ -210,7 +210,7 @@ dotnet run --project tools/OneSpeech.Convert -- speaker-convert-ecapa embedding_
 
 The converted graph is 83,294,800 bytes, SHA-256
 `f107ead463783cab70914fd0470cc6b42e2ec74b7a717bb42c1360879076c669`. As with CAM++, its catalog
-release URI is reserved/unpublished; run the converter locally. No speaker default is declared.
+release URI is reserved/unpublished; the model store converts verified publisher files locally. ECAPA is available by name; CAM++ English is the speaker default.
 
 On the same 20,000-trial LibriSpeech slice, ECAPA and its pinned reference both score **1.10% EER**
 and **0.0548 normalized minDCF**, using the same raw cosine scorer, prior/costs and conditional

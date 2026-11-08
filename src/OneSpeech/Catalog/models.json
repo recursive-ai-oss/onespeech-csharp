@@ -2561,6 +2561,164 @@
         "biasing": false,
         "maxSpeakers": 8
       }
+    },
+    {
+      "id": "nvidia/nemotron-3.5-asr-streaming-0.6b",
+      "family": "nemotron-asr",
+      "source": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b",
+      "revision": "ea30d66debe3740a08b573244286791d423d6b3e",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 2552062944,
+          "sha256": "9eebdd6590289cb3030f310858f3df93256600a800a3e8200c5993d5f967e174",
+          "upstreamUrl": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/resolve/ea30d66debe3740a08b573244286791d423d6b3e/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "config.json",
+          "size": 1376,
+          "sha256": "62d186fd91f518e00e7867500f1f5819225e8ee95ea3e21b546514bf2048e845",
+          "upstreamUrl": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/resolve/ea30d66debe3740a08b573244286791d423d6b3e/config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "processor_config.json",
+          "size": 2519,
+          "sha256": "ec47870f1091ea4f25539208387b45b902c92d0e3f997a30061ef88f73437ab0",
+          "upstreamUrl": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/resolve/ea30d66debe3740a08b573244286791d423d6b3e/processor_config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 752051,
+          "sha256": "3f3d481deb073b64c2082e8c7860d487a3a62774bf4e9e4faac83007e181f246",
+          "upstreamUrl": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/resolve/ea30d66debe3740a08b573244286791d423d6b3e/tokenizer.json",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "embedding.f32",
+          "size": 33505280,
+          "sha256": "5c69af049bd5d0e3017f31d77c42ab040e3441670b46abef5be93f719269e59d",
+          "upstreamUrl": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/resolve/ea30d66debe3740a08b573244286791d423d6b3e/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "encoder-step0.onemodel",
+          "size": 1227677248,
+          "sha256": "9b17f31b4cea798c8ca40a721c85c9c37aeb3e0a7bf697f71b9f8479d43e4edb",
+          "upstreamUrl": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/resolve/ea30d66debe3740a08b573244286791d423d6b3e/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "encoder-step1.onemodel",
+          "size": 1209284608,
+          "sha256": "6e6bbdaf87f78d67638e06971492c780618095dc3f3b9e282ad884e1bb4a446b",
+          "upstreamUrl": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/resolve/ea30d66debe3740a08b573244286791d423d6b3e/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "encoder-tail0.onemodel",
+          "size": 1227677248,
+          "sha256": "9bb3c3c30ac03081f5c8df6f6dc2226f67f4a5f631f4cc1cf5e5df65e6f5bd29",
+          "upstreamUrl": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/resolve/ea30d66debe3740a08b573244286791d423d6b3e/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "prompt.onemodel",
+          "size": 17839936,
+          "sha256": "00dca529aaaa83af4f129ab79523a64a0f2fe0575c95f00b5483c0653e8d3e41",
+          "upstreamUrl": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/resolve/ea30d66debe3740a08b573244286791d423d6b3e/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "predictor.onemodel",
+          "size": 26265928,
+          "sha256": "b623c7cbed0c09f68692a27b71b2550ecb5b0c446b59acb2b809ab9209763d24",
+          "upstreamUrl": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/resolve/ea30d66debe3740a08b573244286791d423d6b3e/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "joint.onemodel",
+          "size": 37825664,
+          "sha256": "c1f09c858506d9f67715854f3dd380b93b828b47703a25f5991c9ccfd2225bd8",
+          "upstreamUrl": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b/resolve/ea30d66debe3740a08b573244286791d423d6b3e/model.safetensors",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier2",
+      "license": "OpenMDW-1.1",
+      "gated": false,
+      "isDefault": false,
+      "attribution": "Developed by NVIDIA. NVIDIA Nemotron 3.5 ASR. https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b. Licensed under OpenMDW-1.1 (https://openmdw.ai/license/1-1/). Converted locally to OneModel format; weights unchanged. Never redistributed by OneSpeech.\n\nOpenMDW License Agreement, version 1.1 (OpenMDW-1.1)\n\nBy exercising rights granted to you under this agreement, you accept and agree to its terms.\n\nAs used in this agreement, “Model Materials” means the materials provided to you under this agreement, consisting of: (1) one or more machine learning models (including architecture and parameters); and (2) all related artifacts (including associated data, documentation and software) that are provided to you hereunder.\n\nSubject to your compliance with this agreement, permission is hereby granted, free of charge, to deal in the Model Materials without restriction, including under all copyright, patent, database, and trade secret rights included or embodied therein.\n\nIf you distribute any portion of the Model Materials, you shall retain in your distribution (1) a copy of this agreement, and (2) all copyright notices and other notices of origin included in the Model Materials that are applicable to your distribution.\n\nIf you file, maintain, or voluntarily participate in a lawsuit against any person or entity asserting that the Model Materials directly or indirectly infringe any patent or copyright, then all rights and grants made to you hereunder are terminated, unless that lawsuit was in response to a corresponding lawsuit first brought against you.\n\nThis agreement does not impose any restrictions or obligations with respect to any use, modification, or sharing of any outputs generated by using the Model Materials.\n\nTHE MODEL MATERIALS ARE PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NONINFRINGEMENT, ACCURACY, OR THE ABSENCE OF LATENT OR OTHER DEFECTS OR ERRORS, WHETHER OR NOT DISCOVERABLE, ALL TO THE GREATEST EXTENT PERMISSIBLE UNDER APPLICABLE LAW.\n\nYOU ARE SOLELY RESPONSIBLE FOR (1) CLEARING RIGHTS OF OTHER PERSONS THAT MAY APPLY TO THE MODEL MATERIALS OR ANY USE THEREOF, INCLUDING WITHOUT LIMITATION ANY PERSON’S COPYRIGHTS OR OTHER RIGHTS INCLUDED OR EMBODIED IN THE MODEL MATERIALS; (2) OBTAINING ANY NECESSARY CONSENTS, PERMISSIONS OR OTHER RIGHTS REQUIRED FOR ANY USE OF THE MODEL MATERIALS; OR (3) PERFORMING ANY DUE DILIGENCE OR UNDERTAKING ANY OTHER INVESTIGATIONS INTO THE MODEL MATERIALS OR ANYTHING INCORPORATED OR EMBODIED THEREIN.\n\nIN NO EVENT SHALL THE PROVIDERS OF THE MODEL MATERIALS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE MODEL MATERIALS, THE USE THEREOF OR OTHER DEALINGS THEREIN.\n\nAgreement source: https://openmdw.ai/license/1-1/\nCopyright The Linux Foundation and its contributors. Site contents licensed under CC-BY-4.0.\nAgreement text copied without substantive changes. The model rights described above are governed by OpenMDW-1.1.\n",
+      "capabilities": {
+        "languages": [
+          "en",
+          "es",
+          "fr",
+          "it",
+          "pt",
+          "nl",
+          "de",
+          "tr",
+          "ru",
+          "ar",
+          "hi",
+          "ja",
+          "ko",
+          "vi",
+          "uk",
+          "pl",
+          "sv",
+          "cs",
+          "nb",
+          "da",
+          "bg",
+          "fi",
+          "hr",
+          "sk",
+          "zh",
+          "hu",
+          "ro",
+          "et",
+          "en-US",
+          "en-GB",
+          "es-US",
+          "es-ES",
+          "fr-FR",
+          "fr-CA",
+          "it-IT",
+          "pt-BR",
+          "pt-PT",
+          "nl-NL",
+          "de-DE",
+          "tr-TR",
+          "ru-RU",
+          "ar-AR",
+          "hi-IN",
+          "ja-JP",
+          "ko-KR",
+          "vi-VN",
+          "uk-UA",
+          "pl-PL",
+          "sv-SE",
+          "cs-CZ",
+          "nb-NO",
+          "da-DK",
+          "bg-BG",
+          "fi-FI",
+          "hr-HR",
+          "sk-SK",
+          "zh-CN",
+          "hu-HU",
+          "ro-RO",
+          "et-EE"
+        ],
+        "nativeTimestamps": true,
+        "streaming": true
+      }
     }
   ]
 }

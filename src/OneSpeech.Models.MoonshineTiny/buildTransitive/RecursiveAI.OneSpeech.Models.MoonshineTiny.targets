@@ -1,0 +1,5 @@
+<Project>
+  <ItemGroup>
+    <Content Include="$(MSBuildThisFileDirectory)../weights/*" Link="onespeech-models/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" Visible="false" />
+  </ItemGroup>
+</Project>

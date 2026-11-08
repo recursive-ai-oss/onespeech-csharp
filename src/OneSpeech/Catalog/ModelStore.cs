@@ -31,11 +31,11 @@ public sealed class ModelStore
     /// <summary>Absolute cache root. A trusted per-user directory, not a shared writable store.</summary>
     public string CacheDirectory { get; }
 
-    /// <summary>Creates a store. Cache precedence: argument, ONESPEECH_MODEL_CACHE, platform default. A source override replaces HTTP entirely; catalog defaults to the embedded catalog.</summary>
+    /// <summary>Creates a store. Cache precedence: argument, ONESPEECH_MODEL_CACHE, platform default. Tier-1 model package content beside the application is tried first and verified like downloaded content. A source override replaces HTTP entirely for absent package files; catalog defaults to the embedded catalog.</summary>
     public ModelStore(string? cacheDirectory = null, ModelSource? source = null, ModelCatalog? catalog = null)
     {
         CacheDirectory = Path.GetFullPath(cacheDirectory ?? Environment.GetEnvironmentVariable("ONESPEECH_MODEL_CACHE") ?? DefaultCacheDirectory);
-        this.source = source ?? new HttpModelSource();
+        this.source = new PackagedModelSource(source ?? new HttpModelSource());
         this.catalog = catalog ?? ModelCatalog.Default;
     }
 

@@ -2,6 +2,7 @@ using OneSpeech;
 TransducerSmoke.Run();
 NemotronSmoke.Run();
 ParakeetSmoke.Run();
+await NemotronAsrSmoke.Run();
 CustomSmoke.Run();
 
 var ctc = OneSpeech.Decoding.CtcTrellis.Align([-9, 0, 0, -9, -9, 0], 3, 2, [1, 1]);
@@ -33,8 +34,7 @@ if (diarized.Words[0].Speaker?.Id != "speaker-1" || OneSpeech.Diarization.Channe
 Console.WriteLine("Diarization merge and channel detection NativeAOT smoke passed.");
 
 using var smokeEmbedder = new SmokeEmbedder(vad.Model);
-var clustering = new OneSpeech.Diarization.ClusteringDiarizer(smokeEmbedder, new SmokeVad(vad.Model),
-    new OneSpeech.Diarization.ClusteringOptions { NumSpeakers = 1 }, new OneSpeech.Diarization.CosineResegmenter());
+var clustering = new OneSpeech.Diarization.ClusteringDiarizer(smokeEmbedder, new SmokeVad(vad.Model));
 if (clustering.Diarize(new AudioBuffer(new float[3200], 16000), CancellationToken.None).Length != 1)
     throw new InvalidOperationException("Clustering NativeAOT smoke failed.");
 Console.WriteLine("Clustering NativeAOT smoke passed.");

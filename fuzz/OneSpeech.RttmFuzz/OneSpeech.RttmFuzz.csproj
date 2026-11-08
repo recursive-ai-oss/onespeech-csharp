@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../eval/OneSpeech.Eval/OneSpeech.Eval.csproj" /><PackageReference Include="SharpFuzz" /></ItemGroup>
+</Project>

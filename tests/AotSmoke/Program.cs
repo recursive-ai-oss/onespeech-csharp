@@ -11,3 +11,9 @@ using var vad = new OneSpeech.Vad.SileroVad();
 if (!vad.Detect(new AudioBuffer(new float[16000], 16000), CancellationToken.None).IsEmpty)
     throw new InvalidOperationException("Silero VAD reported speech on silence.");
 Console.WriteLine("Transcript JSON and embedded Silero VAD NativeAOT smoke passed.");
+
+var diarized = OneSpeech.Diarization.TranscriptDiarization.Merge(copy,
+    [new OneSpeech.Diarization.ActiveTurn { Turn = new Turn { Speaker = new SpeakerLabel { Id = "speaker-1" }, Start = TimeSpan.Zero, End = TimeSpan.FromSeconds(1), Text = "" } }]);
+if (diarized.Words[0].Speaker?.Id != "speaker-1" || OneSpeech.Diarization.ChannelDiarizer.IsSeparated(new AudioBuffer(new float[3200], 16000, 2)))
+    throw new InvalidOperationException("Diarization NativeAOT smoke failed.");
+Console.WriteLine("Diarization merge and channel detection NativeAOT smoke passed.");

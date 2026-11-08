@@ -12,6 +12,29 @@ try
         var records=Required("--dataset") switch {"librispeech"=>Hypotheses.LibriSpeech(Required("--input")),"earnings22"=>Hypotheses.Earnings22(Required("--input")),_=>throw new ArgumentException("Unknown dataset.")};
         Hypotheses.Write(Required("--out"),records);return 0;
     }
+    if(args[0]=="der")
+    {
+        IReadOnlyList<DiarizationSegment> Load(string path)
+        {
+            if(Path.GetExtension(path).Equals(".json",StringComparison.OrdinalIgnoreCase))
+                return Rttm.FromTranscript(OneSpeech.Transcript.FromJson(File.ReadAllBytes(path)),options.GetValueOrDefault("--recording","recording"));
+            using var input=File.OpenRead(path);
+            return Rttm.Read(input);
+        }
+        var score=DiarizationMetrics.Score(Load(Required("--ref")),Load(Required("--hyp")));
+        string derOutput=options.GetValueOrDefault("--out","der.json");
+        using(var file=File.Create(derOutput))
+        using(var writer=new Utf8JsonWriter(file,new JsonWriterOptions{Indented=true}))
+        {
+            writer.WriteStartObject();writer.WriteNumber("referenceSeconds",score.ReferenceSeconds);
+            writer.WriteNumber("missSeconds",score.MissSeconds);writer.WriteNumber("falseAlarmSeconds",score.FalseAlarmSeconds);
+            writer.WriteNumber("confusionSeconds",score.ConfusionSeconds);writer.WriteNumber("referenceSpeakers",score.ReferenceSpeakers);
+            if(score.Der is {} der)writer.WriteNumber("der",der);else writer.WriteNull("der");
+            if(score.Jer is {} jer)writer.WriteNumber("jer",jer);else writer.WriteNull("jer");
+            writer.WriteEndObject();
+        }
+        Console.WriteLine("Result: "+derOutput);return 0;
+    }
     if(args[0]!="score")throw new ArgumentException("Unknown command.");
     var refs=Hypotheses.Read(Required("--ref"));var hyp=Hypotheses.Read(Required("--hyp"));
     var second=options.TryGetValue("--hyp2",out var h2)?Hypotheses.Read(h2):null;

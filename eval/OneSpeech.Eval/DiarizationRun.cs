@@ -66,11 +66,11 @@ internal static class DiarizationRun
         return 0;
     }
 
-    internal static CampPlusEmbedder LoadEmbedder(string graph)
+    internal static CampPlusEmbedder LoadEmbedder(string graph, int threads = 8)
     {
         var entry = GraphEntry(graph);
         var model = new ModelInfo { Id = entry.Id, Source = entry.Source, Revision = entry.Revision, Tier = entry.Tier, License = entry.License, Attribution = entry.Attribution, Files = [.. entry.Files.Concat(entry.ConvertedFiles).Select(f => new ModelFileInfo { Name = f.Name, Sha256 = f.Sha256 })] };
-        return new CampPlusEmbedder(graph, model, dimension: entry.Id.Contains("zh-cn", StringComparison.Ordinal) ? 192 : 512, threads: 8);
+        return new CampPlusEmbedder(graph, model, dimension: entry.Id.Contains("zh-cn", StringComparison.Ordinal) ? 192 : 512, threads: threads);
     }
     private static CatalogEntry GraphEntry(string graph)
     {
@@ -145,7 +145,7 @@ internal static class DiarizationRun
     }
     internal sealed record Entry(string Id, string Split, string License, string Audio, string Reference, string AudioHash, string ReferenceHash);
     internal sealed record Profile(string Name, ClusteringMethod Method, int Landmarks, double Threshold)
-    { internal ClusteringOptions Options => new() { Method = Method, MaxLandmarks = Landmarks, AgglomerativeThreshold = Threshold, WindowSeconds = 1.5, ShiftSeconds = 0.25, MinSpeakers = 1, MaxSpeakers = 8, MaxWindows = 100000 }; }
+    { internal ClusteringOptions Options => new() { Resegment = false, Method = Method, MaxLandmarks = Landmarks, AgglomerativeThreshold = Threshold, WindowSeconds = 1.5, ShiftSeconds = 0.25, MinSpeakers = 1, MaxSpeakers = 8, MaxWindows = 100000 }; }
     private sealed record DevelopmentRow(string Profile, string Id, double Reference, double Error, double JerSum, int Speakers);
 
     internal static string PcmHash(AudioBuffer audio)

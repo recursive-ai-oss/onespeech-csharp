@@ -15,6 +15,8 @@ internal static class WhisperCheckpoint
         var pin = lines[0] switch
         {
             "openai/whisper-tiny" => ("169d4a4341b33bc18d8881c4b69c2e104e1cc0af", "7ebd0e69e78190ffe1438491fa05cc1f5c1aa3a4c4db3bc1723adbb551ea2395", "Apache-2.0"),
+            "openai/whisper-base" => ("e37978b90ca9030d5170a5c07aadb050351a65bb", "07cadb9f25677c8d50df603e66a98fbd842cce45047139baeb16e6219a1e807b", "Apache-2.0"),
+            "openai/whisper-large-v3" => ("06f233fe06e710322aca913c1bc4249a0d71fce1", "a8e94b85976e5864ba3e9525c7e6c83b2a1eca42d4b797a0c7c24d778e40fd95", "Apache-2.0"),
             "openai/whisper-small" => ("973afd24965f72e36ca33b3055d56a652f456b4d", "1d7734884874f1a1513ed9aa760a4f8e97aaa02fd6d93a3a85d27b2ae9ca596b", "Apache-2.0"),
             "openai/whisper-large-v3-turbo" => ("41f01f3fe87f28c78e2fbf8b568835947dd65ed9", "542566a422ae4f3fd23f1ba11add198fca01bbf82e66e6a2857b3f608b1eb9d1", "MIT"),
             _ => throw new ModelIntegrityException("This converted checkpoint has no verified Whisper licence/provenance entry.")

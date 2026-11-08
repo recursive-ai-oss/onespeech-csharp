@@ -8,12 +8,22 @@ namespace OneSpeech.Catalog;
 /// <summary>Progress for one file, in bytes; emitted during download, not for cache hits.</summary>
 public sealed record ModelDownloadProgress(string ModelId, string FileName, long BytesReceived, long TotalBytes);
 
-/// <summary>A directory of verified publisher files and their immutable provenance. Converted runtime files are a separate catalog artifact.</summary>
+/// <summary>A directory of verified publisher and converted runtime files with their immutable provenance.</summary>
 public sealed record ResolvedModel(string Directory, ModelInfo Info);
 
 /// <summary>Resolves explicit model IDs to verified local publisher files. Never chooses a tier-2 default and never makes network requests for present files.</summary>
 public sealed class ModelStore
 {
+    private static ModelStore defaultStore = new();
+    /// <summary>Process-wide store used by Speech. Replace before starting requests to supply a custom cache or ModelSource. Replacement does not dispose borrowed sources or affect requests already started. Never downloads on assignment.</summary>
+    public static ModelStore Default
+    {
+        get => Volatile.Read(ref defaultStore);
+        set { ArgumentNullException.ThrowIfNull(value); Volatile.Write(ref defaultStore, value); }
+    }
+
+    /// <summary>The validated catalog used by this store.</summary>
+    public ModelCatalog Catalog => catalog;
     private readonly ModelCatalog catalog;
     private readonly ModelSource source;
     // Process-local markers: every new store verifies disk content once, rather than trusting a writable persistent marker.
@@ -36,7 +46,7 @@ public sealed class ModelStore
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Caches", "OneSpeech", "models")
             : Path.Combine(Environment.GetEnvironmentVariable("XDG_CACHE_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache"), "onespeech", "models");
 
-    /// <summary>Downloads missing publisher files and verifies present files on first open per store. Restartable, atomic per file, with an OS file lock across processes. A corrupt present file is deleted and reported, not silently replaced. Gate tokens come from the argument or ONESPEECH_MODEL_TOKEN and are never persisted. Throws typed model errors or OperationCanceledException. Progress counts bytes per file.</summary>
+    /// <summary>Downloads missing publisher files, converts registered tier-1 runtime graphs locally, and verifies all present files on first open per store. Restartable, atomic per file, with an OS file lock across processes. A corrupt present file is deleted and reported, not silently replaced. Gate tokens come from the argument or ONESPEECH_MODEL_TOKEN and are never persisted. Throws typed model errors or OperationCanceledException. Progress counts bytes per file.</summary>
     public async ValueTask<ResolvedModel> PullAsync(string id, string? token = null, IProgress<ModelDownloadProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -97,12 +107,51 @@ public sealed class ModelStore
             catch (HttpRequestException) { throw new ModelNetworkException("Model transfer failed; retry the pull."); }
             finally { File.Delete(temporary); }
         }
+        await EnsureRuntimeAsync(entry, directory, cancellationToken).ConfigureAwait(false);
+        RuntimeConversion.WriteProvenance(entry, directory);
         return new(directory, new ModelInfo
         {
             Id = entry.Id, Source = entry.Source, Revision = entry.Revision, Tier = entry.Tier,
             License = entry.License, Attribution = entry.Attribution, Gated = entry.Gated,
-            Files = entry.Files.Select(f => new ModelFileInfo { Name = f.Name, Sha256 = f.Sha256 }).ToImmutableArray()
+            Files = entry.Files.Concat(entry.ConvertedFiles).Select(f => new ModelFileInfo { Name = f.Name, Sha256 = f.Sha256 }).ToImmutableArray()
         });
+    }
+
+    private async ValueTask EnsureRuntimeAsync(CatalogEntry entry, string directory, CancellationToken cancellationToken)
+    {
+        bool missing = false;
+        foreach (var file in entry.ConvertedFiles)
+        {
+            string path = Path.Combine(directory, file.Name);
+            if (!File.Exists(path)) { missing = true; continue; }
+            var info = new FileInfo(path);
+            var stamp = (info.Length, info.LastWriteTimeUtc.Ticks);
+            if (verified.TryGetValue(path, out var marker) && marker == stamp) continue;
+            if (info.Length != file.Size || !await MatchesAsync(path, file.Sha256, cancellationToken).ConfigureAwait(false))
+            {
+                File.Delete(path);
+                verified.TryRemove(path, out _);
+                throw new ModelIntegrityException($"Cached runtime file '{file.Name}' failed verification; removed it. Retry the pull.");
+            }
+            verified[path] = stamp;
+        }
+        if (!missing) return;
+        string staging = Path.Combine(directory, ".convert-" + Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(staging);
+        try
+        {
+            RuntimeConversion.Convert(entry, directory, staging, cancellationToken);
+            foreach (var file in entry.ConvertedFiles)
+            {
+                string path = Path.Combine(staging, file.Name);
+                if (!File.Exists(path) || new FileInfo(path).Length != file.Size || !await MatchesAsync(path, file.Sha256, cancellationToken).ConfigureAwait(false))
+                    throw new ModelIntegrityException($"Converted file '{file.Name}' differs from the catalog. No runtime files were installed.");
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var file in entry.ConvertedFiles)
+                File.Move(Path.Combine(staging, file.Name), Path.Combine(directory, file.Name), overwrite: true);
+        }
+        finally { System.IO.Directory.Delete(staging, recursive: true); }
     }
 
     private static async ValueTask<bool> MatchesAsync(string path, string expected, CancellationToken cancellationToken)

@@ -1,39 +1,72 @@
 using OneSpeech.Audio;
+using OneSpeech.Catalog;
+using OneSpeech.Diarization;
+using OneSpeech.Embedders;
 using OneSpeech.Vad;
+using OneSpeech.Whisper;
 
 namespace OneSpeech.Pipeline;
 
-// A borrowed recognizer is supplied by the model-loading integration, never discovered by reflection.
 internal static class SpeechServices
 {
-    internal static Func<string?, CancellationToken, SpeechRecognizer>? RecognizerResolver { get; set; }
-
-    private static SpeechRecognizer Resolve(string? model, CancellationToken cancellationToken)
+    private static async ValueTask<WhisperRecognizer> ResolveAsync(ModelStore store, string? model, CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return RecognizerResolver?.Invoke(model, cancellationToken)
-            ?? throw new FeatureUnavailableException("No speech recognizer is installed. Configure the model resolver with a supported recognition model.");
+        var entry = model is null ? store.Catalog.GetDefault("whisper") : store.Catalog.Get(model);
+        if (entry.Family != "whisper") throw new CapabilityNotSupportedException($"'{entry.Id}' is not a registered speech recognizer.");
+        if (entry.ConvertedFiles.Any(f => f.Size > int.MaxValue))
+            throw new CapabilityNotSupportedException($"'{entry.Id}' requires a runtime graph larger than OneModel 1.0.0's 2 GiB file limit. Select openai/whisper-large-v3-turbo until a larger-file loader is available.");
+        var resolved = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return WhisperRecognizer.Load(resolved.Directory, cancellationToken: cancellationToken);
+    }
+
+    private static async ValueTask<CampPlusEmbedder> ResolveEmbedderAsync(ModelStore store, CancellationToken cancellationToken)
+    {
+        var entry = store.Catalog.GetDefault("speaker-campplus");
+        var resolved = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return new CampPlusEmbedder(Path.Combine(resolved.Directory, "campplus-en-fp32.onemodel"), resolved.Info, cancellationToken: cancellationToken);
+    }
+
+    private static SileroVad ResolveVad(ModelStore store, CancellationToken cancellationToken)
+    {
+        var entry = store.Catalog.GetDefault("silero");
+        if (entry.Id != "silero/vad-v6.2.3") throw new CapabilityNotSupportedException("The registered VAD is Silero v6.2.3, embedded in the core package.");
+        return new SileroVad(cancellationToken: cancellationToken);
     }
 
     internal static Transcript Transcribe(string path, string? language, string? model, CancellationToken cancellationToken)
     {
-        var recognizer = Resolve(model, cancellationToken);
-        using var vad = new SileroVad(cancellationToken: cancellationToken);
-        return new VadTranscriptionPipeline(recognizer, vad).Transcribe(path, language, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        // Refuse invalid input before first-use model downloads.
+        using (AudioFileSource.Open(path, cancellationToken)) { }
+        var store = ModelStore.Default;
+        using var recognizer = ResolveAsync(store, model, cancellationToken).AsTask().GetAwaiter().GetResult();
+        using var vad = ResolveVad(store, cancellationToken);
+        using var embedder = ResolveEmbedderAsync(store, cancellationToken).AsTask().GetAwaiter().GetResult();
+        var diarizer = new ClusteringDiarizer(embedder, vad);
+        return new VadTranscriptionPipeline(recognizer, vad, null, null, diarizer).Transcribe(path, language, cancellationToken);
     }
 
     internal static async ValueTask<Transcript> TranscribeAsync(Stream stream, string? language, string? model, CancellationToken cancellationToken)
     {
-        var recognizer = Resolve(model, cancellationToken);
-        using var vad = new SileroVad(cancellationToken: cancellationToken);
-        return await new VadTranscriptionPipeline(recognizer, vad).TranscribeAsync(stream, language, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(stream);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!stream.CanRead) throw new ArgumentException("Input stream must be readable.", nameof(stream));
+        var store = ModelStore.Default;
+        using var recognizer = await ResolveAsync(store, model, cancellationToken).ConfigureAwait(false);
+        using var vad = ResolveVad(store, cancellationToken);
+        using var embedder = await ResolveEmbedderAsync(store, cancellationToken).ConfigureAwait(false);
+        var diarizer = new ClusteringDiarizer(embedder, vad);
+        return await new VadTranscriptionPipeline(recognizer, vad, null, null, diarizer).TranscribeAsync(stream, language, cancellationToken).ConfigureAwait(false);
     }
 
     internal static string DetectLanguage(string path, string? language, string? model, CancellationToken cancellationToken)
     {
-        var recognizer = Resolve(model, cancellationToken);
         if (language is not null) throw new CapabilityNotSupportedException("Language detection determines the language from audio; omit the language hint.");
-        using var vad = new SileroVad(cancellationToken: cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        using (AudioFileSource.Open(path, cancellationToken)) { }
+        var store = ModelStore.Default;
+        using var recognizer = ResolveAsync(store, model, cancellationToken).AsTask().GetAwaiter().GetResult();
+        using var vad = ResolveVad(store, cancellationToken);
         using var source = AudioFileSource.Open(path, cancellationToken);
         var chunker = new VadChunker(vad);
         foreach (var chunk in chunker.Read(VadChunker.Blocks(source, cancellationToken), null, cancellationToken))

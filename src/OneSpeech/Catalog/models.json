@@ -85,7 +85,22 @@
           "mirrorUrl": null
         }
       ],
-      "convertedFiles": [],
+      "convertedFiles": [
+        {
+          "name": "encoder.onemodel",
+          "size": 37598368,
+          "sha256": "4dd2dc04c41e9f0b6f9753412aca4239843a85f50eb7ffd4456ddf2911624aab",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-tiny-encoder-4dd2dc04c41e9f0b.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 113532544,
+          "sha256": "9ca3e52599c8c2e05ff097bf1ded42a017069538e721f9d25ef0058f5936fd28",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-tiny-decoder-9ca3e52599c8c2e0.onemodel",
+          "mirrorUrl": null
+        }
+      ],
       "tier": "Tier1",
       "license": "Apache-2.0",
       "attribution": "Whisper — OpenAI. MIT License\n\nCopyright (c) 2022 OpenAI\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
@@ -280,7 +295,22 @@
           "mirrorUrl": null
         }
       ],
-      "convertedFiles": [],
+      "convertedFiles": [
+        {
+          "name": "encoder.onemodel",
+          "size": 95016096,
+          "sha256": "76882c988e47f96bea3d44c342277c2227b9342db3fff8dee839c72325e53027",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-base-encoder-76882c988e47f96b.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 195489856,
+          "sha256": "d67be4c25f72dd49e7039de8fec68b53f5a3518b6f17d9e5c4cdbc952770ba3e",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-base-decoder-d67be4c25f72dd49.onemodel",
+          "mirrorUrl": null
+        }
+      ],
       "tier": "Tier1",
       "license": "Apache-2.0",
       "attribution": "Whisper — OpenAI. MIT License\n\nCopyright (c) 2022 OpenAI\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
@@ -475,7 +505,22 @@
           "mirrorUrl": null
         }
       ],
-      "convertedFiles": [],
+      "convertedFiles": [
+        {
+          "name": "encoder.onemodel",
+          "size": 409390560,
+          "sha256": "4477aff00bd2b975613b147480a9a260819fc4365ae2cf924e5359a9f365d9bf",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-small-encoder-4477aff00bd2b975.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 557805184,
+          "sha256": "36d6b70a6d727bc09b9ad10885cc7852967ab639638cd8b49f751c0836500c5e",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-small-decoder-36d6b70a6d727bc0.onemodel",
+          "mirrorUrl": null
+        }
+      ],
       "tier": "Tier1",
       "license": "Apache-2.0",
       "attribution": "Whisper — OpenAI. MIT License\n\nCopyright (c) 2022 OpenAI\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
@@ -670,7 +715,29 @@
           "mirrorUrl": null
         }
       ],
-      "convertedFiles": [],
+      "convertedFiles": [
+        {
+          "name": "encoder-part0.onemodel",
+          "size": 1288711552,
+          "sha256": "81119150a5c4735e380adcfda039bb0de26ca4ea5553407b8f59cc14ffebb4bd",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-large-v3-encoder-part0-81119150a5c4735e.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "encoder.onemodel",
+          "size": 1679059744,
+          "sha256": "54400523fb4f480435a8798218545c67b810fe4d28d838ea71c0eda22fe3cc8c",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-large-v3-encoder-54400523fb4f4804.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 3206873536,
+          "sha256": "73aecc737627012e80d8e59983b3fa9aba8e95621b4a54adecc3717377489571",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-large-v3-decoder-73aecc737627012e.onemodel",
+          "mirrorUrl": null
+        }
+      ],
       "tier": "Tier1",
       "license": "Apache-2.0",
       "attribution": "Whisper — OpenAI. MIT License\n\nCopyright (c) 2022 OpenAI\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
@@ -866,7 +933,29 @@
           "mirrorUrl": null
         }
       ],
-      "convertedFiles": [],
+      "convertedFiles": [
+        {
+          "name": "encoder-part0.onemodel",
+          "size": 1288711552,
+          "sha256": "605590c7a840dcd85c1da50fb922ed31bf579dc8e36ce4988ceaba016a452391",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-large-v3-turbo-encoder-part0-605590c7a840dcd8.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "encoder.onemodel",
+          "size": 1311859680,
+          "sha256": "b9d65ef93a8a12ccb377a202614cb80eb44a43fcfd0ef0d3921f3fa4ef3c6cdb",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-large-v3-turbo-encoder-b9d65ef93a8a12cc.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder.onemodel",
+          "size": 635235712,
+          "sha256": "cb09f0de17fc57f6b30b5fbb964f2fea07332ea40dea83ac3e0bd9ba092fc65b",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/whisper-large-v3-turbo-decoder-cb09f0de17fc57f6.onemodel",
+          "mirrorUrl": null
+        }
+      ],
       "tier": "Tier1",
       "license": "MIT",
       "attribution": "Whisper — OpenAI. MIT License\n\nCopyright (c) 2022 OpenAI\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
@@ -976,7 +1065,8 @@
           "yue",
           "zh"
         ]
-      }
+      },
+      "isDefault": true
     },
     {
       "id": "silero/vad-v6.2.3",
@@ -1000,7 +1090,8 @@
       "capabilities": {
         "streaming": true,
         "languages": []
-      }
+      },
+      "isDefault": true
     },
     {
       "id": "iic/speech_campplus_sv_en_voxceleb_16k",
@@ -1031,8 +1122,8 @@
       "gated": false,
       "capabilities": {
         "languages": []
-      }
+      },
+      "isDefault": true
     }
-
   ]
 }

@@ -13,7 +13,7 @@ public sealed record CatalogFile
     public required long Size { get; init; }
     /// <summary>Expected SHA-256, 64 hexadecimal digits.</summary>
     public required string Sha256 { get; init; }
-    /// <summary>Pinned publisher HTTPS URL.</summary>
+    /// <summary>Pinned publisher HTTPS URL, or tier-1 release artifact metadata for converted files. Local conversion does not fetch converted URLs.</summary>
     public required string UpstreamUrl { get; init; }
     /// <summary>Optional tier-1 mirror HTTPS URL; null for upstream-only files.</summary>
     public string? MirrorUrl { get; init; }
@@ -34,7 +34,7 @@ public sealed record CatalogEntry
     public ImmutableArray<CatalogFile> Files { get; init; } = [];
     /// <summary>Converted runtime files; empty while conversion metadata is pending. Never populated for tier 2.</summary>
     public ImmutableArray<CatalogFile> ConvertedFiles { get; init; } = [];
-    /// <summary>Whether this entry is the measured family default; false unless explicitly declared. Tier 2 cannot be a default.</summary>
+    /// <summary>Whether this entry is the declared family default; false unless explicitly declared. Tier 2 cannot be a default.</summary>
     public bool IsDefault { get; init; }
     /// <summary>Distribution tier.</summary>
     public required ModelTier Tier { get; init; }

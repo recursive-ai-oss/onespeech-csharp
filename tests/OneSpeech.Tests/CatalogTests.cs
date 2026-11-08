@@ -20,7 +20,7 @@ public sealed class CatalogTests
     public void EmbeddedCatalogHasPinnedCompleteEntriesAndNoUnmeasuredDefault()
     {
         var catalog = ModelCatalog.Default;
-        Assert.Equal(7, catalog.Entries.Length);
+        Assert.Equal(9, catalog.Entries.Length);
         Assert.All(catalog.Entries, e => { Assert.Equal(ModelTier.Tier1, e.Tier); Assert.False(e.Gated); Assert.All(e.Files, f => Assert.Null(f.MirrorUrl)); });
         Assert.Throws<ModelNotFoundException>(() => catalog.GetDefault("whisper"));
         Assert.Equal("169d4a4341b33bc18d8881c4b69c2e104e1cc0af", catalog.Get("openai/whisper-tiny").Revision);

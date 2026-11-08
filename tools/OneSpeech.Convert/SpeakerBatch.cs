@@ -13,17 +13,19 @@ internal static class SpeakerBatch
         var ids = SpeakerVerification.ReadTrials(trials).SelectMany(x => new[] { x.First, x.Second }).Concat(parity).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
         File.WriteAllLines(allOutput, ids); File.WriteAllLines(parityOutput, parity);
     }
-    internal static void Extract(string graph, string data, string ids, string output, int start, int count, int dimension)
+    internal static void Extract(string graph, string data, string ids, string output, int start, int count, int dimension, bool ecapa = false)
     {
         var files = Splits.SelectMany(split => Directory.EnumerateFiles(Path.Combine(data, split), "*.flac", SearchOption.AllDirectories)).ToDictionary(x => Path.GetFileNameWithoutExtension(x), StringComparer.Ordinal);
         var selected = File.ReadLines(ids).Skip(start).Take(count).ToArray();
         Directory.CreateDirectory(output);
-        var metadata = new ModelInfo { Id = dimension == 512 ? "camp-en" : "camp-zh", Source = "https://modelscope.cn", Revision = dimension == 512 ? "032b8131a7ad812f87061955ca974c99060c5a03" : "013c18884dffb82846cf472dd06dd4a08d97e2cd", Tier = ModelTier.Tier1, License = "Apache-2.0", Attribution = "CAM++ published checkpoint" };
+        string modelId = ecapa ? "speechbrain/spkrec-ecapa-voxceleb" : dimension == 512 ? "iic/speech_campplus_sv_en_voxceleb_16k" : "iic/speech_campplus_sv_zh-cn_16k-common";
+        var metadata = new ModelInfo { Id = modelId, Source = (ecapa ? "https://huggingface.co/" : "https://modelscope.cn/models/") + modelId, Revision = ecapa ? "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286" : dimension == 512 ? "032b8131a7ad812f87061955ca974c99060c5a03" : "013c18884dffb82846cf472dd06dd4a08d97e2cd", Tier = ModelTier.Tier1, License = "Apache-2.0", Attribution = "Published checkpoint; retain Apache-2.0 licence and publisher notices." };
         var timer = Stopwatch.StartNew();
-        using var model = new CampPlusEmbedder(graph, metadata, dimension, threads: 8);
+        using SpeakerEmbedder model = ecapa ? new EcapaTdnnEmbedder(graph, metadata, threads: 8) : new CampPlusEmbedder(graph, metadata, dimension, threads: 8);
         double load = timer.Elapsed.TotalSeconds, embeddingSeconds = 0, audioSeconds = 0;
         float[] vector = new float[dimension];
         var extractor = new SpeakerFbank();
+        var ecapaExtractor = ecapa ? new EcapaFbank() : null;
         int completed = 0, skipped = 0;
         foreach (string id in selected)
         {
@@ -34,7 +36,7 @@ internal static class SpeakerBatch
             model.Embed(new AudioBuffer(clip.Samples, 16000), vector, CancellationToken.None);
             embeddingSeconds += timer.Elapsed.TotalSeconds; audioSeconds += (double)clip.Samples.Length / 16000;
             Write(target + ".partial", vector); File.Move(target + ".partial", target, overwrite: true);
-            if (selected.Length <= 50) Write(Path.Combine(output, id + ".features.f32"), extractor.Compute(clip.Samples.Span, CancellationToken.None));
+            if (selected.Length <= 50) Write(Path.Combine(output, id + ".features.f32"), (ecapaExtractor is null ? extractor.Compute(clip.Samples.Span, CancellationToken.None) : ecapaExtractor.Compute(clip.Samples.Span, CancellationToken.None)));
             completed++;
             Console.WriteLine(id);
         }

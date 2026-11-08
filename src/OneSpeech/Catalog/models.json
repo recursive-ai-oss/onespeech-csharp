@@ -1033,6 +1033,70 @@
         "languages": []
       }
     }
+,
+    {
+      "id": "speechbrain/spkrec-ecapa-voxceleb",
+      "family": "speaker-ecapa",
+      "source": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb",
+      "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
+      "files": [
+        {
+          "name": "embedding_model.ckpt",
+          "size": 83316686,
+          "sha256": "0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2",
+          "upstreamUrl": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb/resolve/0f99f2d0ebe89ac095bcc5903c4dd8f72b367286/embedding_model.ckpt",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "ecapa-fp32.onemodel",
+          "size": 83294800,
+          "sha256": "f107ead463783cab70914fd0470cc6b42e2ec74b7a717bb42c1360879076c669",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/ecapa-f107ead463783cab.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "Apache-2.0",
+      "attribution": "ECAPA-TDNN — Brecht Desplanques, Jenthe Thienpondt and Kris Demuynck; SpeechBrain pretrained implementation/checkpoint. Apache-2.0. Publisher-stated training data: VoxCeleb1 and VoxCeleb2 training sets. OneSpeech runs the released weights without training or fine-tuning; retain the Apache-2.0 licence and upstream notices.",
+      "gated": false,
+      "capabilities": {
+        "languages": []
+      }
+    }
+,
+    {
+      "id": "iic/speech_campplus_sv_zh-cn_16k-common",
+      "family": "speaker-campplus",
+      "source": "https://modelscope.cn/models/iic/speech_campplus_sv_zh-cn_16k-common",
+      "revision": "013c18884dffb82846cf472dd06dd4a08d97e2cd",
+      "files": [
+        {
+          "name": "campplus_cn_common.bin",
+          "size": 28036335,
+          "sha256": "3388cf5fd3493c9ac9c69851d8e7a8badcfb4f3dc631020c4961371646d5ada8",
+          "upstreamUrl": "https://modelscope.cn/api/v1/models/iic/speech_campplus_sv_zh-cn_16k-common/repo?Revision=013c18884dffb82846cf472dd06dd4a08d97e2cd&FilePath=campplus_cn_common.bin",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "campplus-zh-fp32.onemodel",
+          "size": 28098192,
+          "sha256": "4b2f0fef5ec8cb855b53c6b5abae5dd4cd72c215137c52d32f5c477e4a792f49",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/campplus-zh-4b2f0fef5ec8cb855.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "Apache-2.0",
+      "attribution": "CAM++ — Hui Wang, Siqi Zheng, Yafeng Chen, Luyao Cheng and Qian Chen. Published by 3D-Speaker/ModelScope iic under Apache-2.0. Publisher-stated training data: unnamed large Chinese speaker dataset, over 100,000 speakers. OneSpeech runs the released weights without training or fine-tuning; retain the Apache-2.0 licence and upstream notices.",
+      "gated": false,
+      "capabilities": {
+        "languages": []
+      }
+    }
 
   ]
 }

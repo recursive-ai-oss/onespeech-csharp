@@ -14,6 +14,17 @@ using OneSpeech.Embedders;
 using OneSpeech.Moonshine;
 using OneSpeech.Vad;
 
+if (args is ["--memory-summary", var memoryInput, var summaryOutput])
+{
+    MemorySamples.Summarize(memoryInput, summaryOutput);
+    return 0;
+}
+if (args is ["--memory-file", var memoryFile, var memoryModel, var memoryThreads, var memoryOutput])
+{
+    if (!GraphTiming.IsCompiled) throw new InvalidOperationException("Build with -p:OneSpeechGraphTiming=true.");
+    FileMemoryWorkload.Run(memoryFile, memoryModel, int.Parse(memoryThreads, CultureInfo.InvariantCulture), memoryOutput);
+    return 0;
+}
 if (args is ["--self-test"]) { MemorySamples.CheckSlope(); Console.WriteLine("Slope checks passed; OneModel " + Machine.ModelPackageVersion); return 0; }
 if (args is ["--prepare-data", var corpus, var meeting, var destination])
 {
@@ -126,7 +137,8 @@ foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
     using (var json = new Utf8JsonWriter(stream, new() { Indented = true }))
     {
         json.WriteStartObject();
-        json.WriteNumber("measurementVersion", 4);
+        json.WriteNumber("measurementVersion", 5);
+        if (document is not null) json.WriteNumber("words", document.Words.Length);
         json.WriteString("kind", "indicative"); json.WriteString("row", name); json.WriteString("model", id);
         json.WriteString("revision", resolved.Info.Revision); json.WriteString("precision", "fp32"); json.WriteNumber("threads", threads);
         json.WriteString("inputSha256", Fixtures.Hash(file)); json.WriteNumber("audioSeconds", duration);

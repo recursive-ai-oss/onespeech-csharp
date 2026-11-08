@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Globalization;
+using RecursiveAI.OneModel.Tensors;
 
 internal sealed class MemorySamples : IDisposable
 {
@@ -18,7 +20,7 @@ internal sealed class MemorySamples : IDisposable
     {
         this.phase = phase;
         writer = new StreamWriter(file) { AutoFlush = true };
-        writer.WriteLine("elapsed_s,working_set_bytes,phase,load");
+        writer.WriteLine("elapsed_s,working_set_bytes,phase,load,managed_heap_bytes,pool_idle_bytes,pool_outstanding_bytes,gen2_collections,managed_committed_bytes");
         Sample();
         timer = new Timer(_ => { lock (writer) Sample(); }, null, 5000, 5000);
     }
@@ -31,9 +33,24 @@ internal sealed class MemorySamples : IDisposable
         Peak = Math.Max(Peak, bytes);
         if (seconds >= 30 && stage != "complete") { SteadyMin = Math.Min(SteadyMin, bytes); SteadyMax = Math.Max(SteadyMax, bytes); }
         string load = Machine.Load(); Loads.Add(load);
-        writer.WriteLine(FormattableString.Invariant($"{seconds:F3},{bytes},{stage},\"{load.Replace("\"", "\"\"", StringComparison.Ordinal)}\""));
+        var pool = BufferPool.Shared.GetStats();
+        writer.WriteLine(FormattableString.Invariant($"{seconds:F3},{bytes},{stage},\"{load.Replace("\"", "\"\"", StringComparison.Ordinal)}\",{GC.GetTotalMemory(false)},{pool.IdleBytes},{pool.OutstandingBytes},{GC.CollectionCount(2)},{GC.GetGCMemoryInfo().TotalCommittedBytes}"));
     }
-    internal void WriteSlopes(Utf8JsonWriter json)
+    internal void WriteSlopes(Utf8JsonWriter json) => WriteSlopes(json, samples);
+
+    internal static void Summarize(string input, string output)
+    {
+        var rows = File.ReadLines(input).Skip(1).Select(line => line.Split(',', 4)).Select(fields =>
+            (Seconds: double.Parse(fields[0], CultureInfo.InvariantCulture), Bytes: long.Parse(fields[1], CultureInfo.InvariantCulture), Phase: fields[2])).ToArray();
+        using var stream = File.Create(output);
+        using var json = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+        json.WriteStartObject();
+        json.WriteBoolean("completed", rows.Length > 0 && rows[^1].Phase == "complete");
+        WriteSlopes(json, rows);
+        json.WriteEndObject();
+    }
+
+    private static void WriteSlopes(Utf8JsonWriter json, IReadOnlyList<(double Seconds, long Bytes, string Phase)> samples)
     {
         json.WriteStartArray("workingSetTrends");
         foreach (string stage in samples.Select(s => s.Phase).Where(p => p is not ("complete" or "idle")).Distinct(StringComparer.Ordinal).Prepend("all"))

@@ -196,3 +196,15 @@ notice are retained in `ModelInfo`.
 No weights or converted graphs are redistributed by this package. Explicit loading
 fetches the pinned publisher file into the user's cache and constructs runtime
 artifacts locally. `ModelInfo` retains NVIDIA's model origin and the full agreement.
+
+## Synthetic contextual-tokenizer fixture
+
+`parakeet-phrase-tokenizer-reference.json` contains outputs we generated from
+synthetic text using the released tokenizers 0.23.3 public API (Apache-2.0) and
+NVIDIA's pinned Parakeet tokenizer data. It contains no model weights or copied
+tokenizer vocabulary. Source: NVIDIA, parakeet-tdt-0.6b-v3,
+https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3 at revision
+541d1f99c6b0c3cd0b11a95167540bb8edefd82b. Model licence: CC-BY-4.0,
+https://creativecommons.org/licenses/by/4.0/. This notice identifies the fixture's
+provenance; tier-2 models are still fetched only from the publisher and are never
+bundled. The fixture generator and input texts are ours.

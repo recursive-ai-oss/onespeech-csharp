@@ -11,7 +11,7 @@ using RecursiveAI.OneModel.Graph;
 namespace OneSpeech.FastConformer;
 
 /// <summary>Offline greedy fp32 Parakeet-TDT-v3 recognizer with native 80 ms frame timings. Instances are not thread-safe.</summary>
-/// <remarks>Loads only explicitly selected tier-2 cache files. Audio is mono 16 kHz; input longer than 30 seconds uses VAD-first chunks. No language conditioning, translation, phrase biasing or language-ID head is provided.</remarks>
+/// <remarks>Loads only explicitly selected tier-2 cache files. Audio is mono 16 kHz; input longer than 30 seconds uses VAD-first chunks. Contextual TDT shallow-fusion biasing is supported. No language conditioning, translation or language-ID head is provided.</remarks>
 public sealed partial class ParakeetRecognizer : SpeechRecognizer, IDisposable
 {
     private readonly Model encoderFirst;
@@ -68,11 +68,11 @@ public sealed partial class ParakeetRecognizer : SpeechRecognizer, IDisposable
 
     /// <summary>Pinned publisher provenance, licence and attribution, including locally converted file digests.</summary>
     public override ModelInfo Model { get; }
-    /// <summary>The 25 supported languages and native timing; no true streaming, biasing, translation or independent language detection.</summary>
+    /// <summary>The 25 supported languages and native timing; contextual token fusion; no true streaming, translation or independent language detection.</summary>
     public override Capabilities Capabilities => new()
     {
         Languages = ["en", "es", "fr", "de", "bg", "hr", "cs", "da", "nl", "et", "fi", "el", "hu", "it", "lv", "lt", "mt", "pl", "pt", "ro", "sk", "sl", "sv", "ru", "uk"],
-        NativeTimestamps = true
+        NativeTimestamps = true, Biasing = true
     };
 
     /// <summary>Transcribes finite mono 16 kHz PCM. Language, if supplied, must be in the supported set and labels the output; recognition itself always selects language acoustically. Sub-20 ms input returns no words. Long audio uses 30-second VAD chunks.</summary>
@@ -80,7 +80,19 @@ public sealed partial class ParakeetRecognizer : SpeechRecognizer, IDisposable
     /// <exception cref="ArgumentException">PCM is not mono 16 kHz or contains nonfinite samples.</exception>
     /// <exception cref="CapabilityNotSupportedException">Language is unsupported.</exception>
     /// <exception cref="OperationCanceledException">Inference is canceled at graph or decoding steps.</exception>
-    public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
+    public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default) => TranscribeCore(audio, language, null, cancellationToken);
+
+    /// <summary>Returns a borrowed contextual TDT wrapper. Null weights select a log bonus of 1 per token; explicit weights are in (0,20]. Text uses the pinned BPE tokenizer; controls and unrepresentable phrases are refused. Limits and ownership follow the role and PhraseTrie.</summary>
+    public override SpeechRecognizer WithPhrases(IEnumerable<Phrase> phrases, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var copy = PhraseRequests.Copy(phrases, cancellationToken);
+        if (copy.IsEmpty) return this;
+        var trie = new PhraseTrie(copy.Select(p => new TokenPhrase(vocabulary.EncodePhrase(p.Text, cancellationToken), p.Weight ?? 1)));
+        return new BiasedRecognizer(this, (audio, language, ct) => TranscribeCore(audio, language, trie, ct));
+    }
+
+    private Transcript TranscribeCore(AudioBuffer audio, string? language, PhraseTrie? phrases, CancellationToken cancellationToken)
     {
         language = LanguageTag.Require(language, Capabilities, Model.Id);
         ObjectDisposedException.ThrowIf(disposed, this); ArgumentNullException.ThrowIfNull(audio);
@@ -97,7 +109,7 @@ public sealed partial class ParakeetRecognizer : SpeechRecognizer, IDisposable
             foreach (float sample in audio.Samples.Span) if (!float.IsFinite(sample)) throw new ArgumentException("PCM must be finite.", nameof(audio));
             return new Transcript { Text = "", Language = language, Duration = audio.Duration, Models = [Model] };
         }
-        return TranscribeDecoded(audio, Decode(audio, cancellationToken), language, cancellationToken);
+        return TranscribeDecoded(audio, Decode(audio, cancellationToken, phrases), language, cancellationToken);
     }
 
     internal Transcript TranscribeDecoded(AudioBuffer audio, ImmutableArray<FrameToken> tokens, string? language, CancellationToken cancellationToken) => CreateTranscript(audio, tokens, vocabulary, Model, language, cancellationToken);
@@ -112,7 +124,7 @@ public sealed partial class ParakeetRecognizer : SpeechRecognizer, IDisposable
         return new Transcript { Text = text, Language = language, Duration = audio.Duration, Models = [model], Words = words, Segments = [segment] };
     }
 
-    internal ImmutableArray<FrameToken> Decode(AudioBuffer audio, CancellationToken cancellationToken)
+    internal ImmutableArray<FrameToken> Decode(AudioBuffer audio, CancellationToken cancellationToken, PhraseTrie? phrases = null)
     {
         float[] padded = features.Extract(audio, cancellationToken: cancellationToken);
         int frames = NemoLogMelSpectrogram.GetFrameCount(audio.FrameCount);
@@ -136,7 +148,8 @@ public sealed partial class ParakeetRecognizer : SpeechRecognizer, IDisposable
             float[] logits = Run(joint, jointInput, [1, 1664], ct);
             logits.AsSpan(0, 8193).CopyTo(tokenLogits); logits.AsSpan(8193, 5).CopyTo(durationLogits);
         }
-        return TdtGreedy.Decode(encodedFrames, 8193, 8192, [0, 1, 2, 3, 4], Logits, maxSymbolsPerFrame: 10, cancellationToken: cancellationToken);
+        return phrases is null ? TdtGreedy.Decode(encodedFrames, 8193, 8192, [0, 1, 2, 3, 4], Logits, maxSymbolsPerFrame: 10, cancellationToken: cancellationToken)
+            : ContextualTransducerSearch.DecodeTdt(encodedFrames, 8193, 8192, [0, 1, 2, 3, 4], Logits, phrases, maxSymbolsPerFrame: 10, cancellationToken: cancellationToken);
     }
 
     private static float[] Run(Model model, float[] input, int[] shape, CancellationToken cancellationToken)

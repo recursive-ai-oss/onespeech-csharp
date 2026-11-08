@@ -1,4 +1,5 @@
 using System.Text;
+using System.Buffers.Binary;
 using System.Text.Json;
 using OneSpeech.Catalog;
 using OneSpeech.Catalog.Conversion;
@@ -40,6 +41,45 @@ public sealed class ParakeetTests
         Assert.Equal("Hello, world", transcript.Text);
         Assert.Empty(vocabulary.Words([]));
         Assert.Throws<InvalidDataException>(() => vocabulary.Words([new(8192, 0, 1, 1)]));
+    }
+
+    [Fact]
+    public void PhraseEncodingMatchesReleasedTokenizerOnSyntheticTexts()
+    {
+        string? path = Environment.GetEnvironmentVariable("ONESPEECH_PARAKEET_TOKENIZER");
+        Assert.SkipWhen(path is null, "Set ONESPEECH_PARAKEET_TOKENIZER to the pinned publisher data file.");
+        using var document = JsonDocument.Parse(File.ReadAllBytes(path!));
+        string[] pieces = new string[8192];
+        foreach (var property in document.RootElement.GetProperty("model").GetProperty("vocab").EnumerateObject()) pieces[property.Value.GetInt32()] = property.Name;
+        var encoder = new ParakeetPhraseTokenizer(document.RootElement, pieces);
+        using var fixture = JsonDocument.Parse(File.ReadAllText(Environment.GetEnvironmentVariable("ONESPEECH_PARAKEET_PHRASE_CASES") ?? Path.Combine(AppContext.BaseDirectory, "Fixtures", "parakeet-phrase-tokenizer-reference.json")));
+        int matched = 0, refused = 0;
+        foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+        {
+            string text = row.GetProperty("text").GetString()!;
+            if (text.Contains('<', StringComparison.Ordinal) || text.Contains('>', StringComparison.Ordinal))
+            { Assert.Throws<ArgumentException>(() => encoder.Encode(text, TestContext.Current.CancellationToken)); refused++; }
+            else { Assert.Equal(row.GetProperty("ids").EnumerateArray().Select(id => id.GetInt32()), encoder.Encode(text, TestContext.Current.CancellationToken)); matched++; }
+        }
+        Console.WriteLine($"Parakeet ordinary phrase cases matched: {matched}; control-syntax cases refused: {refused}.");
+        var vocabulary = new ParakeetVocabulary(path!);
+        Assert.Throws<CapabilityNotSupportedException>(() => vocabulary.EncodePhrase("中文", TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentException>(() => vocabulary.EncodePhrase("<|pnc|>", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void PhraseMapInvalidReplacementIsTyped()
+    {
+        // A tiny double-array trie: root offset 1; 'h' has a leaf at unit 106, pool offset zero.
+        byte[] map = new byte[4 + 107 * 4 + 2];
+        BinaryPrimitives.WriteUInt32LittleEndian(map, 107 * 4);
+        BinaryPrimitives.WriteUInt32LittleEndian(map.AsSpan(4), 1u << 10);
+        BinaryPrimitives.WriteUInt32LittleEndian(map.AsSpan(4 + 105 * 4), 104u | 256u | (3u << 10));
+        map[^2] = 0xff;
+        string json = "{\"model\":{\"merges\":[]},\"normalizer\":{\"normalizers\":[{\"precompiled_charsmap\":\"" + Convert.ToBase64String(map) + "\"}]}}";
+        using var document = JsonDocument.Parse(json);
+        var tokenizer = new ParakeetPhraseTokenizer(document.RootElement, ["<unk>", "h"]);
+        Assert.Throws<InvalidDataException>(() => tokenizer.Encode("h", TestContext.Current.CancellationToken));
     }
 
     [Fact]

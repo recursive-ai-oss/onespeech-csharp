@@ -128,7 +128,7 @@ if (args is ["score", var rootDirectory])
                 }
                 using var buffer = new MemoryStream(); using (var json = new Utf8JsonWriter(buffer))
                 {
-                    json.WriteStartObject(); json.WriteString("case", Path.GetFileName(folder)); json.WriteString("family", scoreFamily); json.WriteString("mode", scoreMode); json.WriteString("normalizer", "en/1"); json.WriteNumber("referenceWords", reference.Length); json.WriteNumber("errors", alignment.Counts.Errors); json.WriteNumber("wer", alignment.Counts.Rate ?? 0); json.WriteNumber("phraseOccurrences", eligible); json.WriteNumber("recalled", recalled); if (eligible > 0) json.WriteNumber("phraseRecall", (double)recalled / eligible); else json.WriteNull("phraseRecall"); json.WriteNumber("controlFalseAlarms", alarms); json.WriteEndObject();
+                    json.WriteStartObject(); json.WriteString("case", Path.GetFileName(folder)); json.WriteString("family", scoreFamily); json.WriteString("mode", scoreMode); json.WriteString("normalizer", "en/1"); json.WriteNumber("referenceWords", reference.Length); json.WriteNumber("errors", alignment.Counts.Errors); json.WriteNumber("substitutions", alignment.Counts.Substitutions); json.WriteNumber("deletions", alignment.Counts.Deletions); json.WriteNumber("insertions", alignment.Counts.Insertions); json.WriteNumber("wer", alignment.Counts.Rate ?? 0); json.WriteNumber("phraseOccurrences", eligible); json.WriteNumber("recalled", recalled); if (eligible > 0) json.WriteNumber("phraseRecall", (double)recalled / eligible); else json.WriteNull("phraseRecall"); json.WriteNumber("controlFalseAlarms", alarms); json.WriteEndObject();
                 }
                 writer.WriteLine(System.Text.Encoding.UTF8.GetString(buffer.ToArray()));
             }
@@ -142,7 +142,7 @@ if (args is ["score", var rootDirectory])
                 using var buffer = new MemoryStream(); using (var json = new Utf8JsonWriter(buffer))
                 {
                     json.WriteStartObject(); json.WriteString("family", name); json.WriteString("comparison", comparison); json.WriteString("metric", metric); json.WriteNumber("files", 2); json.WriteNumber("resamples", result.Resamples); json.WriteNumber("seed", result.Seed);
-                    WriteInterval(json, "baseline", result.First); WriteInterval(json, "biased", result.Second); WriteInterval(json, "biasedMinusBaseline", result.Difference); json.WriteEndObject();
+                    WriteInterval(json, "baseline", result.First); WriteInterval(json, "biased", result.Second); WriteInterval(json, "baselineMinusBiased", result.Difference); json.WriteEndObject();
                 }
                 bootstrapWriter.WriteLine(System.Text.Encoding.UTF8.GetString(buffer.ToArray()));
             }

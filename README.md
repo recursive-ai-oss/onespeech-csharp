@@ -46,6 +46,8 @@ recognizer is greedy. Moonshine does not support biasing: a nonempty request
 throws `CapabilityNotSupportedException`, as declared by `Capabilities.Biasing`.
 
 Biasing is not a spelling replacement or a guarantee that a term will be spoken.
-It can introduce false alarms. Check both phrase recall and overall WER, with
+It can introduce false alarms. Whisper prompt conditioning in particular can
+substantially increase overall errors and repeat absent terms even when recall
+of requested terms improves; it is not a safe default. Check both phrase recall and overall WER, with
 absent-phrase controls, on your audio. See [contextual scoring and bounds](docs/contextual-biasing.md)
 for prompt budgets, weights, decoder semantics and the repeatable evaluation.

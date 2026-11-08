@@ -68,6 +68,9 @@ can be smaller. No phrases or embeddings are persisted.
   fallback context resets. Only generated tokens enter the transcript. This
   uses the prompt-conditioning mechanism described in Radford et al. (2022)
   §2.2; repeating the fixed phrases at each window is this library's policy.
+  This is an opt-in hint, not constrained decoding: it can substantially worsen
+  WER or repeatedly hallucinate absent prompted terms. Improved term recall alone
+  is not evidence that a prompt is safe.
 - **Qwen3-ASR:** append comma-separated phrases to the configured `Context`,
   separated by a newline, and use the existing system-context path. Ordinary
   tokenizer encoding validates the entire combined 4096-token budget and

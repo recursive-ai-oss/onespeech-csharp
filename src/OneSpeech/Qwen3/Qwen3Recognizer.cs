@@ -49,7 +49,20 @@ public sealed class Qwen3Recognizer : SpeechRecognizer, IDisposable
     public override Capabilities Capabilities { get; } = new() { Languages = Qwen3Languages.Tags, Biasing = true };
 
     /// <inheritdoc/>
-    public override Transcript Transcribe(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    public override Transcript Transcribe(AudioBuffer audio, string? language, CancellationToken cancellationToken) => TranscribeCore(audio, language, options.Context, cancellationToken);
+
+    /// <summary>Returns a borrowed wrapper using the existing system-context prompt. Appends comma-separated phrases to configured Context, with a 4096-token combined limit. Explicit numeric weights and special tokens are refused. Ownership and errors follow the role.</summary>
+    public override SpeechRecognizer WithPhrases(IEnumerable<Phrase> phrases, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var copy = PhraseRequests.Copy(phrases, cancellationToken);
+        if (copy.IsEmpty) return this;
+        string context = (options.Context.Length == 0 ? "" : options.Context + "\n") + PhraseRequests.Prompt(copy);
+        if (tokenizer.Encode(context, cancellationToken: cancellationToken).Length > 4096) throw new ArgumentException("Qwen context exceeds 4096 tokens.", nameof(phrases));
+        return new BiasedRecognizer(this, (audio, language, ct) => TranscribeCore(audio, language, context, ct));
+    }
+
+    private Transcript TranscribeCore(AudioBuffer audio, string? language, string context, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(audio);
@@ -65,7 +78,7 @@ public sealed class Qwen3Recognizer : SpeechRecognizer, IDisposable
         if (audio.FrameCount <= 200) throw new UnsupportedAudioException("Qwen3-ASR unpadded input must exceed 200 samples.");
         using var encoded = runtime.Encode(audio, cancellationToken);
         int count = encoded["encoder"].Data<float>().Length / runtime.Configuration.Width;
-        string prefix = "<|im_start|>system\n" + options.Context + "<|im_end|>\n<|im_start|>user\n<|audio_start|>";
+        string prefix = "<|im_start|>system\n" + context + "<|im_end|>\n<|im_start|>user\n<|audio_start|>";
         var prompt = tokenizer.Encode(prefix, true, cancellationToken).ToList();
         for (int i = 0; i < count; i++) prompt.Add(151676);
         prompt.AddRange(tokenizer.Encode("<|audio_end|><|im_end|>\n<|im_start|>assistant\n" + (language == null ? "" : "language " + Qwen3Languages.Name(language) + "<asr_text>"), true, cancellationToken));

@@ -10,6 +10,28 @@ public sealed class TokenVocabulary
     internal readonly ImmutableArray<string> Pieces;
     internal readonly bool Metaspace;
     internal readonly bool ExcludeTrailingPunctuation;
+    private readonly Func<string, CancellationToken, ImmutableArray<int>>? phraseEncoder;
+    internal bool CanEncodePhrases => phraseEncoder != null;
+
+    /// <summary>Returns a copy with an explicit phrase encoder for this exact vocabulary. No tokenizer is guessed.
+    /// The callback must return 1..256 nonblank ordinary IDs, honor cancellation, and preserve word-boundary markers.
+    /// It is invoked when configuring phrases, not per audio frame. The caller owns callback lifetime and thread safety.
+    /// Invalid output is rejected by WithPhrases. The existing vocabulary remains unchanged.</summary>
+    /// <exception cref="ArgumentNullException">Encoder is null.</exception>
+    public TokenVocabulary WithPhraseEncoder(Func<string, CancellationToken, ImmutableArray<int>> encoder)
+    {
+        ArgumentNullException.ThrowIfNull(encoder);
+        return new TokenVocabulary(this, encoder);
+    }
+
+    private TokenVocabulary(TokenVocabulary source, Func<string, CancellationToken, ImmutableArray<int>> encoder)
+    {
+        Pieces = source.Pieces; Metaspace = source.Metaspace; ExcludeTrailingPunctuation = source.ExcludeTrailingPunctuation;
+        phraseEncoder = encoder;
+    }
+
+    internal ImmutableArray<int> EncodePhrase(string text, CancellationToken ct) =>
+        (phraseEncoder ?? throw new CapabilityNotSupportedException("Supply TokenVocabulary.WithPhraseEncoder for contextual biasing."))(text, ct);
     /// <summary>Copies 1..1000000 nonnull pieces of at most 1024 UTF-16 characters each. Include a piece for blank. For model-specific unknown surfaces supply the desired decoded string as that ID's piece. Metaspace defaults false; excluding trailing punctuation from timing defaults false. Invalid pieces throw InvalidModelShapeException.</summary>
     public TokenVocabulary(IEnumerable<string> pieces, bool metaspace = false, bool excludeTrailingPunctuationFromTiming = false)
     {

@@ -48,6 +48,13 @@ public sealed class CustomGraphTests
             using var recognizer = new GraphSpeechRecognizer([new() { Path = encoder, Channels = 2, Stride = 100 }], GraphFrontEnd.RawWaveform, new(["a", "b", ""]), 2, TimeSpan.FromTicks(62500), Provenance,
                 new() { PredictorPath = predictor, JointPath = joint, StateSize = 4, EmbeddingSize = 2, Embeddings = new float[6], Durations = tdt ? [0, 1] : [] }, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Empty(recognizer.Transcribe(new(new float[400], 16000), null, TestContext.Current.CancellationToken).Words);
+            Assert.False(recognizer.Capabilities.Biasing);
+            Assert.Throws<CapabilityNotSupportedException>(() => recognizer.WithPhrases([new("a")], TestContext.Current.CancellationToken));
+            using var contextual = new GraphSpeechRecognizer([new() { Path = encoder, Channels = 2, Stride = 100 }], GraphFrontEnd.RawWaveform,
+                new TokenVocabulary(["a", "b", ""]).WithPhraseEncoder((_, ct) => { ct.ThrowIfCancellationRequested(); return [0]; }), 2, TimeSpan.FromTicks(62500), Provenance,
+                new() { PredictorPath = predictor, JointPath = joint, StateSize = 4, EmbeddingSize = 2, Embeddings = new float[6], Durations = tdt ? [0, 1] : [] }, cancellationToken: TestContext.Current.CancellationToken);
+            Assert.True(contextual.Capabilities.Biasing);
+            Assert.Empty(contextual.WithPhrases([new("a", .25)], TestContext.Current.CancellationToken).Transcribe(new(new float[400], 16000), "en", TestContext.Current.CancellationToken).Words);
         }
         finally { Directory.Delete(root, true); }
     }
@@ -62,6 +69,32 @@ public sealed class CustomGraphTests
         {
             string graph = Path.Combine(root, "wrong.onemodel"); Constant(graph, 2, [1, 2], [0, 1], 2);
             Assert.Throws<InvalidModelShapeException>(() => new GraphSpeechRecognizer([new() { Path = graph, Channels = 2 }], GraphFrontEnd.RawWaveform, new(["", "a"]), 0, TimeSpan.FromMilliseconds(20), Provenance, cancellationToken: TestContext.Current.CancellationToken));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void BorrowedCtcBiasUsesCallerTokenizerAndLeavesSourceUnchanged()
+    {
+        string root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        try
+        {
+            string path = Path.Combine(root, "contextual.onemodel");
+            Constant(path, 3, [1, 4, 3], [0, -.5f, -10, 0, -.5f, -10, 0, -.5f, -10, 0, -.5f, -10]);
+            var plain = new TokenVocabulary(["a", "b", ""]);
+            var vocabulary = plain.WithPhraseEncoder((text, ct) => { ct.ThrowIfCancellationRequested(); return text == "b" ? [1] : [2]; });
+            using var model = new GraphSpeechRecognizer([new() { Path = path, Channels = 3, Stride = 100 }], GraphFrontEnd.RawWaveform, vocabulary, 2, TimeSpan.FromTicks(62500), Provenance, cancellationToken: TestContext.Current.CancellationToken);
+            var audio = new AudioBuffer(new float[400], 16000);
+            string before = model.Transcribe(audio, "en", TestContext.Current.CancellationToken).Text;
+            List<Phrase> phrases = [new("b")];
+            var biased = model.WithPhrases(phrases, TestContext.Current.CancellationToken); phrases.Clear();
+            Assert.True(biased.Capabilities.Biasing);
+            Assert.Contains("b", biased.Transcribe(audio, "en", TestContext.Current.CancellationToken).Text, StringComparison.Ordinal);
+            Assert.Equal(before, model.Transcribe(audio, "en", TestContext.Current.CancellationToken).Text);
+            Assert.Same(model, biased.WithPhrases([], TestContext.Current.CancellationToken));
+            Assert.Throws<ArgumentException>(() => model.WithPhrases([new("blank")], TestContext.Current.CancellationToken));
+            model.Dispose();
+            Assert.Throws<ObjectDisposedException>(() => biased.Transcribe(audio, "en", TestContext.Current.CancellationToken));
         }
         finally { Directory.Delete(root, true); }
     }

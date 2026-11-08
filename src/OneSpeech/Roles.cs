@@ -23,6 +23,25 @@ public abstract class VoiceActivityDetector
 /// <summary>Recognizes in-memory audio synchronously. Live sessions own independent per-input state.</summary>
 public abstract class SpeechRecognizer
 {
+    /// <summary>Returns a recognizer borrowing this model with an immutable copy of contextual phrases.
+    /// Dispose the owning model only after all wrappers and sessions are finished; wrappers do not own it.
+    /// Reapplying replaces, rather than appends to, the phrase list. Empty input returns the unmodified source.
+    /// Limits: 4096 phrases, 1024 UTF-16 units each, 262144 total units; model tokenizer limits also apply.
+    /// Concurrency restrictions of the source remain in force. Compatible with TranscriptionPipeline unchanged.</summary>
+    /// <param name="phrases">Ordinary phrase text with optional per-token log weights. Prompt families refuse explicit weights.</param>
+    /// <param name="cancellationToken">Checked while copying/tokenizing the list.</param>
+    /// <exception cref="CapabilityNotSupportedException">Nonempty phrases or their weights cannot be served by this family.</exception>
+    /// <exception cref="ArgumentException">A phrase, weight, tokenization or resource bound is invalid.</exception>
+    /// <exception cref="OperationCanceledException">Cancellation is requested.</exception>
+    public virtual SpeechRecognizer WithPhrases(IEnumerable<Phrase> phrases, CancellationToken cancellationToken = default)
+    {
+        var copy = PhraseRequests.Copy(phrases, cancellationToken);
+        if (copy.IsEmpty) return this;
+        throw new CapabilityNotSupportedException(Capabilities.Biasing
+            ? "This recognizer declares biasing but does not implement phrase requests."
+            : "This model does not support contextual phrase biasing; select a model with Capabilities.Biasing.");
+    }
+
     /// <summary>Creates a finals-only, VAD-endpointed live session by default. Stateful streaming families override this to supply true partials. Borrows this recognizer and the detector; dispose the session first. Input must be mono 16 kHz. Options and errors follow UtteranceLiveSession.</summary>
     public virtual LiveSession CreateLiveSession(Vad.SileroVad detector, string? language = null) => new Live.UtteranceLiveSession(this, detector, language);
     /// <summary>Loaded model provenance.</summary>

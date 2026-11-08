@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><PackageId>$(PackagePrefix).OneSpeech.Media</PackageId><IsPackable>true</IsPackable></PropertyGroup>
+  <PropertyGroup><PackageId>$(PackagePrefix).OneSpeech.Media</PackageId><IsPackable>true</IsPackable><PackageReadmeFile>OneSpeech.Media.md</PackageReadmeFile></PropertyGroup>
   <ItemGroup><ProjectReference Include="../OneSpeech/OneSpeech.csproj" /><PackageReference Include="RecursiveAI.OneMedia" /><PackageReference Include="RecursiveAI.OneMedia.Audio" /></ItemGroup>
+  <ItemGroup><None Include="PACKAGE.md" Pack="true" PackagePath="/OneSpeech.Media.md" /></ItemGroup>
 </Project>

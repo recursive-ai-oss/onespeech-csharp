@@ -8,7 +8,7 @@ var model = await store.PullAsync("openai/whisper-tiny", cancellationToken: canc
 // model.Directory: verified publisher files; model.Info: revision, digests and licence provenance.
 ```
 
-The tool provides `onespeech models list` and `onespeech models pull <id>`. Ctrl+C cancels a pull. List never downloads. No family default is declared until it has been selected from measurements; `GetDefault(family)` refuses when none is declared.
+The tool provides `onespeech models list` and `onespeech models pull <id>`. Ctrl+C cancels a pull. List never downloads. The current file default is Whisper large-v3-turbo; the live default is Moonshine streaming-tiny. `GetDefault(family)` refuses when that family has no declared default.
 
 ## Cache and trust
 
@@ -30,7 +30,7 @@ Present files never cause network requests. On first open **per store instance**
 
 Tier 1 is ungated MIT/Apache-2.0/BSD, eligible for defaults. Its transport selects a declared mirror if present, otherwise the publisher. A mirror must be an HTTPS asset beneath `https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/<tag>/<asset>`. All embedded mirror URLs are currently null: **not yet mirrored**. Nothing silently guesses a release URL.
 
-Tier 2 is never a default, has no mirror, and has only pinned publisher URLs. The catalog rejects tier-2 defaults, mirrors, and redistributed converted artifacts before any source is called. Registered tier-2 converters may produce cache-only local artifacts from already verified publisher inputs; those artifacts are never fetched, mirrored or redistributed. Tier 2 may use the declared permissive licences, CC-BY-4.0, or OpenMDW-1.1; unknown, noncommercial and research-only licences are refused. Gate status is independent of licence: any gated entry must be tier 2. Parakeet-TDT-v3 is available by explicit name.
+Tier 2 is never a default, has no mirror, and has only pinned publisher URLs. The catalog rejects tier-2 defaults, mirrors, and redistributed converted artifacts before any source is called. Registered tier-2 converters may produce cache-only local artifacts from already verified publisher inputs; those artifacts are never fetched, mirrored or redistributed. Tier 2 may use the declared permissive licences, CC-BY-4.0, or OpenMDW-1.1; unknown, noncommercial and research-only licences are refused. Gate status is independent of licence: any gated entry must be tier 2. Parakeet-TDT-v3 is available by explicit name. Nemotron 3 Diarization is a named tier-2 entry. Its pinned publisher safetensors are read as bounded data and converted under the per-model lock into the user's cache. Local graph/silence artifact digests are registered in code, not as catalog `convertedFiles` URLs. Outputs are hash-checked in a staging directory before installation, never mirrored or packaged; the loader also verifies them. `ModelInfo` retains the OpenMDW agreement and publisher origin.
 
 A gated request requires an explicit `token` argument or `ONESPEECH_MODEL_TOKEN`, even if its bytes are cached or a custom source is used. Gate acceptance is the user's responsibility. Tokens are never logged or persisted. The HTTP source sends authorization only on the original upstream request, not to CDN redirect targets. It follows at most five HTTPS redirects, allowing publisher delivery through signed CDN URLs without adding those URLs to the catalog. Transport failures expose no signed URL or token. Requests time out after 30 minutes; transfers are restartable by calling again.
 
@@ -45,6 +45,15 @@ Directory source layout is `root/<model-id>/<revision>/<filename>`; the root is 
 
 ## Catalog schema 1
 
+Optional `defaultRoles` is an array of up to 16 unique lower-case ASCII role names
+(letters and hyphens, at most 64 characters). It is empty when omitted. Each role
+has at most one default across the catalog, independently of `isDefault` family
+picks; only ungated tier-1 entries qualify. `GetRoleDefault("transcription")`
+selects the file recognizer for `Speech.Transcribe` when no model is specified.
+The built-in pick remains `openai/whisper-large-v3-turbo`. Changing that catalog
+role assignment changes the pick without changing recognition code. A missing
+role default throws `ModelNotFoundException`, never a hidden family fallback.
+
 The envelope is `{ "schemaVersion": 1, "models": [...] }`. Model properties are the camel-case `CatalogEntry` fields: ID, family, source repository, 40-hex revision, files, convertedFiles, tier, licence, exact attribution, gated, isDefault and capabilities. `files` contains the publisher file set. `convertedFiles` is a separate, possibly empty array of local runtime outputs, with SHA-256 and size. Tier-1 output URLs describe OneSpeech release assets. Tier-2 output URLs must exactly match one of the pinned publisher input URLs: they identify provenance, not a downloadable output. `PullAsync` fetches **only publisher files** and produces registered missing converted files locally, then verifies their sizes and hashes before atomic installation. Silero uses publisher ONNX directly. Upstream and converted bytes must never be assigned the same name in one entry.
 
 File metadata is name, size, sha256, upstreamUrl and optional mirrorUrl. Relative names use slash-separated ASCII letters/digits, hyphens, underscores and dots, with an alphanumeric first character per component; Windows device names are also refused; traversal, absolute paths and hidden components are refused. Names are unique ignoring case. Maximum file size is 64 GiB. URLs require HTTPS, no credentials or custom port, and upstream paths pinned to the declared source repository and revision. The publisher forms supported are `<repository>/resolve/<revision>/<file>` and GitHub's `raw.githubusercontent.com/<owner>/<repo>/<revision>/<file>`.
@@ -57,8 +66,8 @@ The CAM++ English entry records the verified publisher checkpoint and the SHA-25
 converted float32 graph. The converted file's content-addressed `models-v1` release URL is a
 **reserved, unpublished artifact location**, not a claim that bytes are downloadable. Nothing has
 been mirrored or published. Current `ModelStore.PullAsync` fetches publisher `files`, not
-`convertedFiles`; run the converter locally until an actual converted asset is available.
-No speaker default is selected. See [speaker inference](speakers.md).
+`convertedFiles`; registered conversions run locally in the cache.
+CAM++ English is the speaker default; Chinese speech selects CAM++ Chinese. See [speaker inference](speakers.md).
 
 ModelScope publisher files use its HTTPS data API, with exactly `Revision=<pinned commit>` and
 `FilePath=<catalog filename>` query fields in that order. The catalog checks the API host,

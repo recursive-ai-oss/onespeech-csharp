@@ -37,17 +37,26 @@ A custom plain `Diarizer` still works in memory, but file inputs require `BlockD
 
 ## Voice clustering and overlap limitation
 
-`ClusteringDiarizer` is the tier-1 voice-clustering implementation, using caller-supplied VAD and speaker-embedding roles. It **does not detect overlapped speech**: each speech interval gets only one speaker at a time. The overlap-aware upgrades, pyannote segmentation and Nemotron 3 Diarization, are coming as explicit tier-2 options; neither is loaded by these helpers. Channel diarization is a distinct exception because separated channels supply activity independently. The component itself always uses the caller's embedder. The `Speech.Transcribe` helpers select CAM++ Chinese for a requested or detected Chinese language (`zh`, `zh-*`); otherwise they select CAM++ English. An explicit language takes precedence over detection. Recognition runs before the whole-recording diarization pass so this policy also applies without a language hint. Encoded streams are spooled once, with bounded PCM on both passes. This is a language-based starting choice, not a quality-validated default for every language.
+`ClusteringDiarizer` is the tier-1 voice-clustering implementation, using caller-supplied VAD and speaker-embedding roles. It **does not detect overlapped speech**: each speech interval gets only one speaker at a time. The overlap-aware [Nemotron 3 Diarization](nemotron-diarization.md) upgrade is an explicit tier-2 option, never selected by these helpers; the pyannote segmentation slot remains separate. Channel diarization is a distinct exception because separated channels supply activity independently. The component itself always uses the caller's embedder. The `Speech.Transcribe` helpers select CAM++ Chinese for a requested or detected Chinese language (`zh`, `zh-*`); otherwise they select CAM++ English. An explicit language takes precedence over detection. Recognition runs before the whole-recording diarization pass so this policy also applies without a language hint. Encoded streams are spooled once, with bounded PCM on both passes. This is a language-based starting choice, not a quality-validated default for every language.
+
+For an overlap-aware file transcript, keep your recognizer and VAD and replace only the diarizer:
+
+```csharp
+using var overlap = await OneSpeech.Diarization.NemotronDiarizer.LoadAsync();
+var transcript = new OneSpeech.Pipeline.VadTranscriptionPipeline(recognizer, vad, null, null, overlap).Transcribe(path, language: null, CancellationToken.None);
+```
+
+The pipeline retains the higher-activity speaker in simultaneous intervals, flags overlapping words, and leaves gaps Unassigned. This does not separate simultaneous voices or recover words the recognizer missed. The named load fetches the publisher's pinned checkpoint, keeps OpenMDW agreement/origin notices in `ModelInfo`, and converts only into the local cache.
 
 ### Windows and clock
 
 Input is consecutive 16 kHz PCM with one consistent channel count (1–32). Channels are averaged for voice clustering. VAD runs in fixed 30-second horizons, independent of caller block boundaries; state resets at each horizon. VAD regions are sorted and overlapping/touching regions unioned. Segments shorter than 100 ms are discarded. Following Landini et al., arXiv:2012.14952, §3.2, defaults are 1.5-second embedding windows and a 0.25-second stride; partial trailing windows of at least 100 ms are included. Models are borrowed, and each finite, nonzero embedding is length-normalized in double-precision accumulation before clustering. Embedding failures propagate; they are not replaced by arbitrary labels.
 
-The boundary between neighboring window assignments is the midpoint between their centers. First/last assignments extend to the **VAD region** endpoints. Silence gaps remain gaps. Adjacent same-speaker assignments are coalesced. Labels `speaker-1`, `speaker-2`, ... follow first occurrence, are document-local, and are not enrolled identities. These are window-level speaker boundaries, not refined word or phonetic timing.
+The boundary between neighboring window assignments is the midpoint between their centers. First/last assignments extend to the **VAD region** endpoints. Silence gaps remain gaps. Adjacent same-speaker assignments are coalesced. Labels `speaker-1`, `speaker-2`, ... follow first occurrence, are document-local, and are not enrolled identities. These are window-level speaker boundaries, not refined word or phonetic timing. Whole-file `Speech.Transcribe` helpers additionally compare normalized cluster means to compatible process-wide enrollments, setting `SpeakerLabel.Name` on accepted matches while preserving these document-local IDs. Unknown clusters remain anonymous; see [speaker recognition](speaker-recognition.md).
 
 ### Spectral clustering and AHC
 
-The default `ClusteringMethod.Spectral` follows Park et al., *Auto-Tuning Spectral Clustering for Speaker Diarization Using Normalized Maximum Eigengap*, arXiv:2003.02405v1, §III, Eq.4–15:
+For recordings whose retained embedding span exceeds 60 seconds, the default `ClusteringMethod.Spectral` follows Park et al., *Auto-Tuning Spectral Clustering for Speaker Diarization Using Normalized Maximum Eigengap*, arXiv:2003.02405v1, §III, Eq.4–15:
 
 1. Raw cosine affinities; row-wise top-p binarization (stable index ties), including the diagonal when ranked there.
 2. Symmetrization `(A + Aᵀ)/2`, then unnormalized Laplacian `D − A`.
@@ -61,6 +70,26 @@ The symmetric eigensolver uses cyclic Jacobi rotations, at most 60 sweeps, stopp
 `ClusteringMethod.Agglomerative` is the alternative and the spectral numerical fallback: average-link cosine similarities, stable pair-order ties, merging to the supplied exact count or stopping below the configurable cosine threshold while honoring min/max. This uses the cosine AHC initialization described in Landini §3.2, **not** PLDA. The generic threshold 0.65 is an exposed starting value, not a universal model calibration; use the model-specific measured profile below. No embedding-model weights are changed.
 
 `NumSpeakers` is exact for nonempty speech; `MinSpeakers`/`MaxSpeakers` constrain estimates. Default range is 1–8, supported ceiling 32. Exact counts must lie within min/max. If speech produces fewer windows than the required count, the request is refused with `CapabilityNotSupportedException`; silence produces no turns, not fictitious speakers. Invalid parameter combinations are rejected. Cancellation is checked per PCM block, embedding window, eigen sweep, clustering iteration and output turn.
+
+### Short recordings
+
+For a retained embedding span of **at most 60 seconds**, the default spectral policy uses average-link cosine AHC instead. A sparse top-p rank graph can partition even a compact single-speaker cloud into disconnected nearest-neighbor components; its eigengap then counts those components rather than speakers. Absolute similarity is needed in this regime. This is a short-recording policy, not a two-speaker cap: exact/min/max hints still apply, including counts above two.
+
+Only full-duration embedding windows provide clustering landmarks when there are enough to satisfy the requested minimum/exact count. Truncated tails down to 100 ms remain in the output activity sequence but are assigned to the full-window centroids, rather than introducing clusters from poorly supported embeddings. If there are insufficient full windows, all windows remain eligible. The landmark bound is unchanged. This full-window rule applies to both clustering methods on short recordings; longer recordings keep the original windows and S128 behavior.
+
+`ShortRecordingThreshold` defaults to **0.3**, used only by the short-recording spectral policy. Explicit `Agglomerative` continues to use `AgglomerativeThreshold`. The choice was frozen on 24 fixed AMI development excerpts (ES2011a/b; 10, 20, 30 and 60 seconds at offsets 60 + 60i seconds, i=0..11), comparing cosine thresholds {0.15,0.3,0.45,0.65}. Threshold 0.3 with full-window landmarks had the lowest pooled DER (20.25% versus 27.12% for the previous file-helper defaults) and the best count accuracy (16/24 versus 7/24). No held-out speaker identities, counts or boundaries reach inference.
+
+`onespeech-eval short-diarization prepare-ls CORPUS OUTPUT` creates the repeatable check set outside the repository: LibriSpeech test-clean files ordered by SHA-256 of `1729:<filename>`, the first eligible 5–15 second file per distinct speaker, 24 speakers. Twelve single clips use the first twelve speakers; each is paired with the corresponding speaker in the second twelve. Odd-index pairs repeat the two utterances once, giving alternating-speaker files in the 10–60 second range. No silence is added. `sources.tsv` records source/derived hashes and CC-BY-4.0 attribution; `manifest.tsv` names WAV/RTTM pairs. Reference speaker identity covers each entire utterance, including its silence, so DER includes VAD misses at utterance edges. This is a constructed check, not a natural conversation accuracy claim. `tools/scripts/check-short-diarization.sh` prepares and scores it; the evaluator can also score saved CLI JSON (`json:DIRECTORY`) or `Speech.Transcribe` (`transcribe`, Whisper tiny, English).
+
+The fixed 24-recording check produced the following speaker-count matches and pooled DER (no collar, overlap scored; reference includes utterance silence):
+
+| Path | Single count matches | Single DER | Two-speaker count matches | Two-speaker DER |
+|---|---:|---:|---:|---:|
+| Previous low-level/CLI defaults | 0/12 | 76.12% | 9/12 | 19.59% |
+| Previous file-helper profile | 0/12 | 74.04% | 9/12 | 14.81% |
+| Shared short-recording policy | 12/12 | 5.15% | 11/12 | 6.08% |
+
+`onespeech diarize` and `Speech.Transcribe` (Whisper tiny, English) both reproduced the final counts and DER. One two-speaker pair is merged; the threshold is not retuned on these checks. These are constructed-data correctness checks, not bootstrap population estimates or comparisons against a reference diarizer. Re-scoring the four full meeting holdouts preserved the previously measured DER at the shown precision: ES2004a 28.21%, ES2004b 20.92%, R8001 41.57%, R8003 26.79%.
 
 ### Memory and resegmentation
 
@@ -191,9 +220,16 @@ traceback.
 
 ### Selected file-helper profile
 
-The file helpers use `CosineResegmenter(switchPenalty: 0.4, stableRadius: 2)`.
-Low-level `ClusteringDiarizer` remains opt-in via its existing resegmenter
-argument. The development-only search compared no resegmentation with all
+The file helpers, CLI and low-level `ClusteringDiarizer` use
+`CosineResegmenter(switchPenalty: 0.4, stableRadius: 2)` by default.
+Set `ClusteringOptions.Resegment = false` to retain raw labels, or pass a custom
+resegmenter (which takes precedence). The default smoother is also omitted
+when an exact count or minimum above one is requested, because unconstrained
+smoothing can remove a required label; custom backends still must honor hints.
+The CLI and file helpers both use
+`SileroVadOptions.Diarization`. The low-level API deliberately borrows its
+caller-supplied detector unchanged; use that same profile when constructing
+Silero for equivalent activity behavior. The development-only search compared no resegmentation with all
 15 combinations of radius {0,2,4} and penalty {0,0.05,0.1,0.2,0.4}, using the
 already selected activity profile and S128 clustering unchanged. All windows
 were the original 1.5 s / 0.25 s windows. Selection minimizes pooled development

@@ -5,6 +5,22 @@ internal static class SpeakerSmoke
 {
     internal static void Run()
     {
+        string? clip = Environment.GetEnvironmentVariable("ONESPEECH_SPEAKER_SMOKE_CLIP");
+        Speech.ClearSpeakers();
+        if (clip is not null)
+        {
+            try
+            {
+                Speech.Enroll("reader", clip);
+                if (Speech.Identify(clip).SpeakerId != "reader" || Speech.Verify(clip, clip) < .999)
+                    throw new InvalidOperationException("Speaker statics failed.");
+                using var stream = File.OpenRead(clip);
+                if (Speech.IdentifyAsync(stream).AsTask().GetAwaiter().GetResult().SpeakerId != "reader")
+                    throw new InvalidOperationException("Speaker stream static failed.");
+                Console.WriteLine("Speaker static enrollment, identification, pair verification and stream smoke passed.");
+            }
+            finally { Speech.ClearSpeakers(); }
+        }
         if (EmbeddingMath.Cosine([1, 0], [0, 1]) != 0) throw new InvalidOperationException("Cosine failed.");
         var mean = EmbeddingMath.Average(new ReadOnlyMemory<float>[] { new float[] { 1, 0 }, new float[] { 0, 1 } });
         if (EmbeddingMath.Cosine(mean, [1, 1]) < .999999) throw new InvalidOperationException("Average failed.");

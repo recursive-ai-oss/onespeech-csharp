@@ -12,6 +12,11 @@ internal static class RuntimeConversion
         cancellationToken.ThrowIfCancellationRequested();
         if (entry.Tier == ModelTier.Tier2)
         {
+            if (entry.Id == FastConformer.NemotronAsrRecognizer.Identifier && entry.Revision == FastConformer.NemotronAsrRecognizer.Revision && entry.Family == "nemotron-asr")
+            {
+                NemotronAsrConverter.Convert(input, output, cancellationToken, streaming: true);
+                return;
+            }
             if (entry.Id != "nvidia/parakeet-tdt-0.6b-v3" || entry.Family != "parakeet-tdt" || entry.Revision != "541d1f99c6b0c3cd0b11a95167540bb8edefd82b")
                 throw new CapabilityNotSupportedException("No publisher-only local converter is registered for this tier-2 checkpoint.");
             ParakeetConverter.Convert(input, output, cancellationToken);
@@ -35,7 +40,6 @@ internal static class RuntimeConversion
         else if (entry.Family is "qwen3-asr" or "qwen3-aligner")
         {
             QwenConverter.Convert(input, output, cancellationToken);
-            if (entry.Family == "qwen3-asr") QwenConverter.Convert(input, output, cancellationToken, OneSpeech.Qwen3.Qwen3Precision.BFloat16);
         }
         else if (entry.Family == "moonshine")
         {

@@ -12,6 +12,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     private readonly VadChunker chunker;
     private readonly IProgress<TimeSpan>? progress;
     private readonly Diarizer? diarizer;
+    internal Action<TimeSpan, TimeSpan, int, int, string?>? RecognizedChunk { get; init; }
 
     /// <summary>Borrowed forced aligners in priority order (for example Qwen3, then CTC). Empty by default. Native timings win; unsuccessful or unsupported alignment leaves existing DTW as last resort. Aligners must preserve the supplied written words and support each chunk duration.</summary>
     public ImmutableArray<Aligner> TimingAligners { get; init; } = [];
@@ -41,7 +42,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     {
         ArgumentNullException.ThrowIfNull(audio);
         var transcript = Combine([audio], language, cancellationToken);
-        return MergeDocument(transcript, diarizer?.Diarize(audio, cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray(), cancellationToken);
+        return MergeDocument(transcript, ActiveTurns(audio, cancellationToken), cancellationToken);
     }
 
     /// <summary>Decodes and transcribes a file without retaining its PCM. The returned document necessarily grows with the recognized text. Filesystem errors remain IOException; corrupt/unsupported audio throws UnsupportedAudioException.</summary>
@@ -66,7 +67,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         if (blockDiarizer is not null)
         {
             using var firstPass = AudioFileSource.Open(spool, true, cancellationToken);
-            turns = blockDiarizer.DiarizeBlocks(VadChunker.Blocks(firstPass, cancellationToken), cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray();
+            turns = ActiveTurns(blockDiarizer, VadChunker.Blocks(firstPass, cancellationToken), cancellationToken);
         }
         spool.Position = 0;
         using var source = AudioFileSource.Open(spool, true, cancellationToken);
@@ -77,7 +78,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(audio);
-        var activeTurns = diarizer?.Diarize(audio, cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray();
+        var activeTurns = ActiveTurns(audio, cancellationToken);
         foreach (var chunk in chunker.Read([audio], progress, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -114,6 +115,17 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         }
     }
 
+    private ActiveTurn[]? ActiveTurns(AudioBuffer audio, CancellationToken cancellationToken) => diarizer switch
+    {
+        NemotronDiarizer nemotron => nemotron.DiarizeActive(audio, cancellationToken).ToArray(),
+        null => null,
+        _ => diarizer.Diarize(audio, cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray()
+    };
+
+    private static ActiveTurn[] ActiveTurns(BlockDiarizer block, IEnumerable<AudioBuffer> blocks, CancellationToken cancellationToken) =>
+        block is NemotronDiarizer nemotron ? nemotron.DiarizeActiveBlocks(blocks, cancellationToken).ToArray() :
+        block.DiarizeBlocks(blocks, cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray();
+
     private BlockDiarizer? RequireBlockDiarizer()
     {
         if (diarizer is null) return null;
@@ -125,7 +137,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         var blockDiarizer = RequireBlockDiarizer();
         if (blockDiarizer is null) return null;
         using var source = AudioFileSource.Open(path, cancellationToken);
-        return blockDiarizer.DiarizeBlocks(VadChunker.Blocks(source, cancellationToken), cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray();
+        return ActiveTurns(blockDiarizer, VadChunker.Blocks(source, cancellationToken), cancellationToken);
     }
 
     private Transcript MergeDocument(Transcript transcript, ActiveTurn[]? turns, CancellationToken cancellationToken)
@@ -152,6 +164,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
             var result = ApplyTiming(chunk.Audio, recognizer.Transcribe(chunk.Audio, language, cancellationToken), language, cancellationToken);
             if (result.Text.Length != 0) text.Add(result.Text);
             language ??= result.Language;
+            RecognizedChunk?.Invoke(chunk.Start, chunk.Audio.Duration, words.Count, result.Words.Length, language);
             words.AddRange(result.Words.Select(w => Shift(w, chunk.Start)));
             segments.AddRange(result.Segments.Select(s => Shift(s, chunk.Start)));
             turns.AddRange(result.Turns.Select(t => t with { Start = t.Start + chunk.Start, End = t.End + chunk.Start, Words = [.. t.Words.Select(w => Shift(w, chunk.Start))] }));
@@ -181,15 +194,25 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
 
     private Transcript ApplyTiming(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken)
     {
-        if (TimingAligners.IsDefaultOrEmpty || transcript.Words.IsEmpty) return transcript;
+        return ApplyTiming(audio, transcript, language, TimingAligners, cancellationToken);
+    }
+
+    internal static Transcript ApplyTiming(AudioBuffer audio, Transcript transcript, string? language, IEnumerable<Aligner> aligners, CancellationToken cancellationToken)
+    {
+        if (transcript.Words.IsEmpty) return transcript;
         language ??= transcript.Language;
         Word[] words = transcript.Words.ToArray();
         bool[] timed = words.Select(w => (w.TimingMethod is TimingMethod.Native or TimingMethod.ForcedAligner) && w.Start.HasValue && w.End.HasValue).ToArray();
-        foreach (var aligner in TimingAligners)
+        using var candidates = aligners.GetEnumerator();
+        while (!timed.All(t => t) && candidates.MoveNext())
         {
-            if (timed.All(t => t)) break;
+            cancellationToken.ThrowIfCancellationRequested();
+            var aligner = candidates.Current;
             if (!aligner.Capabilities.ForcedAlignment || (language is not null && !aligner.Capabilities.Languages.Contains(language, StringComparer.Ordinal))) continue;
-            var aligned = aligner.Align(audio, transcript, language, cancellationToken);
+            Transcript aligned;
+            try { aligned = aligner.Align(audio, transcript, language, cancellationToken); }
+            catch (UnsupportedAudioException) { continue; }
+            catch (CapabilityNotSupportedException) { continue; }
             if (aligned.Words.Length != words.Length || !aligned.Words.Select(w => w.Text).SequenceEqual(transcript.Words.Select(w => w.Text), StringComparer.Ordinal))
                 throw new InvalidDataException("Forced aligner changed written word boundaries.");
             for (int i = 0; i < words.Length; i++)

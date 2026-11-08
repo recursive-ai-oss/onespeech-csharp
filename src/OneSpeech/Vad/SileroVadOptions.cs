@@ -5,6 +5,15 @@ namespace OneSpeech.Vad;
 /// <summary>Silero segmentation parameters, in audio time. Defaults match the published timestamp API for unlimited speech length.</summary>
 public sealed record SileroVadOptions
 {
+    /// <summary>Activity profile for offline speaker clustering, checked on AMI development audio: activation 0.2,
+    /// deactivation 0.05, minimum speech/silence 250 ms, padding 150 ms. Recognition keeps the constructor defaults.</summary>
+    public static SileroVadOptions Diarization => new()
+    {
+        Threshold = 0.2f, NegativeThreshold = 0.2f - 0.15f,
+        MinimumSpeech = TimeSpan.FromMilliseconds(250), MinimumSilence = TimeSpan.FromMilliseconds(250),
+        SpeechPadding = TimeSpan.FromMilliseconds(150)
+    };
+
     /// <summary>Speech activation probability, default 0.5, finite in (0,1].</summary>
     public float Threshold { get; init; } = 0.5f;
     /// <summary>Speech deactivation probability, default 0.35; finite in [0,Threshold).</summary>

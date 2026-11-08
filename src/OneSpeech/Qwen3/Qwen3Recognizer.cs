@@ -33,9 +33,11 @@ public sealed class Qwen3Recognizer : SpeechRecognizer, IDisposable
             Files = pin[0] == "Qwen/Qwen3-ASR-0.6B"
                 ? [new ModelFileInfo { Name = "model.safetensors", Sha256 = "79d6cbd4c98c7bbffe9db2edac07f56cd6637d0d5944b27f6c2b8353840323ea" }]
                 : [new ModelFileInfo { Name = "model-00001-of-00002.safetensors", Sha256 = "a4cd1f1a04d90b757dc7f7dd26254e69a013b19e80efe590a83c6a3bde8608d6" }, new ModelFileInfo { Name = "model-00002-of-00002.safetensors", Sha256 = "6e0b9d9e09e2e0238e7ef3cc8a484ab387e91b90f1900bedf88bc92d7929ccfc" }] };
+        if (options.Precision == Qwen3Precision.BFloat16)
+            Catalog.QwenPrecisionAssets.EnsureBFloat16(Catalog.ModelCatalog.Default.Get(pin[0]), directory, cancellationToken);
         runtime = new QwenModelSession(directory, options.Threads, cancellationToken, options.Precision);
     }
-    /// <summary>Loads independently converted local graphs and tokenizer data. Options default to greedy generation, no context and automatic thread selection.</summary>
+    /// <summary>Loads local graphs and tokenizer data. Options default to greedy generation, no context, Binary32 and automatic thread selection. A BFloat16 request verifies or lazily converts its graphs from pinned publisher files in this directory; it never downloads. Concurrent verification or conversion of the same directory throws IOException.</summary>
     /// <exception cref="IOException">A model file is unavailable.</exception>
     /// <exception cref="ModelIntegrityException">The converter provenance is unsupported.</exception>
     /// <exception cref="ArgumentException">Options or tokenizer input exceed supported bounds.</exception>

@@ -13,20 +13,24 @@ Transcript small = Speech.Transcribe("voicemail.wav", language: "en", model: "op
 string language = Speech.DetectLanguage("voicemail.mp3");
 ```
 
-The provisional file default is Whisper large-v3-turbo. Tiny, base and small can
-also be selected by their catalog IDs. Large-v3 has pinned conversion metadata,
-but its decoder exceeds OneModel 1.0.0's 2 GiB file limit and is refused with a
-capability error; use turbo instead. Selection never silently substitutes a model.
+The file default is Whisper large-v3-turbo. Tiny, base, small and large-v3 can
+also be selected by their catalog IDs. Large-v3 requires substantially more
+memory than turbo. Selection never silently substitutes a model.
 File input is decoded by OneAudio, including AMR and AAC/M4A. Calls accept an
 explicit `CancellationToken` overload. Stream input uses
 `await Speech.TranscribeAsync(stream, cancellationToken)` and does not own the
 stream. CPU inference is synchronous; first-use downloads can block the file call.
 
-Each call owns and disposes its recognition and speaker models. It makes a
-bounded decoding pass for whole-recording speaker clustering, then a VAD-based
-recognition pass. PCM is not retained for the whole recording; the returned text,
+Each call owns and disposes its models. It makes a VAD-based recognition pass,
+then releases recognition graphs before a bounded replay pass for non-native
+word timing, followed by whole-recording speaker clustering. Timing replay must
+reproduce the original chunk boundaries exactly; a mismatch is an error rather
+than a guessed word assignment. Native-timing recognizers need no timing replay. PCM is not retained for the whole recording; the returned text,
 words and turns necessarily grow with the recording. Words carry confidence and
-a timing method. Whisper uses DTW word alignment; failed timing remains null.
+a timing method. Native timestamps take priority; otherwise Qwen3-ForcedAligner
+runs for its eleven covered languages, then omniASR-CTC for remaining words, with
+existing DTW as the final fallback. Failed timing remains null. Alignment models
+are loaded only when a chunk needs them.
 Words outside speaker turns remain unassigned rather than receiving guessed IDs.
 
 ## First use and offline deployment

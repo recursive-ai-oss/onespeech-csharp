@@ -36,6 +36,8 @@ public sealed record CatalogEntry
     public ImmutableArray<CatalogFile> ConvertedFiles { get; init; } = [];
     /// <summary>Whether this entry is the declared family default; false unless explicitly declared. Tier 2 cannot be a default.</summary>
     public bool IsDefault { get; init; }
+    /// <summary>Role defaults independent of family defaults; empty by default, including uninitialized arrays. Up to 16 distinct names of 1–64 lower-case ASCII letters or hyphens are validated by ModelCatalog. Only ungated tier-1 entries qualify. The transcription role selects the file recognizer.</summary>
+    public ImmutableArray<string> DefaultRoles { get => field.IsDefault ? [] : field; init; } = [];
     /// <summary>Distribution tier.</summary>
     public required ModelTier Tier { get; init; }
     /// <summary>SPDX licence identifier.</summary>

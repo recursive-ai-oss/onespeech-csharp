@@ -85,21 +85,30 @@ public sealed class InMemorySpeakerRegistry : SpeakerRegistry, IDisposable
             var vector = Extract(audio, cancellationToken);
             try
             {
-                double best = double.NegativeInfinity;
-                string? id = null;
-                foreach (var pair in enrollments)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    double score = Score(vector, pair.Value, cancellationToken);
-                    if (score > best || (score == best && string.CompareOrdinal(pair.Key, id) < 0))
-                    {
-                        best = score;
-                        id = pair.Key;
-                    }
-                }
-                return new SpeakerMatch { SpeakerId = best >= Threshold ? id : null, Score = best };
+                return IdentifyEmbedding(vector, cancellationToken);
             }
             finally { Array.Clear(vector); }
+        }
+    }
+
+    internal SpeakerMatch IdentifyEmbedding(ReadOnlyMemory<float> vector, CancellationToken cancellationToken)
+    {
+        lock (sync)
+        {
+            Check(cancellationToken);
+            double best = double.NegativeInfinity;
+            string? id = null;
+            foreach (var pair in enrollments)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                double score = Score(vector.Span, pair.Value, cancellationToken);
+                if (score > best || (score == best && string.CompareOrdinal(pair.Key, id) < 0))
+                {
+                    best = score;
+                    id = pair.Key;
+                }
+            }
+            return new SpeakerMatch { SpeakerId = best >= Threshold ? id : null, Score = best };
         }
     }
 

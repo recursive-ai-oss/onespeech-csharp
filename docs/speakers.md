@@ -52,15 +52,15 @@ an optional AS-norm cohort is supplied. Calibration is separate and is never sil
 but does not dispose the borrowed embedder. Clearing managed arrays is best effort: it is not
 a memory-erasure guarantee against runtime copies, crash dumps or a hostile host.
 
-There is no embedding serialization, file storage, network enrollment or process-wide model
-selection in this implementation. Hosts can share one registry instance in their process;
-convenience static integration is separate.
+There is no embedding serialization, file storage or network enrollment. Hosts can share one
+registry instance in their process; the separate `Speech` helpers manage a process-wide registry
+per supported CAM++ model, with calibrated identification thresholds described below.
 
 **Privacy:** speaker embeddings and enrollment audio are biometric data. Obtain appropriate
 consent and determine applicable local-law requirements, including Illinois BIPA and GDPR
 Article 9 where relevant. Avoid logging embeddings, restrict access to process memory, and
 remove enrollments when no longer needed. The library never persists embeddings or audio.
-Tests use algebraic vectors, not recordings, generated voices or biometric identities.
+Arithmetic tests use algebraic vectors. Speaker integration tests use public LibriSpeech speech only; embeddings are never committed.
 
 ## Checkpoint inspection
 
@@ -210,7 +210,7 @@ dotnet run --project tools/OneSpeech.Convert -- speaker-convert-ecapa embedding_
 
 The converted graph is 83,294,800 bytes, SHA-256
 `f107ead463783cab70914fd0470cc6b42e2ec74b7a717bb42c1360879076c669`. As with CAM++, its catalog
-release URI is reserved/unpublished; run the converter locally. No speaker default is declared.
+release URI is reserved/unpublished; the model store converts verified publisher files locally. ECAPA is available by name; CAM++ English is the speaker default.
 
 On the same 20,000-trial LibriSpeech slice, ECAPA and its pinned reference both score **1.10% EER**
 and **0.0548 normalized minDCF**, using the same raw cosine scorer, prior/costs and conditional
@@ -235,3 +235,36 @@ English read speech. Both our graph and the reference score 2.87% EER and 0.1876
 on the shared 20,000-trial English slice, with paired difference intervals [0,0]. The same prior,
 costs and conditional trial bootstrap apply. This is an implementation comparison and not a
 language-appropriate accuracy bar or a new-speaker population confidence interval.
+
+## Convenience identification operating points
+
+The file helpers use raw cosine without AS-norm or a fitted affine map. Threshold fitting uses
+`eval/manifests/librispeech-speaker-trials.tsv` (SHA-256
+`8a7e63167cd625bd0633a29bd5f517ceb37e9a32fccec062328a52fd44aa43ae`, seed 1729).
+Sort its 73 distinct speaker IDs ordinally; the first floor(73/3) = 24 identities are development,
+the remaining 49 are holdout. Retain a trial only when both identities belong to the same partition;
+discard cross-partition trials. This is a partition of the existing LibriSpeech test-clean/test-other
+trial manifest, not the official LibriSpeech dev split and not a new independent benchmark.
+Neither holdout scores nor query examples select the threshold.
+
+Development IDs: 1089, 1188, 121, 1221, 1284, 1320, 1580, 1688, 1995, 1998, 2033, 2094,
+2300, 237, 2414, 260, 2609, 2830, 2961, 3005, 3080, 3331, 3528, 3538.
+There are 3,296 positive and 1,036 negative development trials. Choose the observed score minimizing
+normalized DCF = miss rate + 99 × false-accept rate (target prior .01, unit miss/false-accept costs).
+Acceptance is inclusive; cost ties prefer the larger threshold. Also report interpolated EER and
+the observed threshold nearest equal false-reject/false-accept rates (stricter on ties).
+`OneSpeech.Convert speaker-calibrate <manifest> <embedding-directory>` reproduces the selection
+from the existing parity-checked embeddings without changing any model weight.
+
+| Model | Dev EER % | EER operating point | Dev minDCF | Identification threshold | Holdout miss % | Holdout false accept % | Holdout DCF |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| CAM++ English | 0.6068 | 0.41554184019080986 | 0.01638 | **0.4929986257373565** | 3.1921 | 0.02227 | 0.05397 |
+| CAM++ Chinese | 2.7002 | 0.5890692253248851 | 0.16292 | **0.7229075438038025** | 15.5131 | 0.06682 | 0.22128 |
+
+Holdout contains 11,194 retained trials. These are conditional trial rates, not population
+confidence intervals or an authentication guarantee. Chinese CAM++ is measured on English read
+speech here; this does **not** establish a Chinese-speaking population operating point. Open-set
+identification with many enrolled names and cluster-average embeddings has different error rates
+from pair verification. Deployments must validate their own population, recording conditions,
+consent and risk policy using the low-level registry's explicit threshold. The convenience
+operating point is a conservative read-speech default, not a liveness check or anti-spoofing system.

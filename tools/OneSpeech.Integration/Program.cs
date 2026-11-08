@@ -7,10 +7,59 @@ using OneSpeech;
 using OneSpeech.Catalog;
 using OneSpeech.Evaluation;
 
+if (args is ["align-order-smoke", var orderClip, var orderDocument])
+{
+    var original = Transcript.FromJson(File.ReadAllText(orderDocument));
+    var written = original with { Words = [.. original.Words.Select(w => w with { Start = null, End = null, TimingMethod = TimingMethod.None })] };
+    var chosen = Speech.Align(orderClip, written, language: "en");
+    if (!chosen.Words.Any(w => w.TimingMethod == TimingMethod.ForcedAligner)) throw new InvalidDataException("Default alignment did not select Qwen.");
+    var explicitCtc = Speech.Align(orderClip, written, language: "en", model: "facebook/omniASR-CTC-300M");
+    if (!explicitCtc.Words.Any(w => w.TimingMethod == TimingMethod.CtcAligner)) throw new InvalidDataException("Explicit CTC was not selected.");
+    await using var encoded = File.OpenRead(orderClip);
+    var streamed = await Speech.AlignAsync(encoded, written, CancellationToken.None, language: "en");
+    if (!chosen.Words.SequenceEqual(streamed.Words)) throw new InvalidDataException("Path and encoded-stream alignment differ.");
+    Console.WriteLine("Alignment priority, explicit selection and encoded-stream equivalence passed.");
+    return 0;
+}
+if (args is ["retime", var retimeManifest, var retimeInput, var retimeOutput, var retimeBegin, var retimeCount])
+    return RetimingProbe.Run(retimeManifest, retimeInput, retimeOutput, int.Parse(retimeBegin, CultureInfo.InvariantCulture), int.Parse(retimeCount, CultureInfo.InvariantCulture));
+if (args is ["retime-score", var scoreManifest, var truthRoot, var timingBefore, var timingAfter]) return RetimingProbe.Score(scoreManifest, truthRoot, timingBefore, timingAfter);
+if (args is ["compare-recognition", var recognitionBefore, var recognitionAfter]) return QwenMemoryProbe.Compare(recognitionBefore, recognitionAfter);
+if (args is ["qwen-memory-repro", var memoryRepro]) return QwenMemoryProbe.Synthetic(memoryRepro);
+if (args is ["qwen-memory-load", var memoryDirectory]) return QwenMemoryProbe.LoadGraphs(memoryDirectory);
+if (args is ["qwen-memory-slice", var sliceDirectory, var sliceCorpus, var sliceOutput]) return QwenMemoryProbe.Slice(sliceDirectory, sliceCorpus, sliceOutput);
+if (args is ["comparison-summary", var summaryRoot]) { Summary.Write(summaryRoot); return 0; }
+if (args is ["comparison-clips", var clipInput, var clipOutput]) return FileComparison.PrepareClips(clipInput, clipOutput);
+if (args is ["comparison-earnings", var earningsRoot, var earningsManifest]) return FileComparison.PrepareEarnings(earningsRoot, earningsManifest);
+if (args is ["comparison-manifest", var corpus, var manifest]) return FileComparison.Prepare(corpus, manifest);
+if (args.Length == 6 && args[0] is "comparison" or "comparison-greedy" or "comparison-speed") return FileComparison.Run(args);
+
 using var cancellation = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
 string? sourceRoot = Environment.GetEnvironmentVariable("ONESPEECH_INTEGRATION_SOURCE");
 if (sourceRoot is not null) ModelStore.Default = new ModelStore(source: new DirectoryModelSource(sourceRoot));
+if (args.Length >= 3 && args[0] == "smoke")
+{
+    foreach (string clip in args[2..])
+    {
+        var transcript = Speech.Transcribe(clip, cancellation.Token, model: args[1]);
+        if (string.IsNullOrWhiteSpace(transcript.Text)) throw new InvalidDataException("Smoke transcription was empty.");
+        Console.WriteLine($"{Path.GetFileName(clip)}\t{transcript.Text}");
+    }
+    return 0;
+}
+if (args is ["qwen-precision-smoke", var precisionDirectory, var precisionClip])
+{
+    if (Directory.GetFiles(precisionDirectory, "*-bf16.onemodel").Length != 0) throw new InvalidOperationException("Use a cache without BF16 graphs.");
+    var clip = Audio.Load(precisionClip, new LoadOptions { SampleRate = 16000, Channels = 1 });
+    using (var fp32 = OneSpeech.Qwen3.Qwen3Recognizer.Load(precisionDirectory, new() { Threads = 4 }, cancellation.Token))
+        Console.WriteLine("FP32\t" + fp32.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", cancellation.Token).Text);
+    if (Directory.GetFiles(precisionDirectory, "*-bf16.onemodel").Length != 0) throw new InvalidOperationException("FP32 created BF16 graphs.");
+    using (var bf16 = OneSpeech.Qwen3.Qwen3Recognizer.Load(precisionDirectory, new() { Threads = 4, Precision = OneSpeech.Qwen3.Qwen3Precision.BFloat16 }, cancellation.Token))
+        Console.WriteLine("BF16\t" + bf16.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", cancellation.Token).Text);
+    Console.WriteLine("Verified lazy BF16 files: " + Directory.GetFiles(precisionDirectory, "*-bf16.onemodel").Length);
+    return 0;
+}
 if (args is ["prepare", var first, var second, var output])
 {
     Directory.CreateDirectory(output);

@@ -54,10 +54,13 @@ public sealed class MoonshineRecognizer : SpeechRecognizer, IDisposable
     internal Transcript DecodeEncoded(RecursiveAI.OneModel.Tensors.Tensor memory, TimeSpan duration, CancellationToken cancellationToken)
     {
         int maximum = Math.Max(1, (int)(duration.TotalSeconds * options.TokensPerSecond));
-        var ids = new List<int> { 1 };
+        // One duration-bounded ID buffer replaces a new prefix array at every step.
+        var ids = new int[maximum + 1];
+        ids[0] = 1;
+        int used = 1;
         for (int i = 0; i < maximum; i++)
         {
-            using var output = runtime.Decode(memory, ids.ToArray(), cancellationToken);
+            using var output = runtime.Decode(memory, ids.AsSpan(0, used), cancellationToken);
             var logits = output["logits"].Data<float>()[^32768..];
             int best = 0;
             for (int id = 0; id < logits.Length; id++)
@@ -65,12 +68,12 @@ public sealed class MoonshineRecognizer : SpeechRecognizer, IDisposable
                 if (!float.IsFinite(logits[id])) throw new UnsupportedAudioException("Moonshine produced nonfinite logits; provide normalized PCM samples.");
                 if (logits[id] > logits[best]) best = id;
             }
-            ids.Add(best);
+            ids[used++] = best;
             if (best == 2) break;
         }
         cancellationToken.ThrowIfCancellationRequested();
-        TokenTrace?.Invoke(ids.ToArray());
-        string text = tokenizer.Decode(ids.ToArray(), cancellationToken: cancellationToken);
+        TokenTrace?.Invoke(ids[..used]);
+        string text = tokenizer.Decode(ids.AsSpan(0, used), cancellationToken: cancellationToken);
         ImmutableArray<Word> words = [.. text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(t => new Word { Text = t, Language = "en" })];
         var segment = new Segment { Text = text, Start = TimeSpan.Zero, End = duration, Language = "en", Words = words };
         return new Transcript { Text = text, Duration = duration, Language = "en", Models = [Model], Words = words, Segments = text.Length == 0 ? [] : [segment] };

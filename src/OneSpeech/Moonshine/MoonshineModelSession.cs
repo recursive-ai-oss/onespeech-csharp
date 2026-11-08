@@ -25,46 +25,57 @@ internal sealed class MoonshineModelSession : IDisposable
         int frames = c.Streaming ? (count / 80 + 3) / 4 : (((count - 127) / 64 + 1 - 7) / 3 + 1 - 3) / 2 + 1;
         using var input = Tensor.Zeros(DType.F32, Shape.Create(1, 1, count));
         audio.Samples.Span[..(c.Streaming ? audio.FrameCount / 80 * 80 : audio.FrameCount)].CopyTo(input.MutableData<float>());
+        var inputs = new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["audio"] = input };
+        if (c.Streaming)
+        {
+            // This position-free encoder never consumes rotary tensors.
+            using var local = LocalMask(frames, 3);
+            using var causal = LocalMask(frames, 0);
+            inputs["local_mask"] = local; inputs["causal_mask"] = causal;
+            return encoder.Run(inputs);
+        }
         using var cos = Rotary(frames, c.RotaryDimension, false);
         using var sin = Rotary(frames, c.RotaryDimension, true);
-        using var local = LocalMask(frames, 3);
-        using var causal = LocalMask(frames, 0);
-        var inputs = new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["audio"] = input };
-        if (c.Streaming) { inputs["local_mask"] = local; inputs["causal_mask"] = causal; }
-        else { inputs["cos"] = cos; inputs["sin"] = sin; }
+        inputs["cos"] = cos; inputs["sin"] = sin;
         return encoder.Run(inputs);
     }
     internal SessionOutputs Decode(Tensor encoded, ReadOnlySpan<int> ids, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         int count = ids.Length;
-        using var tokens = Tensor.FromSpan<long>(ids.ToArray().Select(x => (long)x).ToArray(), Shape.Create(1, count));
+        using var tokens = Tensor.Zeros(DType.I64, Shape.Create(1, count));
+        var tokenData = tokens.MutableData<long>();
+        for (int i = 0; i < count; i++) tokenData[i] = ids[i];
         using var cos = Rotary(count, Configuration.RotaryDimension, false);
         using var sin = Rotary(count, Configuration.RotaryDimension, true);
-        float[] mask = new float[count * count];
+        using var attention = Tensor.Zeros(DType.F32, Shape.Create(1, 1, count, count));
+        var mask = attention.MutableData<float>();
         for (int q = 0; q < count; q++) for (int k = q + 1; k < count; k++) mask[q * count + k] = float.NegativeInfinity;
-        using var attention = Tensor.FromSpan<float>(mask, Shape.Create(1, 1, count, count));
         int frames = encoded.Data<float>().Length / Configuration.EncoderWidth;
-        using var positions = Tensor.FromSpan<long>(Enumerable.Range(0, frames).Select(i => (long)i).ToArray(), Shape.Create(frames));
+        using var positions = Tensor.Zeros(DType.I64, Shape.Create(frames));
+        var positionData = positions.MutableData<long>();
+        for (int i = 0; i < frames; i++) positionData[i] = i;
         var inputs = new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["tokens"] = tokens, ["encoder"] = encoded, ["cos"] = cos, ["sin"] = sin, ["mask"] = attention };
         if (Configuration.Streaming) inputs["encoder_positions"] = positions;
         return decoder.Run(inputs);
     }
     private static Tensor LocalMask(int count, int right)
     {
-        var data = new float[count * count];
+        var tensor = Tensor.Zeros(DType.F32, Shape.Create(1, 1, count, count));
+        var data = tensor.MutableData<float>();
         for (int q = 0; q < count; q++) for (int k = 0; k < count; k++) if (k < q - 15 || k > q + right) data[q * count + k] = float.NegativeInfinity;
-        return Tensor.FromSpan<float>(data, Shape.Create(1, 1, count, count));
+        return tensor;
     }
     internal static Tensor Rotary(int count, int dimension, bool sine)
     {
-        var data = new float[count * dimension];
+        var tensor = Tensor.Zeros(DType.F32, Shape.Create(1, 1, count, dimension));
+        var data = tensor.MutableData<float>();
         for (int p = 0; p < count; p++) for (int d = 0; d < dimension; d++)
         {
             float angle = p * (float)Math.Pow(10000, -2d * (d / 2) / dimension);
             data[p * dimension + d] = sine ? MathF.Sin(angle) : MathF.Cos(angle);
         }
-        return Tensor.FromSpan<float>(data, Shape.Create(1, 1, count, dimension));
+        return tensor;
     }
     public void Dispose() { decoder.Dispose(); encoder.Dispose(); }
 }

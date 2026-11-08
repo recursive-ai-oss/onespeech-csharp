@@ -9,6 +9,49 @@ namespace OneSpeech.Pipeline;
 
 internal static class SpeechServices
 {
+    internal static IEnumerable<Segment> TranscribeStream(string path, string? language, string? model, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using (AudioFileSource.Open(path, cancellationToken)) { }
+        var store = ModelStore.Default;
+        using var recognizer = ResolveAsync(store, model, cancellationToken).AsTask().GetAwaiter().GetResult();
+        using var vad = ResolveVad(store, cancellationToken);
+        using var session = recognizer.CreateLiveSession(vad, language);
+        using var source = AudioFileSource.Open(path, cancellationToken);
+        foreach (var segment in ReadFinals(source, session, cancellationToken)) yield return segment;
+    }
+
+    internal static IEnumerable<Segment> ReadFinals(AudioFileSource source, LiveSession session, CancellationToken cancellationToken)
+    {
+        var interleaved = new float[4096 * source.Channels];
+        var mono = new float[4096];
+        int frames;
+        while ((frames = source.Read(interleaved, cancellationToken)) != 0)
+        {
+            for (int i = 0; i < frames; i++)
+            {
+                double sum = 0;
+                for (int channel = 0; channel < source.Channels; channel++) sum += interleaved[i * source.Channels + channel];
+                mono[i] = (float)(sum / source.Channels);
+            }
+            foreach (var update in session.Push(new AudioBuffer(mono.AsMemory(0, frames), 16000), cancellationToken))
+                if (update is FinalEvent final) yield return final.Segment;
+        }
+        foreach (var update in session.Complete(cancellationToken))
+            if (update is FinalEvent final) yield return final.Segment;
+    }
+
+    internal static async IAsyncEnumerable<LiveEvent> Listen(IAsyncEnumerable<AudioBuffer> source, string? language, string? model, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        cancellationToken.ThrowIfCancellationRequested();
+        var store = ModelStore.Default;
+        using var recognizer = await ResolveAsync(store, model, cancellationToken).ConfigureAwait(false);
+        using var vad = ResolveVad(store, cancellationToken);
+        using var session = recognizer.CreateLiveSession(vad, language);
+        await foreach (var update in session.Listen(source, cancellationToken).ConfigureAwait(false)) yield return update;
+    }
+
     private static async ValueTask<WhisperRecognizer> ResolveAsync(ModelStore store, string? model, CancellationToken cancellationToken)
     {
         var entry = model is null ? store.Catalog.GetDefault("whisper") : store.Catalog.Get(model);

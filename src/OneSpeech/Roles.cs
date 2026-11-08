@@ -20,9 +20,11 @@ public abstract class VoiceActivityDetector
     public abstract ImmutableArray<SpeechInterval> Detect(AudioBuffer audio, CancellationToken cancellationToken);
 }
 
-/// <summary>Recognizes in-memory audio synchronously. Live sessions are a separate future contract.</summary>
+/// <summary>Recognizes in-memory audio synchronously. Live sessions own independent per-input state.</summary>
 public abstract class SpeechRecognizer
 {
+    /// <summary>Creates a finals-only, VAD-endpointed live session by default. Stateful streaming families override this to supply true partials. Borrows this recognizer and the detector; dispose the session first. Input must be mono 16 kHz. Options and errors follow UtteranceLiveSession.</summary>
+    public virtual LiveSession CreateLiveSession(Vad.SileroVad detector, string? language = null) => new Live.UtteranceLiveSession(this, detector, language);
     /// <summary>Loaded model provenance.</summary>
     public abstract ModelInfo Model { get; }
     /// <summary>Requests outside this declaration throw CapabilityNotSupportedException.</summary>

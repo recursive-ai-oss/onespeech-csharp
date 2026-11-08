@@ -2,6 +2,16 @@ using System.Security.Cryptography;
 using OneSpeech.Catalog.Conversion;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
+if (args is ["nemotron-topk-probe", var nemotronTopKDirectory]) { NemotronTools.TopKProbe(nemotronTopKDirectory); return 0; }
+if (args is ["nemotron-score", var nemotronScoreTruth, var nemotronScoreHypothesis, var nemotronScoreReference]) { NemotronBatch.ScoreOnly(nemotronScoreTruth, nemotronScoreHypothesis, nemotronScoreReference); return 0; }
+if (args is ["nemotron-cache-map", var nemotronMapNative, var nemotronMapReference, var nemotronMapSilence]) { NemotronTools.CacheMap(nemotronMapNative, nemotronMapReference, nemotronMapSilence); return 0; }
+if (args is ["nemotron-stream-probe", var nemotronStreamModel, var nemotronStreamAudio, var nemotronStreamOutput, var nemotronStreamRef]) { NemotronTools.StreamProbe(nemotronStreamModel, nemotronStreamAudio, nemotronStreamOutput, nemotronStreamRef); return 0; }
+if (args is ["nemotron-native", var nemotronDirectory, var nemotronRecording, var nemotronResults, var nemotronTruth, var nemotronReference]) { NemotronBatch.Run(nemotronDirectory, nemotronRecording, nemotronResults, nemotronTruth, nemotronReference); return 0; }
+if (args is ["nemotron-cache", var nemotronCacheDir]) { NemotronTools.CacheProbe(nemotronCacheDir); return 0; }
+if (args is ["nemotron-features", var nemotronAudio, var nemotronMel]) { NemotronTools.Features(nemotronAudio, nemotronMel); return 0; }
+if (args is ["nemotron-convert", var nemotronInput, var nemotronOutput]) { NemotronTools.Convert(nemotronInput, nemotronOutput); return 0; }
+if (args is ["nemotron-probe", var nemotronGraph, var nemotronFeatures, var nemotronProbeOutput]) { NemotronTools.Probe(nemotronGraph, nemotronFeatures, nemotronProbeOutput); return 0; }
+if (args is ["nemotron-compare", var nemotronFirst, var nemotronSecond]) { NemotronTools.Compare(nemotronFirst, nemotronSecond); return 0; }
 if (args is ["qwen-precision-repro", var precisionRepro]) { QwenPrecisionProbe.Run(precisionRepro); return 0; }
 if (args is ["qwen-cache-paths", var cachePathsRoot]) { QwenTools.CachePaths(cachePathsRoot); return 0; }
 if (args is ["qwen-e2e", var e2eCache, var e2eAudio, var e2eJson]) { QwenTools.EndToEnd(e2eCache, e2eAudio, e2eJson); return 0; }

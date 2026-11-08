@@ -37,7 +37,16 @@ A custom plain `Diarizer` still works in memory, but file inputs require `BlockD
 
 ## Voice clustering and overlap limitation
 
-`ClusteringDiarizer` is the tier-1 voice-clustering implementation, using caller-supplied VAD and speaker-embedding roles. It **does not detect overlapped speech**: each speech interval gets only one speaker at a time. The overlap-aware upgrades, pyannote segmentation and Nemotron 3 Diarization, are coming as explicit tier-2 options; neither is loaded by these helpers. Channel diarization is a distinct exception because separated channels supply activity independently. The component itself always uses the caller's embedder. The `Speech.Transcribe` helpers select CAM++ Chinese for a requested or detected Chinese language (`zh`, `zh-*`); otherwise they select CAM++ English. An explicit language takes precedence over detection. Recognition runs before the whole-recording diarization pass so this policy also applies without a language hint. Encoded streams are spooled once, with bounded PCM on both passes. This is a language-based starting choice, not a quality-validated default for every language.
+`ClusteringDiarizer` is the tier-1 voice-clustering implementation, using caller-supplied VAD and speaker-embedding roles. It **does not detect overlapped speech**: each speech interval gets only one speaker at a time. The overlap-aware [Nemotron 3 Diarization](nemotron-diarization.md) upgrade is an explicit tier-2 option, never selected by these helpers; the pyannote segmentation slot remains separate. Channel diarization is a distinct exception because separated channels supply activity independently. The component itself always uses the caller's embedder. The `Speech.Transcribe` helpers select CAM++ Chinese for a requested or detected Chinese language (`zh`, `zh-*`); otherwise they select CAM++ English. An explicit language takes precedence over detection. Recognition runs before the whole-recording diarization pass so this policy also applies without a language hint. Encoded streams are spooled once, with bounded PCM on both passes. This is a language-based starting choice, not a quality-validated default for every language.
+
+For an overlap-aware file transcript, keep your recognizer and VAD and replace only the diarizer:
+
+```csharp
+using var overlap = await OneSpeech.Diarization.NemotronDiarizer.LoadAsync();
+var transcript = new OneSpeech.Pipeline.VadTranscriptionPipeline(recognizer, vad, null, null, overlap).Transcribe(path, language: null, CancellationToken.None);
+```
+
+The pipeline retains the higher-activity speaker in simultaneous intervals, flags overlapping words, and leaves gaps Unassigned. This does not separate simultaneous voices or recover words the recognizer missed. The named load fetches the publisher's pinned checkpoint, keeps OpenMDW agreement/origin notices in `ModelInfo`, and converts only into the local cache.
 
 ### Windows and clock
 

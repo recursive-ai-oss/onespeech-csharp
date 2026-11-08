@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <SileroModelPath Condition="'$(SileroModelPath)' == ''">$(ArtifactsPath)/models/silero-vad-v6.2.3.onnx</SileroModelPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="$(SileroModelPath)" LogicalName="OneSpeech.silero_vad.onnx" />
+  </ItemGroup>
+  <Target Name="PrepareSileroModel" BeforeTargets="AssignTargetPaths">
+    <DownloadFile Condition="!Exists('$(SileroModelPath)')"
+      SourceUrl="https://raw.githubusercontent.com/snakers4/silero-vad/5cd7945676eb32225748052e2e6a0580e4686a08/src/silero_vad/data/silero_vad.onnx"
+      DestinationFolder="$([System.IO.Path]::GetDirectoryName('$(SileroModelPath)'))" DestinationFileName="$([System.IO.Path]::GetFileName('$(SileroModelPath)'))" />
+    <GetFileHash Files="$(SileroModelPath)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="SileroVerifiedFile" />
+    </GetFileHash>
+    <Error Condition="'%(SileroVerifiedFile.FileHash)' != '1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3'" Text="Silero VAD v6.2.3 SHA-256 mismatch. Supply the pinned release model via SileroModelPath." />
+  </Target>
+</Project>

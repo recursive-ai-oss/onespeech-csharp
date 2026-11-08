@@ -8,4 +8,4 @@ Roles process in-memory audio synchronously and require an explicit cancellation
 
 `CatalogEntry` and `CatalogFile` describe pinned bytes and their provenance, not loading authorization. `ModelSource` returns caller-owned readable streams; the consuming loader must enforce tier/gate rules, relative-path safety, size, digest, HTTPS and revision policies even for custom sources. `CatalogEntry.FromJson` uses the transcript reader's structural bounds and generated metadata; it is data deserialization only, not semantic catalog verification.
 
-`Speech` currently fails explicitly with `FeatureUnavailableException`. No model is downloaded, no audio is decoded, and no timing or recognition is simulated.
+`Speech` forwards to the VAD transcription pipeline through an explicit internal recognizer resolver. Without a configured resolver it fails with `FeatureUnavailableException` before opening input. No recognition or timing is simulated. See [audio input](audio-input.md) and [Silero VAD](vad.md) for decoding, chunking, audio-clock and lifetime behaviour.

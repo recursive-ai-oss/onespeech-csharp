@@ -1,4 +1,15 @@
 using OneSpeech;
+
+var phrases = new OneSpeech.Decoding.PhraseTrie([new([1], 1)]);
+var biasedCtc = OneSpeech.Decoding.ContextualCtcBeamSearch.Decode([0, -.5f, -10], 3, 2, phrases);
+if (!biasedCtc.Tokens.AsSpan().SequenceEqual([1]) || biasedCtc.ContextScore != 1)
+    throw new InvalidOperationException("Contextual CTC NativeAOT smoke failed.");
+var biasedTdt = OneSpeech.Decoding.ContextualTransducerSearch.DecodeTdt(1, 3, 2, [0, 1],
+    (int frame, ReadOnlySpan<int> prefix, Span<float> logits, Span<float> durations, CancellationToken ct) =>
+    { ct.ThrowIfCancellationRequested(); logits[0] = 0; logits[1] = -.5f; logits[2] = -10; durations[0] = -10; durations[1] = 0; }, phrases);
+if (biasedTdt.Length != 1 || biasedTdt[0].Id != 1)
+    throw new InvalidOperationException("Contextual TDT NativeAOT smoke failed.");
+Console.WriteLine("Phrase trie and contextual CTC/TDT NativeAOT smoke passed.");
 TransducerSmoke.Run();
 ParakeetSmoke.Run();
 CustomSmoke.Run();

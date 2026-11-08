@@ -34,9 +34,38 @@ internal static class QwenTools
     {
         using var recognizer = OneSpeech.Qwen3.Qwen3Recognizer.Load(model, new OneSpeech.Qwen3.Qwen3Options { Threads = 4, Precision = bf16 ? OneSpeech.Qwen3.Qwen3Precision.BFloat16 : OneSpeech.Qwen3.Qwen3Precision.Binary32 });
         using var vad = new OneSpeech.Vad.SileroVad();
-        var result = new OneSpeech.Pipeline.VadTranscriptionPipeline(recognizer, vad).Transcribe(audio, "en", CancellationToken.None);
+        // The file pipeline uses these same bounded VAD chunks. Checkpoint each completed
+        // recognition call so a bounded evaluation job can resume without changing chunking.
+        string checkpoints = output + ".chunks";
+        Directory.CreateDirectory(checkpoints);
+        using (var input = File.OpenRead(audio))
+        {
+            string fingerprint = Convert.ToHexStringLower(SHA256.HashData(input)) + "\n" + recognizer.Model.Id + "\n" + bf16;
+            string manifest = Path.Combine(checkpoints, "input.txt");
+            if (File.Exists(manifest) && File.ReadAllText(manifest) != fingerprint) throw new InvalidDataException("Long-form checkpoint input differs.");
+            File.WriteAllText(manifest, fingerprint);
+        }
+        using var source = OneSpeech.Audio.AudioFileSource.Open(audio, CancellationToken.None);
+        var chunker = new OneSpeech.Audio.VadChunker(vad);
+        var texts = new List<string>();
+        int index = 0;
+        foreach (var chunk in chunker.Read(OneSpeech.Audio.VadChunker.Blocks(source, CancellationToken.None), null, CancellationToken.None))
+        {
+            string path = Path.Combine(checkpoints, index.ToString("D5", System.Globalization.CultureInfo.InvariantCulture) + ".json");
+            if (!File.Exists(path))
+            {
+                var recognized = recognizer.Transcribe(chunk.Audio, "en", CancellationToken.None);
+                File.WriteAllText(path + ".partial", recognized.ToJson());
+                File.Move(path + ".partial", path);
+            }
+            string text = OneSpeech.Transcript.FromJson(File.ReadAllText(path)).Text;
+            if (text.Length != 0) texts.Add(text);
+            Console.WriteLine("Chunk " + index + " at audio seconds " + chunk.Start.TotalSeconds.ToString("F3", System.Globalization.CultureInfo.InvariantCulture));
+            index++;
+        }
+        var result = new OneSpeech.Transcript { Text = string.Join(' ', texts), Models = [recognizer.Model], Language = "en" };
         File.WriteAllText(output, result.ToJson());
-        Console.WriteLine("Long-form Qwen words=" + result.Words.Length);
+        Console.WriteLine("Long-form Qwen chunks=" + index);
     }
     private static string LoadAverage() => File.Exists("/proc/loadavg") ? File.ReadAllText("/proc/loadavg").Trim() : "unavailable";
     private static void Metadata(string output, string model, string precision, int begin, string before, string during, string status)

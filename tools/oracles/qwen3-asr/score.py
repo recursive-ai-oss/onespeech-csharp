@@ -19,7 +19,7 @@ def score(state, name, truth, ours, reference=None):
     output.mkdir(exist_ok=True)
     write_rows(output / (name + "-truth.jsonl"), truth)
     write_rows(output / (name + "-ours.jsonl"), ours)
-    command = ["dotnet", str(state / "runner-eval/OneSpeech.Eval.dll"), "score",
+    command = ["dotnet", str(state / "runner-eval/onespeech-eval.dll"), "score",
                "--ref", str(output / (name + "-truth.jsonl")),
                "--hyp", str(output / (name + "-ours.jsonl")),
                "--normalizer", "en", "--resamples", "1000", "--seed", "1729",
@@ -27,7 +27,9 @@ def score(state, name, truth, ours, reference=None):
     if reference is not None:
         write_rows(output / (name + "-ref.jsonl"), reference)
         command += ["--hyp2", str(output / (name + "-ref.jsonl"))]
-    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode:
+        raise SystemExit(result.stderr or result.stdout)
     (output / (name + ".log")).write_text(result.stdout)
     print(name + ": " + result.stdout.strip(), flush=True)
     return json.loads((output / (name + ".json")).read_text())
@@ -54,7 +56,7 @@ def main():
         output = state / "scores"
         output.mkdir(exist_ok=True)
         truth_path = output / "earnings-references.jsonl"
-        subprocess.run(["dotnet", str(state / "runner-eval/OneSpeech.Eval.dll"), "references",
+        subprocess.run(["dotnet", str(state / "runner-eval/onespeech-eval.dll"), "references",
                         "--dataset", "earnings22", "--input", str(args.root),
                         "--out", str(truth_path)], check=True)
         truth = [row for line in truth_path.read_text().splitlines()

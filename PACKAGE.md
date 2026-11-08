@@ -7,3 +7,7 @@ The planned library provides managed transcription, word timestamps, diarization
 OneSpeech is unaffiliated with other products or companies named OneSpeech.
 
 [Source and documentation](https://github.com/recursive-ai-oss/onespeech-csharp/tree/main) · [Project](https://recursiveai.org/onespeech/) · [Licences](https://github.com/recursive-ai-oss/onespeech-csharp/blob/main/LICENSE-MIT)
+
+## Container audio and subtitles
+
+The optional `RecursiveAI.OneSpeech.Media` package adds OneMedia container audio input, `Transcript` subtitle exports (SRT, WebVTT, ASS and TTML), cue interchange and caption muxing. [Usage and fidelity policy](https://github.com/recursive-ai-oss/onespeech-csharp/blob/main/docs/media.md).

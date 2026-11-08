@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><PublishAot>true</PublishAot><IsAotCompatible>true</IsAotCompatible></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/OneSpeech.Media/OneSpeech.Media.csproj" /></ItemGroup>
+  <ItemGroup><Compile Include="../OneSpeech.Media.Tests/ContainerFixture.cs" Link="ContainerFixture.cs" /></ItemGroup>
+</Project>

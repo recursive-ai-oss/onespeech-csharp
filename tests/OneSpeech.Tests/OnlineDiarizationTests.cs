@@ -64,11 +64,27 @@ public sealed class OnlineDiarizationTests
         using var embedder = new AnalyticEmbedder();
         using var session = new OnlineDiarizationSession(inner, embedder);
         var block = new AudioBuffer(new float[1600], 16000);
-        session.Push(block, TestContext.Current.CancellationToken);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1000; i++) session.Push(block, TestContext.Current.CancellationToken);
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
-        Assert.Equal(TimeSpan.FromSeconds(100.1), session.AudioTime);
+        var cancellationToken = TestContext.Current.CancellationToken;
+        long allocated = -1;
+        Exception? failure = null;
+        // Measure only warmed library calls, on a thread without the runner's
+        // execution context. Thread creation and all setup stay outside the counter.
+        var worker = new Thread(() =>
+        {
+            try
+            {
+                for (int i = 0; i < 1000; i++) session.Push(block, cancellationToken);
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 1000; i++) session.Push(block, cancellationToken);
+                allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            }
+            catch (Exception exception) { failure = exception; }
+        });
+        using (ExecutionContext.SuppressFlow()) worker.Start();
+        worker.Join();
+        Assert.Null(failure);
+        Assert.Equal(0, allocated);
+        Assert.Equal(TimeSpan.FromSeconds(200), session.AudioTime);
     }
 
     [Fact]

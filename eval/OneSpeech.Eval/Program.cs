@@ -5,6 +5,7 @@ try
 {
     if(args.Length==0)throw new ArgumentException("Expected score, references, der or diarize.");
     if(args[0]=="diarize")return DiarizationRun.Run(args[1..]);
+    if(args[0]=="short-diarization")return ShortDiarization.Run(args[1..]);
     var options=new Dictionary<string,string>(StringComparer.Ordinal);
     for(int i=1;i<args.Length;i+=2) {if(i+1>=args.Length || !args[i].StartsWith("--",StringComparison.Ordinal) || !options.TryAdd(args[i],args[i+1]))throw new ArgumentException("Expected unique --option value pairs.");}
     string Required(string name)=>options.GetValueOrDefault(name)??throw new ArgumentException("Missing "+name);

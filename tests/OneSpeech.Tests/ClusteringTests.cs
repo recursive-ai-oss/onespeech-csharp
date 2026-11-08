@@ -105,6 +105,17 @@ public sealed class ClusteringTests
         Assert.Single(new ClusteringDiarizer(embedder, new ProbeVad()).Diarize(audio, Token).Select(t => t.Speaker.Id).Distinct());
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CountHintsSurviveIndistinguishableGeometry(bool exact)
+    {
+        using var embedder = new ProbeEmbedder();
+        var audio = new AudioBuffer(Enumerable.Repeat(0.2f, 10 * 16000).ToArray(), 16000);
+        var options = exact ? new ClusteringOptions { NumSpeakers = 2 } : new ClusteringOptions { MinSpeakers = 2, MaxSpeakers = 2 };
+        Assert.Equal(2, new ClusteringDiarizer(embedder, new ProbeVad(), options).Diarize(audio, Token).Select(t => t.Speaker.Id).Distinct().Count());
+    }
+
     [Fact]
     public void ResegmentationSeamValidatesBackendOutput()
     {

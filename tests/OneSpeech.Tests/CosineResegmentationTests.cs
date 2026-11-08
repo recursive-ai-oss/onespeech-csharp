@@ -34,10 +34,10 @@ public sealed class CosineResegmentationTests
         Assert.Equal(Separated, new CosineResegmenter(10, 0).Resegment(separated, [0, 0, 1, 1], CancellationToken.None));
     }
     [Fact]
-    public void FileHelperUsesTheDevelopmentSelectedProfile()
+    public void ResegmentationIsOnByDefaultForEveryCaller()
     {
-        Assert.Equal(0.4, OneSpeech.Pipeline.SpeechServices.DiarizationResegmentation.SwitchPenalty);
-        Assert.Equal(2, OneSpeech.Pipeline.SpeechServices.DiarizationResegmentation.StableRadius);
+        // The low-level diarizer and the file helpers share one default: cosine resegmentation (penalty 0.4, radius 2) when no speaker count is fixed.
+        Assert.True(new OneSpeech.Diarization.ClusteringOptions().Resegment);
     }
     [Fact]
     public void EmptySingletonCancellationAndMalformedInputs()

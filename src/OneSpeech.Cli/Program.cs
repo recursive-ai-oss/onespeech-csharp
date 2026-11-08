@@ -171,7 +171,7 @@ internal static class CommandLine
             else
             {
                 using var embedder = await LoadEmbedderAsync(o, ct);
-                using var vad = new SileroVad(cancellationToken: ct);
+                using var vad = new SileroVad(SileroVadOptions.Diarization, cancellationToken: ct);
                 var diarizer = new ClusteringDiarizer(embedder, vad);
                 document = new Transcript { Text = "", Turns = diarizer.DiarizeBlocks(Blocks(), ct), Models = diarizer.Models };
             }

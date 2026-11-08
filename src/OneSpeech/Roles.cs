@@ -46,6 +46,17 @@ public abstract class Aligner
     public abstract Capabilities Capabilities { get; }
     /// <summary>Aligns text to audio. Null language requests detection. Throws OperationCanceledException on cancellation.</summary>
     public abstract Transcript Align(AudioBuffer audio, string text, string? language, CancellationToken cancellationToken);
+    /// <summary>Aligns existing written words without changing their text, order or non-timing fields. The default delegates to text alignment and projects timing only when the word count is unchanged; otherwise every word remains untimed. Implementations can override this to retain explicit word boundaries through spoken-form expansion. Errors follow text alignment; cancellation throws OperationCanceledException.</summary>
+    public virtual Transcript Align(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(transcript);
+        cancellationToken.ThrowIfCancellationRequested();
+        var timed = Align(audio, string.Join(' ', transcript.Words.Select(w => w.Text)), language, cancellationToken);
+        var words = transcript.Words.Select((word, i) => timed.Words.Length == transcript.Words.Length
+            ? word with { Start = timed.Words[i].Start, End = timed.Words[i].End, TimingMethod = timed.Words[i].TimingMethod }
+            : word with { Start = null, End = null, TimingMethod = TimingMethod.None }).ToImmutableArray();
+        return Alignment.AlignedWords.Replace(transcript, words) with { Duration = timed.Duration, Models = [.. transcript.Models.Concat(timed.Models).DistinctBy(m => (m.Id, m.Revision))] };
+    }
 }
 
 /// <summary>Assigns speaker turns to in-memory audio; implementations declare whether overlap is detected.</summary>

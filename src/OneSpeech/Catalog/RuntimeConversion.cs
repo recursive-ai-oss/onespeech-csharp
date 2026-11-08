@@ -35,6 +35,11 @@ internal static class RuntimeConversion
             using var checkpoint = File.OpenRead(Path.Combine(input, "campplus_cn_common.bin"));
             new CampPlusConverter(TensorCheckpoint.Read(checkpoint)).Save(Path.Combine(output, "campplus-zh-fp32.onemodel"));
         }
+        else if (entry.Id == "facebook/omniASR-CTC-300M")
+        {
+            using var checkpoint = File.OpenRead(Path.Combine(input, "omniASR-CTC-300M.pt"));
+            new OmniAsrConverter(TensorCheckpoint.Read(checkpoint, largeModel: true)).Save(Path.Combine(output, "ctc-fp32.onemodel"));
+        }
         else throw new CapabilityNotSupportedException($"No local converter is registered for '{entry.Id}'.");
         cancellationToken.ThrowIfCancellationRequested();
     }

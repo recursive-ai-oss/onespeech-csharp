@@ -1,0 +1,5 @@
+[project]
+name = "onespeech-mfa-oracle"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = ["Montreal-Forced-Aligner==3.4.3"]

@@ -1,4 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
-  <ItemGroup><ProjectReference Include="../../src/OneSpeech/OneSpeech.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../src/OneSpeech/OneSpeech.csproj" /><ProjectReference Include="../../eval/OneSpeech.Eval/OneSpeech.Eval.csproj" /></ItemGroup>
 </Project>

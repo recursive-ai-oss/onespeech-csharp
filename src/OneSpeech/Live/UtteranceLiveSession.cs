@@ -6,6 +6,8 @@ namespace OneSpeech.Live;
 public sealed class UtteranceLiveSession : LiveSession
 {
     private readonly SpeechRecognizer recognizer;
+    private readonly IIncrementalUtteranceRecognizer? incremental;
+    private long lastPartial;
     private readonly SileroVadState? state;
     private readonly Func<ReadOnlyMemory<float>, CancellationToken, float>? probability;
     private readonly SileroVadOptions options;
@@ -29,6 +31,9 @@ public sealed class UtteranceLiveSession : LiveSession
         ArgumentNullException.ThrowIfNull(detector);
         state = detector.CreateState(16000);
     }
+
+    internal UtteranceLiveSession(SpeechRecognizer recognizer, SileroVad detector, IIncrementalUtteranceRecognizer incremental, string? language)
+        : this(recognizer, detector, language) => this.incremental = incremental;
 
     internal UtteranceLiveSession(SpeechRecognizer recognizer, Func<ReadOnlyMemory<float>, CancellationToken, float> probability, string? language = null, TimeSpan? maximumUtteranceDuration = null, SileroVadOptions? options = null)
         : this(recognizer, language, maximumUtteranceDuration, options) => this.probability = probability;
@@ -67,6 +72,29 @@ public sealed class UtteranceLiveSession : LiveSession
                 frameCount = 0;
             }
         }
+        Partial(cancellationToken);
+    }
+
+    private void Partial(CancellationToken cancellationToken)
+    {
+        if (incremental is null || speechStart < 0 || silenceStart >= 0 || position - speechStart <= options.MinimumSpeech.TotalSeconds * 16000 || position - lastPartial < 3200) return;
+        var result = Decode(position, false, cancellationToken);
+        PublishPartial(Segment(result, position));
+        lastPartial = position;
+    }
+
+    private Transcript Decode(long end, bool final, CancellationToken cancellationToken)
+    {
+        int count = checked((int)(end - paddedStart));
+        for (int i = 0; i < count; i++) utterance[i] = ring[(int)((paddedStart + i) % ring.Length)];
+        var audio = new AudioBuffer(utterance.AsMemory(0, count), 16000);
+        return incremental is null ? recognizer.Transcribe(audio, language, cancellationToken) : incremental.Decode(audio, language, final, cancellationToken);
+    }
+
+    private Segment Segment(Transcript result, long end)
+    {
+        var offset = TimeSpan.FromSeconds(paddedStart / 16000d);
+        return new Segment { Text = result.Text, Language = result.Language, Start = offset, End = TimeSpan.FromSeconds(end / 16000d), Words = [.. result.Words.Select(w => w with { Start = w.Start + offset, End = w.End + offset })] };
     }
 
     private void Analyze(int realSamples, CancellationToken cancellationToken)
@@ -113,24 +141,17 @@ public sealed class UtteranceLiveSession : LiveSession
     {
         if (speechEnd - speechStart > options.MinimumSpeech.TotalSeconds * 16000)
         {
-            int count = checked((int)(end - paddedStart));
-            for (int i = 0; i < count; i++) utterance[i] = ring[(int)((paddedStart + i) % ring.Length)];
-            var result = recognizer.Transcribe(new AudioBuffer(utterance.AsMemory(0, count), 16000), language, cancellationToken);
+            var result = Decode(end, true, cancellationToken);
             language ??= result.Language;
-            var offset = TimeSpan.FromSeconds(paddedStart / 16000d);
-            if (result.Text.Length != 0)
-                PublishFinal(new Segment
-                {
-                    Text = result.Text, Language = result.Language,
-                    Start = offset, End = TimeSpan.FromSeconds(end / 16000d),
-                    Words = [.. result.Words.Select(w => w with { Start = w.Start + offset, End = w.End + offset })]
-                });
+            if (result.Text.Length != 0) PublishFinal(Segment(result, end));
             PublishEndpoint(TimeSpan.FromSeconds(end / 16000d), reason);
         }
         lastEnd = end;
         speechStart = silenceStart = -1;
+        incremental?.Reset();
+        lastPartial = position;
     }
 
     /// <inheritdoc />
-    protected override void DisposeCore() => state?.Dispose();
+    protected override void DisposeCore() { incremental?.Dispose(); state?.Dispose(); Array.Clear(ring); Array.Clear(utterance); Array.Clear(frame); }
 }

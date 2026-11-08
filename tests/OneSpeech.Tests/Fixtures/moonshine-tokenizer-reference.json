@@ -1,0 +1,88 @@
+{
+  "oracle": "transformers==5.22.2, public AutoProcessor.tokenizer API",
+  "model": "moonshine-ai/moonshine-tiny",
+  "revision": "390624ed33d594443aa4aa221f5b9f283b545b5a",
+  "tokenizerSha256": "6579793438bc4fbafffacf699169ff53e3769c5a0a0f5e71cdee8853e8130deb",
+  "cases": [
+    {
+      "text": "",
+      "ids": [
+        1
+      ],
+      "decoded": "<s>"
+    },
+    {
+      "text": " hello world",
+      "ids": [
+        1,
+        29871,
+        22172,
+        3186
+      ],
+      "decoded": "<s>  hello world"
+    },
+    {
+      "text": "a  b\nC",
+      "ids": [
+        1,
+        263,
+        29871,
+        289,
+        13,
+        29907
+      ],
+      "decoded": "<s> a  b\nC"
+    },
+    {
+      "text": "café é",
+      "ids": [
+        1,
+        274,
+        28059,
+        321,
+        30103
+      ],
+      "decoded": "<s> café é"
+    },
+    {
+      "text": "中文 🙂",
+      "ids": [
+        1,
+        29871,
+        30275,
+        30333,
+        29871,
+        243,
+        162,
+        156,
+        133
+      ],
+      "decoded": "<s> 中文 🙂"
+    },
+    {
+      "text": "<s></s>",
+      "ids": [
+        1,
+        1,
+        2
+      ],
+      "decoded": "<s><s></s>"
+    }
+  ],
+  "decodeCases": [
+    {
+      "ids": [
+        229,
+        133
+      ],
+      "decoded": "��"
+    },
+    {
+      "ids": [
+        68,
+        258
+      ],
+      "decoded": "��"
+    }
+  ]
+}

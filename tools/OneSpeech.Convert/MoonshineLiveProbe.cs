@@ -1,0 +1,63 @@
+using System.Text.Json;
+using OneSpeech;
+using OneSpeech.Moonshine;
+using OneSpeech.Vad;
+
+internal static class MoonshineLiveProbe
+{
+    internal static void Check(string directory, string path)
+    {
+        using var recognizer = MoonshineRecognizer.Load(directory);
+        var clip = OneAudio.Audio.Load(path, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
+        int[] expected = [], actual = [];
+        recognizer.TokenTrace = ids => expected = ids;
+        var whole = recognizer.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", CancellationToken.None);
+        recognizer.TokenTrace = null;
+        using var state = new MoonshineStreamingState(recognizer);
+        for (int end = 1600; end < clip.Samples.Length; end += 1600) state.Decode(new AudioBuffer(clip.Samples.Slice(0, end), 16000), "en", false, CancellationToken.None);
+        recognizer.TokenTrace = ids => actual = ids;
+        var final = state.Decode(new AudioBuffer(clip.Samples, 16000), "en", true, CancellationToken.None);
+        if (whole.Text != final.Text || !expected.SequenceEqual(actual)) throw new InvalidOperationException("Cached streaming final differs from whole-utterance decoding.");
+        using var vad = new SileroVad();
+        using var session = recognizer.CreateLiveSession(vad, "en");
+        var events = new List<LiveEvent>();
+        for (int start = 0; start < clip.Samples.Length; start += 1600) events.AddRange(session.Push(new AudioBuffer(clip.Samples.Slice(start, Math.Min(1600, clip.Samples.Length - start)), 16000)));
+        events.AddRange(session.Complete());
+        int partials = events.OfType<PartialEvent>().Count(), finals = events.OfType<FinalEvent>().Count();
+        if (partials == 0 || finals == 0) throw new InvalidOperationException("Expected true partials and a final.");
+        Console.WriteLine($"Cached final token identity: {expected.Length} tokens; session partials={partials} finals={finals}; {final.Text}");
+    }
+
+    internal static void Batch(string directory, string split, string output, int begin, int count, int chunk)
+    {
+        using var recognizer = MoonshineRecognizer.Load(directory, new MoonshineOptions { IntraOpThreads = 2 });
+        using var vad = new SileroVad();
+        Directory.CreateDirectory(output);
+        foreach (string file in Directory.EnumerateFiles(split, "*.flac", SearchOption.AllDirectories).OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Skip(begin).Take(count))
+        {
+            string id = Path.GetFileNameWithoutExtension(file), path = Path.Combine(output, id + ".json");
+            if (File.Exists(path)) continue;
+            var clip = OneAudio.Audio.Load(file, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
+            using var session = recognizer.CreateLiveSession(vad, "en");
+            var finals = new List<FinalEvent>();
+            int partials = 0;
+            for (int start = 0; start < clip.Samples.Length; start += chunk)
+                foreach (var update in session.Push(new AudioBuffer(clip.Samples.Slice(start, Math.Min(chunk, clip.Samples.Length - start)), 16000)))
+                { if (update is FinalEvent final) finals.Add(final); if (update is PartialEvent) partials++; }
+            foreach (var update in session.Complete()) if (update is FinalEvent final) finals.Add(final);
+            using (var stream = File.Create(path + ".part")) using (var json = new Utf8JsonWriter(stream))
+            {
+                json.WriteStartObject(); json.WriteString("id", id); json.WriteString("text", string.Join(" ", finals.Select(f => f.Segment.Text))); json.WriteNumber("chunkSamples", chunk); json.WriteNumber("partials", partials); json.WriteStartArray("finals");
+                foreach (var final in finals)
+                {
+                    json.WriteStartObject(); json.WriteString("text", final.Segment.Text); json.WriteNumber("available", final.AudioTime.TotalSeconds);
+                    if (final.Segment.Start is { } start) json.WriteNumber("start", start.TotalSeconds);
+                    if (final.Segment.End is { } end) json.WriteNumber("end", end.TotalSeconds);
+                    json.WriteEndObject();
+                }
+                json.WriteEndArray(); json.WriteEndObject();
+            }
+            File.Move(path + ".part", path); Console.WriteLine(id);
+        }
+    }
+}

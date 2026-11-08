@@ -74,6 +74,13 @@ if (args is ["--ecapa", var ecapaGraph, var ecapaAudio])
     Console.WriteLine("ECAPA real graph NativeAOT extraction passed.");
 }
 
+string? moonshineDirectory = Environment.GetEnvironmentVariable("ONESPEECH_MOONSHINE_STREAMING_TINY");
+if (moonshineDirectory is not null && clipPath is not null)
+{
+    using var moonshine = OneSpeech.Moonshine.MoonshineRecognizer.Load(moonshineDirectory);
+    await LiveSmoke.Run(vad, moonshine, clipPath, expectPartials: true);
+}
+
 string? happyPathClip = Environment.GetEnvironmentVariable("ONESPEECH_HAPPY_PATH_CLIP");
 if (happyPathClip is not null)
 {

@@ -9,12 +9,12 @@ namespace OneSpeech.Pipeline;
 
 internal static class SpeechServices
 {
-    internal static IEnumerable<Segment> TranscribeStream(string path, string? language, string? model, CancellationToken cancellationToken)
+    internal static async IAsyncEnumerable<Segment> TranscribeStream(string path, string? language, string? model, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using (AudioFileSource.Open(path, cancellationToken)) { }
         var store = ModelStore.Default;
-        using var recognizer = ResolveAsync(store, model, cancellationToken).AsTask().GetAwaiter().GetResult();
+        using var recognizer = await ResolveAsync(store, model, cancellationToken).ConfigureAwait(false);
         using var vad = ResolveVad(store, cancellationToken);
         using var session = recognizer.CreateLiveSession(vad, language);
         using var source = AudioFileSource.Open(path, cancellationToken);
@@ -46,20 +46,38 @@ internal static class SpeechServices
         ArgumentNullException.ThrowIfNull(source);
         cancellationToken.ThrowIfCancellationRequested();
         var store = ModelStore.Default;
-        using var recognizer = await ResolveAsync(store, model, cancellationToken).ConfigureAwait(false);
+        using var recognizer = await ResolveAsync(store, model ?? store.Catalog.GetDefault("moonshine").Id, cancellationToken).ConfigureAwait(false);
         using var vad = ResolveVad(store, cancellationToken);
         using var session = recognizer.CreateLiveSession(vad, language);
         await foreach (var update in session.Listen(source, cancellationToken).ConfigureAwait(false)) yield return update;
     }
 
-    private static async ValueTask<WhisperRecognizer> ResolveAsync(ModelStore store, string? model, CancellationToken cancellationToken)
+    private static async ValueTask<RecognizerLease> ResolveAsync(ModelStore store, string? model, CancellationToken cancellationToken)
     {
+        if (model is not null && model.StartsWith("moonshine-ai/", StringComparison.Ordinal)) _ = Moonshine.MoonshineProvenance.Get(model);
         var entry = model is null ? store.Catalog.GetDefault("whisper") : store.Catalog.Get(model);
-        if (entry.Family != "whisper") throw new CapabilityNotSupportedException($"'{entry.Id}' is not a registered speech recognizer.");
+        if (entry.Family is not ("whisper" or "moonshine")) throw new CapabilityNotSupportedException($"Model {entry.Id} is not a registered speech recognizer.");
         if (entry.ConvertedFiles.Any(f => f.Size > int.MaxValue))
             throw new CapabilityNotSupportedException($"'{entry.Id}' requires a runtime graph larger than OneModel 1.0.0's 2 GiB file limit. Select openai/whisper-large-v3-turbo until a larger-file loader is available.");
         var resolved = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
-        return WhisperRecognizer.Load(resolved.Directory, cancellationToken: cancellationToken);
+        if (entry.Family == "moonshine")
+        {
+            var recognizer = Moonshine.MoonshineRecognizer.Load(resolved.Directory, cancellationToken: cancellationToken);
+            return new RecognizerLease(recognizer, recognizer);
+        }
+        var whisper = WhisperRecognizer.Load(resolved.Directory, cancellationToken: cancellationToken);
+        return new RecognizerLease(whisper, whisper);
+    }
+
+    private sealed class RecognizerLease(SpeechRecognizer recognizer, IDisposable owner) : SpeechRecognizer, IDisposable
+    {
+        public override ModelInfo Model => recognizer.Model;
+        public override Capabilities Capabilities => recognizer.Capabilities;
+        public override Transcript Transcribe(AudioBuffer audio, string? language, CancellationToken cancellationToken) => recognizer.Transcribe(audio, language, cancellationToken);
+        public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken) => recognizer.TranscribeStream(audio, language, cancellationToken);
+        public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken) => recognizer.DetectLanguage(audio, cancellationToken);
+        public override LiveSession CreateLiveSession(SileroVad detector, string? language = null) => recognizer.CreateLiveSession(detector, language);
+        public void Dispose() => owner.Dispose();
     }
 
     private static async ValueTask<CampPlusEmbedder> ResolveEmbedderAsync(ModelStore store, CancellationToken cancellationToken)

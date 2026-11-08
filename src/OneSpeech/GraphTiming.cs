@@ -77,7 +77,14 @@ internal static class GraphTiming
         costStarted[cost] = Stopwatch.GetTimestamp();
     }
     [Conditional("ONESPEECH_GRAPH_TIMING")]
-    internal static void EndCost(int cost) => Interlocked.Add(ref costTicks[cost], Stopwatch.GetTimestamp() - costStarted![cost]);
+    internal static void EndCost(int cost)
+    {
+        long start = costStarted?[cost] ?? 0;
+        if (start == 0) throw new InvalidOperationException("A measured cost ended without a matching start.");
+        long elapsed = Stopwatch.GetTimestamp() - start;
+        costStarted![cost] = 0;
+        Interlocked.Add(ref costTicks[cost], elapsed);
+    }
     internal static long[] CostSnapshot() => (long[])costTicks.Clone();
 
     internal static int ThreadCount { get; set; }
@@ -91,6 +98,7 @@ internal static class GraphTiming
 
     internal static void Reset()
     {
+        if (costStarted is not null) Array.Clear(costStarted);
         Array.Clear(costTicks); Array.Clear(phaseTicks); Array.Clear(ticks); Array.Clear(calls); Array.Clear(bytes);
     }
 }

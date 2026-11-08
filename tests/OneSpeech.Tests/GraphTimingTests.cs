@@ -37,6 +37,16 @@ public sealed class GraphTimingTests
             Assert.True(sample.Ticks > 0);
             Assert.True(sample.Bytes >= 8192);
         }
+        var features = new OneSpeech.Audio.WhisperLogMelSpectrogram(128);
+        var audio = new AudioBuffer(new float[16000], 16000);
+        GraphTiming.Reset();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        _ = features.ExtractContext(audio, 0, float.NegativeInfinity, TestContext.Current.CancellationToken);
+        _ = features.ExtractQwen(audio, TestContext.Current.CancellationToken);
+        clock.Stop();
+        long featureTicks = GraphTiming.CostSnapshot()[1];
+        Assert.True(featureTicks <= clock.ElapsedTicks);
+        Assert.Equal(GraphTiming.IsCompiled, featureTicks > 0);
         GraphTiming.ThreadCount = 0;
         GraphTiming.Reset();
     }

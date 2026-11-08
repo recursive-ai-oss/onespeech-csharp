@@ -123,11 +123,14 @@ foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
     sampler.Dispose();
     double graphSeconds = graphs.Sum(x => x.Ticks) / (double)Stopwatch.Frequency;
     if (graphSeconds <= 0) throw new InvalidOperationException("No graph calls were recorded; the row is invalid.");
+    if (costTicks.Sum() / (double)Stopwatch.Frequency > seconds - graphSeconds + 0.01)
+        throw new InvalidOperationException("Exclusive profile costs overlap or escaped the measured interval.");
     string stem = Path.Combine(output, $"{name}-{threads}");
     using (var stream = File.Create(stem + ".json"))
     using (var json = new Utf8JsonWriter(stream, new() { Indented = true }))
     {
         json.WriteStartObject();
+        json.WriteNumber("measurementVersion", 3);
         json.WriteString("kind", "indicative"); json.WriteString("row", name); json.WriteString("model", id);
         json.WriteString("revision", resolved.Info.Revision); json.WriteString("precision", "fp32"); json.WriteNumber("threads", threads);
         json.WriteString("inputSha256", Fixtures.Hash(file)); json.WriteNumber("audioSeconds", duration);

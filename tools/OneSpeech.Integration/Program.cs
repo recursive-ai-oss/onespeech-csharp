@@ -11,6 +11,28 @@ using var cancellation = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
 string? sourceRoot = Environment.GetEnvironmentVariable("ONESPEECH_INTEGRATION_SOURCE");
 if (sourceRoot is not null) ModelStore.Default = new ModelStore(source: new DirectoryModelSource(sourceRoot));
+if (args.Length >= 3 && args[0] == "smoke")
+{
+    foreach (string clip in args[2..])
+    {
+        var transcript = Speech.Transcribe(clip, cancellation.Token, model: args[1]);
+        if (string.IsNullOrWhiteSpace(transcript.Text)) throw new InvalidDataException("Smoke transcription was empty.");
+        Console.WriteLine($"{Path.GetFileName(clip)}\t{transcript.Text}");
+    }
+    return 0;
+}
+if (args is ["qwen-precision-smoke", var precisionDirectory, var precisionClip])
+{
+    if (Directory.GetFiles(precisionDirectory, "*-bf16.onemodel").Length != 0) throw new InvalidOperationException("Use a cache without BF16 graphs.");
+    var clip = Audio.Load(precisionClip, new LoadOptions { SampleRate = 16000, Channels = 1 });
+    using (var fp32 = OneSpeech.Qwen3.Qwen3Recognizer.Load(precisionDirectory, new() { Threads = 4 }, cancellation.Token))
+        Console.WriteLine("FP32\t" + fp32.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", cancellation.Token).Text);
+    if (Directory.GetFiles(precisionDirectory, "*-bf16.onemodel").Length != 0) throw new InvalidOperationException("FP32 created BF16 graphs.");
+    using (var bf16 = OneSpeech.Qwen3.Qwen3Recognizer.Load(precisionDirectory, new() { Threads = 4, Precision = OneSpeech.Qwen3.Qwen3Precision.BFloat16 }, cancellation.Token))
+        Console.WriteLine("BF16\t" + bf16.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", cancellation.Token).Text);
+    Console.WriteLine("Verified lazy BF16 files: " + Directory.GetFiles(precisionDirectory, "*-bf16.onemodel").Length);
+    return 0;
+}
 if (args is ["prepare", var first, var second, var output])
 {
     Directory.CreateDirectory(output);

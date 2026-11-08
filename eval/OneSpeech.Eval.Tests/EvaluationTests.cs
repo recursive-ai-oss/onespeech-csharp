@@ -53,7 +53,7 @@ public class EvaluationTests
     }
     [Fact] public void LoadersAndJson()
     {
-        string dir=Path.Combine(Environment.GetEnvironmentVariable("TMPDIR")??throw new InvalidOperationException(),Guid.NewGuid().ToString("N"));Directory.CreateDirectory(dir);
+        string dir=Path.Combine(Environment.GetEnvironmentVariable("TMPDIR")??Path.GetTempPath(),Guid.NewGuid().ToString("N"));Directory.CreateDirectory(dir);
         try
         {
             File.WriteAllText(Path.Combine(dir,"a.trans.txt"),"a HELLO WORLD\n");Assert.Equal("HELLO WORLD",Assert.Single(Hypotheses.LibriSpeech(dir)).Text);

@@ -65,13 +65,15 @@ def main():
         for suffix in ("", "-1.7b"):
             our_path = state / "long" / ("ours" + suffix + ".json")
             ref_path = state / "long" / ("ref" + suffix + ".json")
-            if not our_path.exists() or not ref_path.exists():
-                print("Incomplete long-form pair " + (suffix or "-0.6b"))
+            if not our_path.exists():
+                print("Incomplete native long-form output " + (suffix or "-0.6b"))
                 continue
             ours = json.loads(our_path.read_text())["transcript"]
-            reference = json.loads(ref_path.read_text())
+            reference = [json.loads(ref_path.read_text())] if ref_path.exists() else None
+            if reference is None:
+                print("Reference unavailable: native-only information, not a paired row.")
             score(state, "long" + (suffix or "-0.6b"), truth,
-                  [dict(id="4474955", text=ours["text"])], [reference])
+                  [dict(id="4474955", text=ours["text"])], reference)
     elif args.mode == "wer":
         for split in ("clean", "other"):
             truth = []

@@ -79,6 +79,9 @@ Valid predictions carry `TimingMethod.ForcedAligner`. Predictions with reversed
 bounds or an end beyond the audio duration retain null times. Confidence is
 the mean of the two slot-class probabilities, not a calibrated probability
 that the written word was spoken. No boundaries are interpolated or invented.
+Independent slot predictions are not repaired for monotonicity across words;
+valid intervals may overlap. These direct model predictions do not promise
+identity with the toolkit's postprocessed boundaries.
 
 ## Front end and graph numerics
 

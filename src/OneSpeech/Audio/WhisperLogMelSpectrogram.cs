@@ -78,6 +78,7 @@ public sealed class WhisperLogMelSpectrogram
 
     private float[] Compute(AudioBuffer audio, long length, int offset, int frames, CancellationToken cancellationToken)
     {
+        GraphTiming.BeginCost(1);
         ReadOnlySpan<float> samples = audio.Samples.Span;
         float[] features = new float[MelBins * frames];
         Complex[] input = new Complex[FftSize];
@@ -116,6 +117,7 @@ public sealed class WhisperLogMelSpectrogram
             }
         }
         for (int i = 0; i < features.Length; i++) features[i] = (MathF.Max(features[i], peak - 8) + 4) / 4;
+        GraphTiming.EndCost(1);
         return features;
     }
 

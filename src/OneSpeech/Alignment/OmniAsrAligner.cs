@@ -24,6 +24,7 @@ public sealed partial class OmniAsrAligner : Aligner, IDisposable
     /// <summary>Loads converted fp32 graph and the pinned character vocabulary. Input must be mono 16 kHz PCM, at most 60 seconds per call; longer inputs must be split with corresponding text. Threads default to 1 (1–256). Throws InvalidDataException for unsupported vocabulary and OneModel loading errors for invalid graphs.</summary>
     public OmniAsrAligner(string graphPath, string tokenizerPath, ModelInfo model, int threads = 1, CancellationToken cancellationToken = default)
     {
+        GraphTiming.BeginCost(0);
         ArgumentNullException.ThrowIfNull(model);
         if (threads is < 1 or > 256) throw new ArgumentOutOfRangeException(nameof(threads));
         cancellationToken.ThrowIfCancellationRequested();
@@ -38,7 +39,9 @@ public sealed partial class OmniAsrAligner : Aligner, IDisposable
         }
         if (!characters.ContainsKey(new Rune(' '))) throw new InvalidDataException("Character vocabulary lacks space.");
         Model = model;
+        GraphTiming.OverrideThreads(ref threads);
         session = Session.Load(graphPath, new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 1 }, cancellationToken: cancellationToken);
+        GraphTiming.EndCost(0);
     }
 
     /// <summary>Splits text on Unicode whitespace, retaining punctuation and casing in each written word. Empty text returns an empty word list. Speech absent or unalignable words keep null times. Maximum audio length is 60 seconds.</summary>
@@ -86,8 +89,11 @@ public sealed partial class OmniAsrAligner : Aligner, IDisposable
                 if ((2L * target.Count + 1) * expectedFrames > 16000000)
                     throw new CapabilityNotSupportedException("CTC alignment exceeds the 16-million-cell trellis limit. Split audio with its corresponding written words.");
                 using var waveform = Tensor.FromSpan<float>(audio.Samples.Span, Shape.Create(1, 1, audio.Samples.Length));
+                GraphTiming.Begin(0);
                 using var output = session.Run(new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["waveform"] = waveform });
+                GraphTiming.End();
                 cancellationToken.ThrowIfCancellationRequested();
+                GraphTiming.BeginCost(2);
                 var emissions = output["logits"].Data<float>();
                 if (emissions.Length != expectedFrames * 9812) throw new InvalidDataException("CTC graph returned an unexpected emission shape.");
                 float[] probabilities = emissions.ToArray();
@@ -126,6 +132,7 @@ public sealed partial class OmniAsrAligner : Aligner, IDisposable
                         };
                     }
                 }
+                GraphTiming.EndCost(2);
             }
             return AlignedWords.Replace(transcript, result.ToImmutableArray()) with { Duration = TimeSpan.FromTicks((long)audio.Samples.Length * 625), Models = [.. transcript.Models.Append(Model).DistinctBy(m => (m.Id, m.Revision))] };
         }

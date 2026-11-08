@@ -15,7 +15,9 @@ internal sealed class MoonshineModelSession : IDisposable
     private static readonly string[] ProjectInputs = ["encoder", "encoder_positions"];
     internal MoonshineModelSession(string directory, int threads, CancellationToken cancellationToken)
     {
+        GraphTiming.BeginCost(0);
         Configuration = MoonshineConfiguration.Load(directory);
+        GraphTiming.OverrideThreads(ref threads);
         encoder = Session.Load(Path.Combine(directory, "encoder.onemodel"), new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 2 }, cancellationToken: cancellationToken);
         try { decoder = Session.Load(Path.Combine(directory, "decoder.onemodel"), new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 2 }, cancellationToken: cancellationToken); }
         catch { encoder.Dispose(); throw; }
@@ -28,10 +30,11 @@ internal sealed class MoonshineModelSession : IDisposable
             }
         }
         catch { Dispose(); throw; }
+        GraphTiming.EndCost(0);
     }
-    internal void RunLiveEncoder(Tensor[] inputs, Tensor[] outputs) => encoder.Run(LiveEncoderInputs, inputs, EncoderOutput, outputs);
-    internal void RunProject(Tensor[] inputs, string[] names, Tensor[] outputs) => project!.Run(ProjectInputs, inputs, names, outputs);
-    internal void RunStep(string[] names, Tensor[] inputs, string[] outputNames, Tensor[] outputs) => step!.Run(names, inputs, outputNames, outputs);
+    internal void RunLiveEncoder(Tensor[] inputs, Tensor[] outputs) { GraphTiming.Begin(5); encoder.Run(LiveEncoderInputs, inputs, EncoderOutput, outputs); GraphTiming.End(); }
+    internal void RunProject(Tensor[] inputs, string[] names, Tensor[] outputs) { GraphTiming.Begin(5); project!.Run(ProjectInputs, inputs, names, outputs); GraphTiming.End(); }
+    internal void RunStep(string[] names, Tensor[] inputs, string[] outputNames, Tensor[] outputs) { GraphTiming.Begin(5); step!.Run(names, inputs, outputNames, outputs); GraphTiming.End(); }
     internal SessionOutputs Encode(AudioBuffer audio, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -49,12 +52,18 @@ internal sealed class MoonshineModelSession : IDisposable
             using var local = LocalMask(frames, 3);
             using var causal = LocalMask(frames, 0);
             inputs["local_mask"] = local; inputs["causal_mask"] = causal;
-            return encoder.Run(inputs);
+            GraphTiming.Begin(5);
+            var streamed = encoder.Run(inputs);
+            GraphTiming.End();
+            return streamed;
         }
         using var cos = Rotary(frames, c.RotaryDimension, false);
         using var sin = Rotary(frames, c.RotaryDimension, true);
         inputs["cos"] = cos; inputs["sin"] = sin;
-        return encoder.Run(inputs);
+        GraphTiming.Begin(5);
+        var result = encoder.Run(inputs);
+        GraphTiming.End();
+        return result;
     }
     internal SessionOutputs Decode(Tensor encoded, ReadOnlySpan<int> ids, CancellationToken cancellationToken)
     {
@@ -74,7 +83,10 @@ internal sealed class MoonshineModelSession : IDisposable
         for (int i = 0; i < frames; i++) positionData[i] = i;
         var inputs = new Dictionary<string, Tensor>(StringComparer.Ordinal) { ["tokens"] = tokens, ["encoder"] = encoded, ["cos"] = cos, ["sin"] = sin, ["mask"] = attention };
         if (Configuration.Streaming) inputs["encoder_positions"] = positions;
-        return decoder.Run(inputs);
+        GraphTiming.Begin(5);
+        var result = decoder.Run(inputs);
+        GraphTiming.End();
+        return result;
     }
     private static Tensor LocalMask(int count, int right)
     {

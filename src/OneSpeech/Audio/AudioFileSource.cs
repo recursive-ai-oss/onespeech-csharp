@@ -94,9 +94,10 @@ public sealed class AudioFileSource : IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (destination.Length < Channels) return 0;
+        GraphTiming.BeginCost(4);
         try
         {
-            if (resampler is null) return decoder.Read(destination);
+            if (resampler is null) { int result = decoder.Read(destination); GraphTiming.EndCost(4); return result; }
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -106,10 +107,10 @@ public sealed class AudioFileSource : IDisposable
                     offset = 0;
                     ended = available == 0;
                 }
-                if (ended) return resampler.Flush(destination);
+                if (ended) { int result = resampler.Flush(destination); GraphTiming.EndCost(4); return result; }
                 resampler.Process(input.AsSpan(offset, available - offset), destination, out int consumed, out int written);
                 offset += consumed * Channels;
-                if (written != 0) return written;
+                if (written != 0) { GraphTiming.EndCost(4); return written; }
             }
         }
         catch (Exception ex) when (ex is OneAudioException or EndOfStreamException)

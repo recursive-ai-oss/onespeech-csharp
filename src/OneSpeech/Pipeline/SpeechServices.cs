@@ -228,24 +228,33 @@ internal static partial class SpeechServices
         // Refuse invalid input before first-use model downloads.
         using (AudioFileSource.Open(path, cancellationToken)) { }
         var store = ModelStore.Default;
+        GraphTiming.BeginPhase();
         using var recognizer = ResolveAsync(store, model, cancellationToken).AsTask().GetAwaiter().GetResult();
+        GraphTiming.EndPhase(0);
         using var timing = recognizer.Capabilities.NativeTimestamps ? null : new OrderedTimingAligner(store);
         using var vad = ResolveVad(store, cancellationToken);
         var deferred = timing is null ? null : new DeferredTiming();
+        GraphTiming.BeginPhase();
         var transcript = new VadTranscriptionPipeline(recognizer, vad)
         {
             RecognizedChunk = deferred is null ? null : deferred.Add
         }.Transcribe(path, language, cancellationToken);
+        GraphTiming.EndPhase(1);
         recognizer.Dispose();
         if (deferred is not null && timing is not null)
         {
             using var replay = AudioFileSource.Open(path, cancellationToken);
             using var replayVad = ResolveVad(store, cancellationToken);
+            GraphTiming.BeginPhase();
             transcript = deferred.Apply(VadChunker.Blocks(replay, cancellationToken), replayVad, transcript, timing, cancellationToken);
+            GraphTiming.EndPhase(2);
         }
         timing?.Dispose();
         using var source = AudioFileSource.Open(path, cancellationToken);
-        return DiarizeAsync(source, transcript, language, store, cancellationToken).AsTask().GetAwaiter().GetResult();
+        GraphTiming.BeginPhase();
+        var diarized = DiarizeAsync(source, transcript, language, store, cancellationToken).AsTask().GetAwaiter().GetResult();
+        GraphTiming.EndPhase(3);
+        return diarized;
     }
 
     internal static async ValueTask<Transcript> TranscribeAsync(string path, string? language, string? model, CancellationToken cancellationToken)

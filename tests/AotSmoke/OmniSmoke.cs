@@ -25,7 +25,7 @@ internal static class OmniSmoke
                 throw new InvalidOperationException("CTC transcript overload changed written words.");
             using (var encoded = new FileStream(fixture, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous))
             {
-                var streamed = Speech.AlignAsync(encoded, text, CancellationToken.None, language: "en").AsTask().GetAwaiter().GetResult();
+                var streamed = Speech.AlignAsync(encoded, text, language: "en", cancellationToken: CancellationToken.None).AsTask().GetAwaiter().GetResult();
                 if (!encoded.CanRead || streamed.Text != text || !streamed.Words.Any(w => w.Start is not null))
                     throw new InvalidOperationException("CTC encoded-stream alignment or ownership failed.");
             }

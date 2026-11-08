@@ -9,7 +9,7 @@ namespace OneSpeech.Whisper;
 
 /// <summary>Offline Whisper recognition from independently converted local OneModel graphs and published tokenizer data.</summary>
 /// <remarks>Instances are not concurrent: use one instance per transcription. Input is 16 kHz mono; file decoding and VAD are separate roles.</remarks>
-public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
+public sealed partial class WhisperRecognizer : SpeechRecognizer, IDisposable
 {
     private readonly WhisperModelSession runtime;
     private readonly WhisperTokenizer tokenizer;
@@ -42,7 +42,7 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
         alignmentHeads = g.TryGetProperty("alignment_heads", out var heads) ? heads.EnumerateArray().Select(v => (v[0].GetInt32(), v[1].GetInt32())).ToArray() : [];
         string[] source = WhisperCheckpoint.Read(directory);
         Model = WhisperCheckpoint.Provenance(source);
-        Capabilities = new Capabilities { Languages = languages.Keys.ToImmutableArray(), Translation = !source[0].EndsWith("turbo", StringComparison.Ordinal), NativeTimestamps = false, Streaming = false, Biasing = false };
+        Capabilities = new Capabilities { Languages = languages.Keys.ToImmutableArray(), Translation = !source[0].EndsWith("turbo", StringComparison.Ordinal), NativeTimestamps = false, Streaming = false, Biasing = true };
         if (options.Task == WhisperTask.Translate && !Capabilities.Translation) throw new CapabilityNotSupportedException("This checkpoint does not support translation.");
         runtime = new WhisperModelSession(directory, options.Threads, cancellationToken);
     }
@@ -60,15 +60,33 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
     public override Capabilities Capabilities { get; }
 
     /// <inheritdoc/>
-    public override Transcript Transcribe(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default) => TranscribeCore(audio, language, [], cancellationToken);
+
+    /// <summary>Returns a borrowed prompt-conditioned wrapper. Explicit numeric weights are refused; the combined prompt must fit 223 ordinary tokens. The prompt is retained at every window, including after fallback context resets. Other errors and ownership follow the role.</summary>
+    public override SpeechRecognizer WithPhrases(IEnumerable<Phrase> phrases, CancellationToken cancellationToken = default)
     {
-        var segments = TranscribeStream(audio, language, cancellationToken).ToImmutableArray();
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var copy = PhraseRequests.Copy(phrases, cancellationToken);
+        if (copy.IsEmpty) return this;
+        int[] prompt = tokenizer.Encode(" " + PhraseRequests.Prompt(copy), cancellationToken: cancellationToken);
+        if (prompt.Length > 223) throw new ArgumentException("Whisper phrases exceed the 223-token prompt budget.", nameof(phrases));
+        return new BiasedRecognizer(this, (audio, language, ct) => TranscribeCore(audio, language, prompt, ct),
+            (audio, language, ct) => TranscribeStreamCore(audio, language, prompt, ct));
+    }
+
+    private Transcript TranscribeCore(AudioBuffer audio, string? language, int[] prompt, CancellationToken cancellationToken)
+    {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
+        var segments = TranscribeStreamCore(audio, language, prompt, cancellationToken).ToImmutableArray();
         return new Transcript { Text = string.Concat(segments.Select(s => s.Text)), Segments = segments, Words = segments.SelectMany(s => s.Words).ToImmutableArray(), Duration = audio.Duration, Language = language ?? segments.FirstOrDefault()?.Language, Models = [Model] };
     }
 
     /// <inheritdoc/>
-    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default) => TranscribeStreamCore(audio, language, [], cancellationToken);
+
+    private IEnumerable<Segment> TranscribeStreamCore(AudioBuffer audio, string? language, int[] prompt, CancellationToken cancellationToken)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ValidateAudio(audio);
         cancellationToken.ThrowIfCancellationRequested();
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -87,12 +105,12 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
             using var encoded = runtime.Encode(features.ExtractContext(audio, seek, fileFloor, cancellationToken), cancellationToken);
             language ??= DetectLanguage(encoded, cancellationToken);
             List<int> prefix = [];
-            if (context.Count > 0) { prefix.Add(previous); prefix.AddRange(context.TakeLast(223)); }
+            if (prompt.Length > 0 || context.Count > 0) { prefix.Add(previous); prefix.AddRange(prompt); prefix.AddRange(context.TakeLast(223 - prompt.Length)); }
             prefix.Add(start); prefix.Add(languages[language]); prefix.Add(options.Task == WhisperTask.Transcribe ? transcribe : translate);
             Attempt result = Decode(encoded, prefix.ToArray(), cancellationToken);
             WindowTrace?.Invoke(seek, prefix.ToArray(), result.Tokens);
             bool skip = options.NoSpeechThreshold.HasValue && result.NoSpeech > options.NoSpeechThreshold.Value && !(options.LogProbabilityThreshold.HasValue && result.AverageLogProbability > options.LogProbabilityThreshold.Value);
-            if (skip) { seek += count; options.Progress?.Invoke(TimeSpan.FromSeconds(seek / 16000.0)); continue; }
+            if (skip) { seek += count; options.Progress?.Report(TimeSpan.FromSeconds(seek / 16000.0)); continue; }
             var sliced = Slice(result.Tokens, seek, count, language);
             int advance = sliced.Advance;
             if (options.WordTimestamps && sliced.Segments.Count > 0)
@@ -117,12 +135,12 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
             if (!options.ConditionOnPreviousText || result.Temperature > .5) context.Clear();
             else { context.AddRange(sliced.ContextTokens); if (context.Count > 223) context.RemoveRange(0, context.Count - 223); }
             seek += Math.Clamp(advance, 1, count);
-            options.Progress?.Invoke(TimeSpan.FromSeconds(seek / 16000.0));
+            options.Progress?.Report(TimeSpan.FromSeconds(seek / 16000.0));
         }
     }
 
     /// <inheritdoc/>
-    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken)
+    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken = default)
     {
         ValidateAudio(audio);
         cancellationToken.ThrowIfCancellationRequested();
@@ -326,5 +344,5 @@ public sealed class WhisperRecognizer : SpeechRecognizer, IDisposable
         => WhisperWordAlignment.Align(runtime, tokenizer, alignmentHeads, encoded, segment, offset, count, [start, languages[language], options.Task == WhisperTask.Transcribe ? transcribe : translate, noTimestamps], end, cancellationToken, originalTokens);
 
     /// <summary>Releases model sessions. Subsequent processing throws ObjectDisposedException.</summary>
-    public void Dispose() { if (disposed) return; runtime.Dispose(); disposed = true; }
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return; if (disposed) return; runtime.Dispose(); disposed = true; }
 }

@@ -7,7 +7,7 @@ namespace OneSpeech.Qwen3;
 
 /// <summary>Offline Qwen3-ASR with native OneModel audio encoder and cached language decoder. Instances are not concurrent.</summary>
 /// <remarks>Input must be 16 kHz mono. Longer input uses VAD-first 30-second chunks. Word timings remain null until an aligner supplies them.</remarks>
-public sealed class Qwen3Recognizer : SpeechRecognizer, IDisposable
+public sealed partial class Qwen3Recognizer : SpeechRecognizer, IDisposable
 {
     private readonly QwenModelSession runtime;
     private readonly Qwen3Tokenizer tokenizer;
@@ -49,8 +49,22 @@ public sealed class Qwen3Recognizer : SpeechRecognizer, IDisposable
     public override Capabilities Capabilities { get; } = new() { Languages = Qwen3Languages.Tags, Biasing = true };
 
     /// <inheritdoc/>
-    public override Transcript Transcribe(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default) => TranscribeCore(audio, language, options.Context, cancellationToken);
+
+    /// <summary>Returns a borrowed wrapper using the existing system-context prompt. Appends comma-separated phrases to configured Context, with a 4096-token combined limit. Explicit numeric weights and special tokens are refused. Ownership and errors follow the role.</summary>
+    public override SpeechRecognizer WithPhrases(IEnumerable<Phrase> phrases, CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var copy = PhraseRequests.Copy(phrases, cancellationToken);
+        if (copy.IsEmpty) return this;
+        string context = (options.Context.Length == 0 ? "" : options.Context + "\n") + PhraseRequests.Prompt(copy);
+        if (tokenizer.Encode(context, cancellationToken: cancellationToken).Length > 4096) throw new ArgumentException("Qwen context exceeds 4096 tokens.", nameof(phrases));
+        return new BiasedRecognizer(this, (audio, language, ct) => TranscribeCore(audio, language, context, ct));
+    }
+
+    private Transcript TranscribeCore(AudioBuffer audio, string? language, string context, CancellationToken cancellationToken)
+    {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(audio);
         cancellationToken.ThrowIfCancellationRequested();
@@ -62,10 +76,10 @@ public sealed class Qwen3Recognizer : SpeechRecognizer, IDisposable
             return new VadTranscriptionPipeline(this, vad).Transcribe(audio, language, cancellationToken);
         }
         if (audio.FrameCount == 0) return new Transcript { Text = "", Language = language, Models = [Model] };
-        if (audio.FrameCount <= 200) throw new UnsupportedAudioException("Qwen3-ASR unpadded input must exceed 200 samples.");
+        if (audio.FrameCount <= 200) throw new ArgumentException("Qwen3-ASR unpadded input must exceed 200 samples.");
         using var encoded = runtime.Encode(audio, cancellationToken);
         int count = encoded["encoder"].Data<float>().Length / runtime.Configuration.Width;
-        string prefix = "<|im_start|>system\n" + options.Context + "<|im_end|>\n<|im_start|>user\n<|audio_start|>";
+        string prefix = "<|im_start|>system\n" + context + "<|im_end|>\n<|im_start|>user\n<|audio_start|>";
         var prompt = tokenizer.Encode(prefix, true, cancellationToken).ToList();
         for (int i = 0; i < count; i++) prompt.Add(151676);
         prompt.AddRange(tokenizer.Encode("<|audio_end|><|im_end|>\n<|im_start|>assistant\n" + (language == null ? "" : "language " + Qwen3Languages.Name(language) + "<asr_text>"), true, cancellationToken));
@@ -107,16 +121,17 @@ public sealed class Qwen3Recognizer : SpeechRecognizer, IDisposable
         return new Transcript { Text = text, Language = language, Duration = audio.Duration, Words = words, Segments = [segment], Models = [Model] };
     }
     /// <inheritdoc/>
-    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ObjectDisposedException.ThrowIf(disposed, this); ArgumentNullException.ThrowIfNull(audio); cancellationToken.ThrowIfCancellationRequested();
-        if (audio.SampleRate != 16000 || audio.Channels != 1) throw new UnsupportedAudioException("Qwen3-ASR requires 16000 Hz mono PCM.");
+        if (audio.SampleRate != 16000 || audio.Channels != 1) throw new ArgumentException("Qwen3-ASR requires 16000 Hz mono PCM.");
         if (audio.FrameCount <= 480000) { foreach (var segment in Transcribe(audio, language, cancellationToken).Segments) yield return segment; yield break; }
         using var vad = new SileroVad(cancellationToken: cancellationToken);
         foreach (var segment in new VadTranscriptionPipeline(this, vad).TranscribeStream(audio, language, cancellationToken)) yield return segment;
     }
     /// <inheritdoc/>
-    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken) => Transcribe(audio, null, cancellationToken).Language ?? throw new UnsupportedAudioException("No language was detected in Qwen3-ASR output.");
+    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken = default) => Transcribe(audio, null, cancellationToken).Language ?? throw new UnsupportedAudioException("No language was detected in Qwen3-ASR output.");
     /// <summary>Releases all native-managed model buffers. Safe to call repeatedly; subsequent recognition throws ObjectDisposedException.</summary>
-    public void Dispose() { if (disposed) return; disposed = true; runtime.Dispose(); }
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return; if (disposed) return; disposed = true; runtime.Dispose(); }
 }

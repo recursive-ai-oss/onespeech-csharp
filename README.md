@@ -21,7 +21,7 @@ await foreach (Segment segment in Speech.TranscribeStream("lecture.wav"))
 Transcript aligned = Speech.Align("short.wav", "The words that were spoken.", language: "en");
 ```
 
-`Transcribe` returns a timed, diarized, language-tagged `Transcript`: inspect `Words`, `Segments`, `Turns` and `Models`. Failed word timing is **null**, never invented. A speaker label is anonymous and local to the document, not a person's identity. `TranscribeStream` yields final segments in bounded chunks; it does **not** perform whole-file speaker assignment. Standalone `Align` accepts at most 60 seconds. File calls have explicit cancellation overloads; encoded-stream I/O uses `TranscribeAsync` / `AlignAsync`.
+`Transcribe` returns a timed, diarized, language-tagged `Transcript`: inspect `Words`, `Segments`, `Turns` and `Models`. Failed word timing is **null**, never invented. A speaker label is anonymous and local to the document, not a person's identity. `TranscribeStream` yields final segments in bounded chunks; it does **not** perform whole-file speaker assignment. Standalone `Align` accepts at most 60 seconds. All verbs take an optional final `cancellationToken`; path and encoded-stream I/O have `*Async` forms. CPU inference remains synchronous within those calls. Language tags are case-insensitive: `en-US`, `EN`, `eng` and `English` resolve to `en`; unsupported hints throw `CapabilityNotSupportedException`.
 
 `Speech.Listen` consumes caller-supplied mono 16 kHz PCM as an `IAsyncEnumerable<AudioBuffer>`. It emits replacing partials, immutable finals, endpoints and speaker turns on one audio clock. It does not capture a microphone. See [live sessions](docs/live-sessions.md).
 
@@ -30,6 +30,46 @@ For speaker recognition, use `Speech.Enroll("alice", "enrollment.wav")`, `Speech
 ### Overlapping speech
 
 **The default clustering diarizer does not detect overlapping speech.** For an overlap-aware upgrade (up to eight speakers), load the named tier-2 diarizer in one call: `await NemotronDiarizer.LoadAsync()`, then pass it to your transcription pipeline. This does not separate simultaneous voices. See the [complete replacement example](docs/diarization.md#voice-clustering-and-overlap-limitation) and [Nemotron guide](docs/nemotron-diarization.md). It is never downloaded as a default.
+
+## First-use downloads and offline preparation
+
+The `model` argument selects a role, **not the entire pipeline**. Transcription also needs a speaker embedder and, without native timings, companion aligners. Even Whisper tiny can require several GB on first use. Silero VAD is embedded. See the [per-verb download table](docs/model-downloads.md) for exact IDs, sizes and conditional dependencies.
+
+`await Speech.PrefetchAsync(language: "en", model: "openai/whisper-tiny");` prepares the complete companion set, including timing fallbacks, without running inference. For live use, pass `model: "moonshine-ai/moonshine-streaming-tiny"`. Every downloadable family exposes `Load(ResolvedModel, …)` and `LoadAsync(store, model, …)`; [composition examples](docs/loading.md) use documented role types.
+
+## Contextual biasing
+
+Biasing is a low-level request; `Speech.*` stays unchanged. A loaded recognizer
+returns a borrowed wrapper with its own immutable phrase list:
+
+```csharp
+using var model = OneSpeech.Whisper.WhisperRecognizer.Load(modelDirectory);
+SpeechRecognizer biased = model.WithPhrases([new Phrase("Acme Photonics"), new Phrase("Marisol")]);
+Transcript result = biased.Transcribe(audio, "en", cancellationToken);
+// The same biased recognizer can be passed to VadTranscriptionPipeline.
+```
+
+Keep the owning model alive until the wrappers and their sessions are finished.
+Wrappers do not own or dispose it; the model's concurrency limits still apply.
+Calling `WithPhrases` again replaces the list; an empty list returns the original
+unbiased recognizer. The original recognizer is never modified.
+
+Whisper conditions each window with ordinary prompt tokens. Qwen3-ASR appends
+phrases to its existing system context. These prompt methods refuse explicit
+numeric weights rather than pretending to apply a score bonus. Parakeet TDT
+uses token-level shallow fusion; `new Phrase("Acme", 0.5)` supplies a natural-log
+bonus per token (null defaults to 1). Custom CTC/transducer graphs use the same
+fusion after the caller supplies `TokenVocabulary.WithPhraseEncoder` for their
+exact tokenizer. CTC biasing uses prefix beam search, even if the unbiased
+recognizer is greedy. Moonshine does not support biasing: a nonempty request
+throws `CapabilityNotSupportedException`, as declared by `Capabilities.Biasing`.
+
+Biasing is not a spelling replacement or a guarantee that a term will be spoken.
+It can introduce false alarms. Whisper prompt conditioning in particular can
+substantially increase overall errors and repeat absent terms even when recall
+of requested terms improves; it is not a safe default. Check both phrase recall and overall WER, with
+absent-phrase controls, on your audio. See [contextual scoring and bounds](docs/contextual-biasing.md)
+for prompt budgets, weights, decoder semantics and the repeatable evaluation.
 
 ## Packages
 

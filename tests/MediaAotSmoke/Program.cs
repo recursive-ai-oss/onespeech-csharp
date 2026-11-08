@@ -28,7 +28,7 @@ finally { Directory.Delete(root, true); }
 using var invalid = new MemoryStream("invalid container"u8.ToArray());
 try
 {
-    await foreach (var _ in MediaInput.TranscribeStreamAsync(invalid)) { }
+    await foreach (var _ in MediaInput.TranscribeStream(invalid)) { }
     return 5;
 }
 catch (RecursiveAI.OneMedia.MediaException) { }

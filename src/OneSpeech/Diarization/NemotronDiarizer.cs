@@ -8,7 +8,7 @@ namespace OneSpeech.Diarization;
 /// Tier 2: explicitly selected, never a default; publisher weights and local-only runtime graphs remain in the user's cache.
 /// Uses 27.2 s chunks plus 3.2 s right context. Working audio/model state is bounded; returned turn storage grows with speech changes.
 /// Instances are not concurrent; dispose after processing. No speaker identities or embeddings are persisted.</summary>
-public sealed class NemotronDiarizer : BlockDiarizer, IDisposable
+public sealed partial class NemotronDiarizer : BlockDiarizer, IDisposable
 {
     private readonly NemotronDiarizationSession session;
     private readonly float[] silence;
@@ -32,20 +32,10 @@ public sealed class NemotronDiarizer : BlockDiarizer, IDisposable
         Model = model;
     }
 
-    /// <summary>Pulls the named pinned publisher checkpoint through the supplied store (default ModelStore.Default), converts locally if needed,
-    /// and loads CPU graphs. Never uses a mirror. threads defaults to zero (OneModel's default); negative values throw.
-    /// Throws ModelIntegrityException on pin/digest failure, model/download errors on I/O failure, and OperationCanceledException.</summary>
-    public static async ValueTask<NemotronDiarizer> LoadAsync(ModelStore? store = null, int threads = 0, CancellationToken cancellationToken = default)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(threads);
-        var resolved = await (store ?? ModelStore.Default).PullAsync(NemotronDiarizationAssets.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
-        return Load(resolved, threads, cancellationToken);
-    }
-
     /// <summary>Loads an already resolved checkpoint from ModelStore. Verifies its exact publisher revision, SHA-256, tier and local runtime digests.
-    /// threads defaults to zero (OneModel's default). Throws ModelIntegrityException on mismatch, ArgumentOutOfRangeException for negative threads,
+    /// threads defaults to 1; zero selects OneModel's default. Throws ModelIntegrityException on mismatch, ArgumentOutOfRangeException for negative threads,
     /// IOException for missing files, or OperationCanceledException. Does not download or convert.</summary>
-    public static NemotronDiarizer Load(ResolvedModel model, int threads = 0, CancellationToken cancellationToken = default)
+    public static NemotronDiarizer Load(ResolvedModel model, int threads = 1, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(model);
         ArgumentOutOfRangeException.ThrowIfNegative(threads);
@@ -64,7 +54,7 @@ public sealed class NemotronDiarizer : BlockDiarizer, IDisposable
 
     /// <summary>Returns overlapping turns for consecutive 16 kHz blocks, averaging channels. Empty input yields no turns.
     /// Each speaker is active at probability ≥0.5 on a 10 ms grid; endpoints are clipped to actual audio duration. Inputs shorter than one complete 10 ms hop return no turns.
-    /// Throws UnsupportedAudioException on another rate, ArgumentException for nonfinite PCM/null blocks, InvalidOperationException on concurrent use,
+    /// Throws ArgumentException for another rate or nonfinite PCM/null blocks, InvalidOperationException on concurrent use,
     /// ObjectDisposedException after disposal, and OperationCanceledException at chunk boundaries.</summary>
     public override ImmutableArray<Turn> DiarizeBlocks(IEnumerable<AudioBuffer> blocks, CancellationToken cancellationToken) =>
         NemotronActivitySegments.Coalesce(DiarizeActiveBlocks(blocks, cancellationToken));
@@ -105,8 +95,7 @@ public sealed class NemotronDiarizer : BlockDiarizer, IDisposable
     }
 
     /// <summary>Releases CPU graph state. Idempotent; must not run concurrently with processing.</summary>
-    public void Dispose()
-    {
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return;
         if (disposed) return;
         disposed = true; session.Dispose();
     }

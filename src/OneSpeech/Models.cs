@@ -23,6 +23,11 @@ public sealed record ModelFileInfo
 /// <summary>Model provenance carried with recognition output.</summary>
 public sealed record ModelInfo
 {
+    /// <summary>Compares all document fields and collection elements by value.</summary>
+    public bool Equals(ModelInfo? other) => ReferenceEquals(this, other) || other is not null && Id == other.Id && Source == other.Source && Revision == other.Revision && Tier == other.Tier && License == other.License && Attribution == other.Attribution && Gated == other.Gated && SequenceValue.Equals(Files, other.Files);
+    /// <summary>Hashes the same fields and ordered collection elements used by equality.</summary>
+    public override int GetHashCode() => HashCode.Combine(Id, Source, Revision, Tier, License, Attribution, Gated, SequenceValue.Hash(Files));
+
     /// <summary>Catalog model identifier.</summary>
     public required string Id { get; init; }
     /// <summary>Upstream repository URL.</summary>

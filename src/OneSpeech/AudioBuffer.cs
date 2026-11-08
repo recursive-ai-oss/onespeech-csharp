@@ -1,6 +1,6 @@
 namespace OneSpeech;
 
-/// <summary>Interleaved normalized float PCM. Caller owns storage and must not mutate it during processing.</summary>
+/// <summary>Interleaved normalized float PCM. Caller owns storage and must not mutate it during processing. Roles reject incompatible rates/channels or nonfinite samples with ArgumentException; corrupt encoded files instead produce UnsupportedAudioException at decoding.</summary>
 public sealed class AudioBuffer
 {
     /// <summary>Constructs a PCM view. Sample rate and channel count must be positive; sample count must be divisible by channels.</summary>

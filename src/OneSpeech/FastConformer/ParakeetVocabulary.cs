@@ -4,7 +4,7 @@ using OneSpeech.Decoding;
 
 namespace OneSpeech.FastConformer;
 
-// Only decoding is needed: transducer hypotheses already contain vocabulary IDs.
+// Contextual phrases additionally use the publisher's BPE merge ranks and normalization data.
 // The pinned tokenizer declares Metaspace decoding (no ByteFallback decoder).
 internal sealed class ParakeetVocabulary
 {
@@ -18,6 +18,13 @@ internal sealed class ParakeetVocabulary
         return value.Length == 7 && value[0] == '<' && value[3] == '-' && value[6] == '>' ? value.Substring(1, 2) : null;
     }
     internal ParakeetVocabulary(string path, int count = 8192) : this(ReadFile(path), count) { }
+    private ParakeetPhraseTokenizer? phraseTokenizer;
+    internal System.Collections.Immutable.ImmutableArray<int> EncodePhrase(string text, CancellationToken ct)
+    {
+        var ids = (phraseTokenizer ?? throw new CapabilityNotSupportedException("Tokenizer data does not include phrase encoding.")).Encode(text, ct);
+        if (ids.Contains(0)) throw new CapabilityNotSupportedException("A contextual phrase contains characters unknown to this tokenizer; biasing the shared unknown ID is refused.");
+        return ids;
+    }
 
     private static byte[] ReadFile(string path)
     {
@@ -31,7 +38,7 @@ internal sealed class ParakeetVocabulary
         pieces = new string[count];
         if (bytes.Length > 2 * 1024 * 1024) throw new InvalidDataException("Parakeet tokenizer exceeds 2 MiB.");
         try { Parse(bytes); }
-        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or DecoderFallbackException)
+        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or ArgumentException or IndexOutOfRangeException)
         { throw new InvalidDataException("Invalid Parakeet vocabulary.", exception); }
     }
 
@@ -58,6 +65,8 @@ internal sealed class ParakeetVocabulary
                     if ((uint)id >= 13089) throw new InvalidDataException("Invalid special token ID.");
                     specials.Add(id);
                 }
+        if (document.RootElement.TryGetProperty("normalizer", out _) && model.TryGetProperty("merges", out _))
+            phraseTokenizer = new ParakeetPhraseTokenizer(document.RootElement, pieces);
     }
 
     internal string Decode(ReadOnlySpan<int> ids)

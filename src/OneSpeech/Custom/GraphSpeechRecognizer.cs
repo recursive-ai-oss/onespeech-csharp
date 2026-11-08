@@ -23,14 +23,17 @@ public sealed class GraphSpeechRecognizer : SpeechRecognizer, IDisposable
     private bool disposed;
     /// <summary>Caller-supplied provenance, including the caller's licence, source and attribution. Weights are never persisted by this adapter.</summary>
     public override ModelInfo Model { get; }
-    /// <summary>Native frame timings only. Language hints label the output but never condition decoding. No biasing, translation or language identification.</summary>
-    public override Capabilities Capabilities { get; } = new() { NativeTimestamps = true };
+    /// <summary>Native frame timings only. Explicitly declared language hints label the output but never condition decoding; absent declarations refuse hints. Biasing requires an explicit vocabulary phrase encoder (CTC at most 4096 IDs). No translation or language identification.</summary>
+    public override Capabilities Capabilities { get; }
 
-    /// <summary>Loads local encoder stages and optional packed transducer graphs. CTC final output must be frame-major logits with VocabularySize columns; intermediate and transducer encoder outputs are channel-major. FrameDuration is the final encoder frame interval on the audio clock. BeamSize 0 selects CTC greedy; 1..64 selects prefix beam (vocabulary at most 4096), with Viterbi timing. Transducers are greedy only. Threads default 1 (1..256). Invalid contracts throw InvalidModelShapeException; I/O and OneModel load errors propagate. Cancels at each load.</summary>
-    public GraphSpeechRecognizer(IEnumerable<EncoderGraph> encoder, GraphFrontEnd frontEnd, TokenVocabulary vocabulary, int blankId, TimeSpan frameDuration, ModelInfo model, TransducerGraphs? transducer = null, int beamSize = 0, int threads = 1, CancellationToken cancellationToken = default)
+    /// <summary>Loads local encoder stages and optional packed transducer graphs. CTC final output must be frame-major logits with VocabularySize columns; intermediate and transducer encoder outputs are channel-major. FrameDuration is the final encoder frame interval on the audio clock. BeamSize 0 selects CTC greedy; 1..64 selects prefix beam (vocabulary at most 4096), with Viterbi timing. Transducers are greedy only. Threads default 1 (1..256). Languages defaults empty (no hint support); declare at most 256 tags from the shared language rule. Invalid contracts throw InvalidModelShapeException; I/O and OneModel load errors propagate. Cancels at each load.</summary>
+    public GraphSpeechRecognizer(IEnumerable<EncoderGraph> encoder, GraphFrontEnd frontEnd, TokenVocabulary vocabulary, int blankId, TimeSpan frameDuration, ModelInfo model, TransducerGraphs? transducer = null, int beamSize = 0, int threads = 1, IEnumerable<string>? languages = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(encoder); ArgumentNullException.ThrowIfNull(vocabulary); ArgumentNullException.ThrowIfNull(model);
         cancellationToken.ThrowIfCancellationRequested();
+        var declared = (languages ?? []).Take(257).ToArray();
+        if (declared.Length > 256) throw new ArgumentException("Declare at most 256 languages.", nameof(languages));
+        var tags = declared.Select(tag => LanguageTag.Normalize(tag) ?? throw new ArgumentException("Language declarations cannot contain null.", nameof(languages))).Distinct(StringComparer.Ordinal).ToImmutableArray();
         stages = encoder.Take(17).ToArray();
         if (stages.Length is < 1 or > 16 || stages.Any(s => s is null || string.IsNullOrWhiteSpace(s.Path) || s.Channels is < 1 or > 1000000 || s.Stride is < 1 or > 16000 || s.ReceptiveField is < 1 or > 1000000) || !Enum.IsDefined(frontEnd) || blankId < 0 || blankId >= vocabulary.Pieces.Length || frameDuration <= TimeSpan.Zero || frameDuration > TimeSpan.FromSeconds(1) || threads is < 1 or > 256 || beamSize is < 0 or > 64)
             throw new InvalidModelShapeException("Invalid encoder, front end, vocabulary, blank, frame duration, beam or thread contract.");
@@ -44,6 +47,7 @@ public sealed class GraphSpeechRecognizer : SpeechRecognizer, IDisposable
             for (int i = 1; i < transducer.Durations.Length; i++)
                 if (transducer.Durations[i] <= transducer.Durations[i - 1] || transducer.Durations[i] > 1024) throw new InvalidModelShapeException("Durations must be strictly increasing from zero and at most 1024 frames.");
         }
+        Capabilities = new() { NativeTimestamps = true, Languages = tags, Biasing = vocabulary.CanEncodePhrases && (transducer != null || vocabulary.Pieces.Length <= 4096) };
         this.frontEnd = frontEnd; this.vocabulary = vocabulary; blank = blankId; beam = beamSize; this.frameDuration = frameDuration; Model = model;
         this.transducer = transducer is null ? null : transducer with { Embeddings = transducer.Embeddings.ToArray() };
         var options = new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 2 };
@@ -68,9 +72,26 @@ public sealed class GraphSpeechRecognizer : SpeechRecognizer, IDisposable
         catch { foreach (var graph in encoders) graph.Dispose(); predictor?.Dispose(); joint?.Dispose(); throw; }
     }
 
-    /// <summary>Transcribes finite mono 16000 Hz PCM. Inputs shorter than 400 samples return no words; over 30 seconds use VAD-first chunks. Null or explicit language labels are retained without detection. Output times are clipped to the supplied audio horizon. Throws ArgumentException for audio shape/nonfinite values, InvalidModelShapeException for graph/decoder shape mismatches, ObjectDisposedException after disposal, and OperationCanceledException on cancellation.</summary>
-    public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
+    /// <summary>Transcribes finite mono 16000 Hz PCM. Inputs shorter than 400 samples return no words; over 30 seconds use VAD-first chunks. Null or declared language labels are retained without detection; unsupported hints throw CapabilityNotSupportedException. Output times are clipped to the supplied audio horizon. Throws ArgumentException for audio shape/nonfinite values, InvalidModelShapeException for graph/decoder shape mismatches, ObjectDisposedException after disposal, and OperationCanceledException on cancellation.</summary>
+    public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default) => TranscribeCore(audio, language, null, cancellationToken);
+
+    /// <summary>Returns a borrowed contextual CTC/RNN-T/TDT wrapper using TokenVocabulary.WithPhraseEncoder.
+    /// CTC uses the configured beam, or 8 when the unmodified recognizer is greedy; vocabularies above 4096 are refused.
+    /// Null weights select 1. Blank and out-of-vocabulary phrase IDs are refused. Ownership and bounds follow the role.</summary>
+    public override SpeechRecognizer WithPhrases(IEnumerable<Phrase> phrases, CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var copy = PhraseRequests.Copy(phrases, cancellationToken);
+        if (copy.IsEmpty) return this;
+        if (!Capabilities.Biasing) throw new CapabilityNotSupportedException("Custom biasing requires TokenVocabulary.WithPhraseEncoder and CTC vocabulary size at most 4096.");
+        var trie = new PhraseTrie(copy.Select(p => new TokenPhrase(vocabulary.EncodePhrase(p.Text, cancellationToken), p.Weight ?? 1)));
+        trie.ValidateVocabulary(vocabulary.Pieces.Length, blank);
+        return new BiasedRecognizer(this, (audio, language, ct) => TranscribeCore(audio, language, trie, ct));
+    }
+
+    private Transcript TranscribeCore(AudioBuffer audio, string? language, PhraseTrie? phrases, CancellationToken cancellationToken)
+    {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ObjectDisposedException.ThrowIf(disposed, this); ArgumentNullException.ThrowIfNull(audio); cancellationToken.ThrowIfCancellationRequested();
         if (audio.SampleRate != 16000 || audio.Channels != 1) throw new ArgumentException("Graph recognition requires mono 16000 Hz PCM.", nameof(audio));
         foreach (float value in audio.Samples.Span) if (!float.IsFinite(value)) throw new ArgumentException("PCM must be finite.", nameof(audio));
@@ -88,11 +109,12 @@ public sealed class GraphSpeechRecognizer : SpeechRecognizer, IDisposable
                 if (frames <= 0 || values.Length != (long)frames * channels) throw new InvalidModelShapeException("Encoder output does not match its declared channels and temporal stride.");
             }
             ImmutableArray<FrameToken> tokens;
-            if (transducer is not null) tokens = DecodeTransducer(values, frames, channels, cancellationToken);
-            else if (beam == 0) tokens = CtcGreedy.Decode(values, vocabulary.Pieces.Length, blank, cancellationToken);
+            if (transducer is not null) tokens = DecodeTransducer(values, frames, channels, phrases, cancellationToken);
+            else if (beam == 0 && phrases is null) tokens = CtcGreedy.Decode(values, vocabulary.Pieces.Length, blank, cancellationToken);
             else
             {
-                var hypothesis = CtcPrefixBeamSearch.Decode(values, vocabulary.Pieces.Length, blank, beam, cancellationToken: cancellationToken);
+                var hypothesis = phrases is null ? CtcPrefixBeamSearch.Decode(values, vocabulary.Pieces.Length, blank, beam, cancellationToken: cancellationToken).Tokens
+                    : ContextualCtcBeamSearch.Decode(values, vocabulary.Pieces.Length, blank, phrases, beam == 0 ? 8 : beam, cancellationToken: cancellationToken).Tokens;
                 // The trellis takes log probabilities, not raw logits.
                 for (int frame = 0; frame < frames; frame++)
                 {
@@ -101,7 +123,7 @@ public sealed class GraphSpeechRecognizer : SpeechRecognizer, IDisposable
                     double norm = max + Math.Log(sum);
                     for (int id = 0; id < channels; id++) values[offset + id] -= (float)norm;
                 }
-                var alignment = CtcTrellis.Align(values, frames, channels, hypothesis.Tokens.AsSpan(), blank, cancellationToken: cancellationToken);
+                var alignment = CtcTrellis.Align(values, frames, channels, hypothesis.AsSpan(), blank, cancellationToken: cancellationToken);
                 if (!alignment.Succeeded) throw new InvalidModelShapeException("CTC beam hypothesis could not be aligned to its emissions.");
                 tokens = alignment.Tokens.Select(t =>
                 {
@@ -130,7 +152,7 @@ public sealed class GraphSpeechRecognizer : SpeechRecognizer, IDisposable
         return (values, frames, 128);
     }
 
-    private ImmutableArray<FrameToken> DecodeTransducer(float[] encoded, int frames, int channels, CancellationToken ct)
+    private ImmutableArray<FrameToken> DecodeTransducer(float[] encoded, int frames, int channels, PhraseTrie? phrases, CancellationToken ct)
     {
         var spec = transducer!; float[] state = Run(predictor!, new float[spec.StateSize], [1, spec.StateSize], ct);
         var input = new float[channels + spec.EmbeddingSize]; int accepted = 0;
@@ -149,6 +171,9 @@ public sealed class GraphSpeechRecognizer : SpeechRecognizer, IDisposable
             if (logits.Length != vocabulary.Pieces.Length + durationLogits.Length) throw new InvalidModelShapeException("Joint output must contain vocabulary logits followed by duration logits.");
             logits.AsSpan(0, tokenLogits.Length).CopyTo(tokenLogits); logits.AsSpan(tokenLogits.Length).CopyTo(durationLogits);
         }
+        if (phrases != null) return spec.Durations.Length == 0
+            ? ContextualTransducerSearch.DecodeRnnt(frames, vocabulary.Pieces.Length, blank, Logits, phrases, spec.MaxSymbolsPerFrame, cancellationToken: ct)
+            : ContextualTransducerSearch.DecodeTdt(frames, vocabulary.Pieces.Length, blank, spec.Durations.AsSpan(), Logits, phrases, spec.MaxSymbolsPerFrame, cancellationToken: ct);
         return spec.Durations.Length == 0
             ? RnntGreedy.Decode(frames, vocabulary.Pieces.Length, blank, Logits, spec.MaxSymbolsPerFrame, cancellationToken: ct)
             : TdtGreedy.Decode(frames, vocabulary.Pieces.Length, blank, spec.Durations.AsSpan(), Logits, spec.MaxSymbolsPerFrame, cancellationToken: ct);
@@ -166,12 +191,13 @@ public sealed class GraphSpeechRecognizer : SpeechRecognizer, IDisposable
     /// <summary>Yields immutable VAD-first final segments. Input, cancellation, errors and language-label semantics match Transcribe.</summary>
     public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ObjectDisposedException.ThrowIf(disposed, this);
         using var vad = new SileroVad(cancellationToken: cancellationToken);
         foreach (var segment in new VadTranscriptionPipeline(this, vad).TranscribeStream(audio, language, cancellationToken)) yield return segment;
     }
     /// <summary>Always throws CapabilityNotSupportedException: no language-ID head is part of this contract. Cancellation is checked first.</summary>
-    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken) { cancellationToken.ThrowIfCancellationRequested(); throw new CapabilityNotSupportedException("The custom graph contract does not include language identification."); }
+    public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken = default) { cancellationToken.ThrowIfCancellationRequested(); throw new CapabilityNotSupportedException("The custom graph contract does not include language identification."); }
     /// <summary>Releases all owned graphs; repeated disposal is harmless.</summary>
-    public void Dispose() { if (disposed) return; disposed = true; foreach (var graph in encoders) graph.Dispose(); predictor?.Dispose(); joint?.Dispose(); }
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return; if (disposed) return; disposed = true; foreach (var graph in encoders) graph.Dispose(); predictor?.Dispose(); joint?.Dispose(); }
 }

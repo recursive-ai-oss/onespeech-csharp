@@ -7,7 +7,7 @@ namespace OneSpeech.Qwen3;
 /// <summary>Qwen3's non-autoregressive timestamp-slot aligner on OneModel. Instances are not concurrent.</summary>
 /// <remarks>Accepts more than 200 samples and at most 300 seconds of 16 kHz mono audio. Language is required.
 /// Native timestamp resolution is 80 ms. Invalid predictions retain null timing rather than fabricated boundaries.</remarks>
-public sealed class Qwen3ForcedAligner : Aligner, IDisposable
+public sealed partial class Qwen3ForcedAligner : Aligner, IDisposable
 {
     private readonly QwenModelSession runtime;
     private readonly Qwen3Tokenizer tokenizer;
@@ -25,27 +25,28 @@ public sealed class Qwen3ForcedAligner : Aligner, IDisposable
         runtime = new QwenModelSession(directory, threads, cancellationToken);
         if (runtime.Configuration.TimestampClasses != 5000) { runtime.Dispose(); throw new ModelIntegrityException("Expected the released 5000-class Qwen timestamp head."); }
     }
-    /// <summary>Loads locally converted graphs and model data. Threads default to zero (runtime automatic); 0–256 are accepted.</summary>
+    /// <summary>Loads locally converted graphs and model data. Threads default to 1; zero selects runtime automatic; 0–256 are accepted.</summary>
     /// <exception cref="IOException">A local model file is missing or unreadable.</exception>
     /// <exception cref="ModelIntegrityException">Checkpoint provenance or classifier dimensions are unsupported.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thread count is outside its bounds.</exception>
     /// <exception cref="OperationCanceledException">Loading is canceled.</exception>
-    public static Qwen3ForcedAligner Load(string directory, int threads = 0, CancellationToken cancellationToken = default) => new(directory, threads, cancellationToken);
+    public static Qwen3ForcedAligner Load(string directory, int threads = 1, CancellationToken cancellationToken = default) => new(directory, threads, cancellationToken);
     /// <inheritdoc/>
     public override ModelInfo Model { get; } = new() { Id = "Qwen/Qwen3-ForcedAligner-0.6B", Source = "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B", Revision = "c7cbfc2048c462b0d63a45797104fc9db3ad62b7", License = "Apache-2.0", Tier = ModelTier.Tier1, Attribution = "Qwen Team, Qwen3-ForcedAligner, Apache License 2.0.", Files = [new ModelFileInfo { Name = "model.safetensors", Sha256 = "47831d0e82f96b20e9034dba01a075ee06436654719f6a68289e49f1b65ce0e7" }] };
     /// <inheritdoc/>
     public override Capabilities Capabilities { get; } = new() { Languages = SupportedLanguages, NativeTimestamps = true, ForcedAlignment = true };
 
     /// <summary>Aligns whitespace-delimited written units, or individual Han/Japanese characters, to native 80-ms slots. Text is preserved on the document.
-    /// Null or unsupported language throws CapabilityNotSupportedException; invalid audio/oversized input throws UnsupportedAudioException.
+    /// Null or unsupported language throws CapabilityNotSupportedException; invalid audio/oversized input throws ArgumentException.
     /// Cancellation is checked between model graph calls. No embeddings are persisted.</summary>
-    public override Transcript Align(AudioBuffer audio, string text, string? language, CancellationToken cancellationToken)
+    public override Transcript Align(AudioBuffer audio, string text, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language, Capabilities, Model.Id);
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(audio); ArgumentNullException.ThrowIfNull(text);
         cancellationToken.ThrowIfCancellationRequested();
         if (language == null || !Capabilities.Languages.Contains(language)) throw new CapabilityNotSupportedException("Qwen3-ForcedAligner requires one of its eleven declared language tags.");
-        if (audio.SampleRate != 16000 || audio.Channels != 1 || audio.FrameCount is <= 200 or > 4800000) throw new UnsupportedAudioException("Qwen3-ForcedAligner accepts 200–4800000 samples (exclusive lower bound) of 16 kHz mono audio.");
+        if (audio.SampleRate != 16000 || audio.Channels != 1 || audio.FrameCount is <= 200 or > 4800000) throw new ArgumentException("Qwen3-ForcedAligner accepts 200–4800000 samples (exclusive lower bound) of 16 kHz mono audio.");
         if (new UTF8Encoding(false, true).GetByteCount(text) > 1048576) throw new ArgumentException("Alignment text exceeds 1 MiB UTF-8.", nameof(text));
         var units = Units(text, language).ToArray();
         if (units.Length > 4096) throw new ArgumentException("Qwen alignment exceeds 4096 written units.", nameof(text));
@@ -86,8 +87,9 @@ public sealed class Qwen3ForcedAligner : Aligner, IDisposable
         return new Transcript { Text = text, Language = language, Duration = audio.Duration, Words = result, Models = [Model], Segments = [new Segment { Text = text, Start = TimeSpan.Zero, End = audio.Duration, Words = result, Language = language }] };
     }
     /// <summary>Aligns existing written words, preserving their boundaries and non-timing fields. Character slots for Chinese and Japanese are projected back to each written word only when every slot is valid; punctuation-only words remain untimed. Limits and exceptions follow text alignment.</summary>
-    public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language, CancellationToken cancellationToken)
+    public override Transcript Align(AudioBuffer audio, Transcript transcript, string? language = null, CancellationToken cancellationToken = default)
     {
+        language = LanguageTag.Require(language ?? transcript?.Language, Capabilities, Model.Id);
         ArgumentNullException.ThrowIfNull(transcript);
         language ??= transcript.Language;
         var timed = Align(audio, string.Join(' ', transcript.Words.Select(w => w.Text)), language, cancellationToken);
@@ -121,5 +123,5 @@ public sealed class Qwen3ForcedAligner : Aligner, IDisposable
         }
     }
     /// <summary>Releases model buffers. Repeated calls are safe; later alignment throws ObjectDisposedException.</summary>
-    public void Dispose() { if (disposed) return; disposed = true; runtime.Dispose(); }
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!disposing) return; if (disposed) return; disposed = true; runtime.Dispose(); }
 }

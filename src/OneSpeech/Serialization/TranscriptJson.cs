@@ -37,7 +37,7 @@ internal static class JsonBounds
 internal sealed record TranscriptEnvelope
 {
     public required int SchemaVersion { get; init; }
-    public required Transcript Transcript { get; init; }
+    public required TranscriptPayload Transcript { get; init; }
 }
 
 internal static class TranscriptJson
@@ -63,8 +63,9 @@ internal static class TranscriptJson
             var envelope = JsonSerializer.Deserialize(json, SpeechJsonContext.Default.TranscriptEnvelope)
                 ?? throw new JsonException("Expected a transcript envelope.");
             if (envelope.SchemaVersion != 1) throw new JsonException("Unsupported transcript schema major version; expected 1.");
-            Validate(envelope.Transcript);
-            return envelope.Transcript;
+            var transcript = (envelope.Transcript ?? throw new JsonException("Missing transcript payload at 'transcript'.")).ToTranscript();
+            Validate(transcript);
+            return transcript;
         }
         catch (JsonException e) { throw new InvalidTranscriptJsonException("Invalid transcript JSON: " + e.Message, e); }
     }
@@ -74,72 +75,86 @@ internal static class TranscriptJson
         try
         {
             Validate(transcript);
-            string json = JsonSerializer.Serialize(new TranscriptEnvelope { SchemaVersion = 1, Transcript = transcript }, SpeechJsonContext.Default.TranscriptEnvelope);
+            string json = JsonSerializer.Serialize(new TranscriptEnvelope { SchemaVersion = 1, Transcript = TranscriptPayload.From(transcript) }, SpeechJsonContext.Default.TranscriptEnvelope);
             // The same limits apply in both directions so every accepted output can be read.
             _ = Read(json);
             return json;
         }
-        catch (JsonException e) { throw new InvalidTranscriptJsonException("Invalid transcript document.", e); }
+        catch (JsonException e) { throw new InvalidTranscriptJsonException("Invalid transcript document: " + e.Message, e); }
     }
 
-    private static void Require(bool valid)
+    private static void Require(bool valid, string path)
     {
-        if (!valid) throw new JsonException("Invalid transcript field or interval.");
+        if (!valid) throw new JsonException($"Invalid transcript field '{path}'.");
     }
 
-    private static void Interval(TimeSpan? start, TimeSpan? end)
+    private static void Interval(TimeSpan? start, TimeSpan? end, string path)
     {
-        Require(start.HasValue == end.HasValue);
-        if (start.HasValue) Require(start.Value >= TimeSpan.Zero && end >= start);
+        Require(start.HasValue == end.HasValue, path + ".start/end");
+        if (start.HasValue) Require(start.Value >= TimeSpan.Zero && end >= start, path + ".start/end");
     }
 
-    private static void Speaker(SpeakerLabel? speaker)
+    private static void Speaker(SpeakerLabel? speaker, string path)
     {
-        if (speaker is not null) Require(!string.IsNullOrWhiteSpace(speaker.Id));
+        if (speaker is not null) Require(!string.IsNullOrWhiteSpace(speaker.Id), path + ".id");
     }
 
-    private static void Words(ImmutableArray<Word> words)
+    private static void Words(ImmutableArray<Word> words, string path)
     {
-        Require(!words.IsDefault);
-        foreach (var word in words)
+        Require(!words.IsDefault, path);
+        for (int i = 0; i < words.Length; i++)
         {
-            Require(word is not null);
-            Require(word!.Text is not null && Enum.IsDefined(word.TimingMethod));
-            Interval(word.Start, word.End);
-            Require(word.Confidence is null || double.IsFinite(word.Confidence.Value) && word.Confidence is >= 0 and <= 1);
-            Speaker(word.Speaker);
+            var word = words[i];
+            string item = $"{path}[{i}]";
+            Require(word is not null, item);
+            Require(word!.Text is not null, item + ".text");
+            Require(Enum.IsDefined(word.TimingMethod), item + ".timingMethod");
+            Interval(word.Start, word.End, item);
+            Require(word.Confidence is null || double.IsFinite(word.Confidence.Value) && word.Confidence is >= 0 and <= 1, item + ".confidence");
+            Speaker(word.Speaker, item + ".speaker");
         }
     }
 
     private static void Validate(Transcript? transcript)
     {
-        Require(transcript is not null);
-        Require(transcript!.Text is not null && transcript.Duration >= TimeSpan.Zero);
-        Require(!transcript.Segments.IsDefault && !transcript.Turns.IsDefault && !transcript.Models.IsDefault);
-        Words(transcript.Words);
-        foreach (var segment in transcript.Segments)
+        Require(transcript is not null, "transcript");
+        Require(transcript!.Text is not null, "transcript.text");
+        Require(transcript.Duration >= TimeSpan.Zero, "transcript.duration");
+        Require(!transcript.Segments.IsDefault, "transcript.segments");
+        Require(!transcript.Turns.IsDefault, "transcript.turns");
+        Require(!transcript.Models.IsDefault, "transcript.models");
+        Words(transcript.Words, "transcript.words");
+        for (int i = 0; i < transcript.Segments.Length; i++)
         {
-            Require(segment is not null && segment.Text is not null);
-            Interval(segment!.Start, segment.End);
-            Words(segment.Words);
+            var segment = transcript.Segments[i]; string item = $"transcript.segments[{i}]";
+            Require(segment is not null && segment.Text is not null, item + ".text");
+            Interval(segment!.Start, segment.End, item);
+            Words(segment.Words, item + ".words");
         }
-        foreach (var turn in transcript.Turns)
+        for (int i = 0; i < transcript.Turns.Length; i++)
         {
-            Require(turn is not null && turn.Text is not null && turn.Speaker is not null);
-            Speaker(turn!.Speaker);
-            Interval(turn.Start, turn.End);
-            Words(turn.Words);
+            var turn = transcript.Turns[i]; string item = $"transcript.turns[{i}]";
+            Require(turn is not null && turn.Text is not null && turn.Speaker is not null, item);
+            Speaker(turn!.Speaker, item + ".speaker");
+            Interval(turn.Start, turn.End, item);
+            Words(turn.Words, item + ".words");
         }
-        foreach (var model in transcript.Models)
+        for (int i = 0; i < transcript.Models.Length; i++)
         {
-            Require(model is not null);
-            Require(!string.IsNullOrWhiteSpace(model!.Id) && !string.IsNullOrWhiteSpace(model.Source) &&
-                !string.IsNullOrWhiteSpace(model.Revision) && !string.IsNullOrWhiteSpace(model.License) && model.Attribution is not null);
-            Require(Enum.IsDefined(model.Tier) && !model.Files.IsDefault);
-            foreach (var file in model.Files)
+            var model = transcript.Models[i]; string item = $"transcript.models[{i}]";
+            Require(model is not null, item);
+            Require(!string.IsNullOrWhiteSpace(model!.Id), item + ".id");
+            Require(!string.IsNullOrWhiteSpace(model.Source), item + ".source");
+            Require(!string.IsNullOrWhiteSpace(model.Revision), item + ".revision");
+            Require(!string.IsNullOrWhiteSpace(model.License), item + ".license");
+            Require(model.Attribution is not null, item + ".attribution");
+            Require(Enum.IsDefined(model.Tier), item + ".tier");
+            Require(!model.Files.IsDefault, item + ".files");
+            for (int j = 0; j < model.Files.Length; j++)
             {
-                Require(file is not null && !string.IsNullOrWhiteSpace(file.Name) && file.Sha256 is { Length: 64 });
-                Require(file!.Sha256.All(char.IsAsciiHexDigit));
+                var file = model.Files[j]; string filePath = $"{item}.files[{j}]";
+                Require(file is not null && !string.IsNullOrWhiteSpace(file.Name), filePath + ".name");
+                Require(file!.Sha256 is { Length: 64 } && file.Sha256.All(char.IsAsciiHexDigit), filePath + ".sha256");
             }
         }
     }

@@ -59,7 +59,7 @@ public sealed record CatalogEntry
 /// <summary>Host hook for obtaining pinned model bytes from a custom store. The loader must still verify size, digest and tier authorization.</summary>
 public abstract class ModelSource
 {
-    /// <summary>Opens a readable file stream at offset zero. Caller disposes it. Throws ModelNotFoundException if absent and OperationCanceledException on cancellation.</summary>
+    /// <summary>Opens a readable file stream at offset zero. Caller disposes it. Throws ModelUnavailableException if absent and OperationCanceledException on cancellation.</summary>
     public abstract ValueTask<Stream> OpenReadAsync(CatalogEntry model, CatalogFile file, CancellationToken cancellationToken);
     /// <summary>Opens pinned bytes with an ephemeral publisher token. The default delegates to the tokenless host hook. Implementations must never persist or log tokens.</summary>
     public virtual ValueTask<Stream> OpenReadAsync(CatalogEntry model, CatalogFile file, string? token, CancellationToken cancellationToken) => OpenReadAsync(model, file, cancellationToken);

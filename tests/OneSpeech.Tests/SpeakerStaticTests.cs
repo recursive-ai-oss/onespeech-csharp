@@ -15,14 +15,14 @@ public sealed class SpeakerStaticTests
     public async Task ValidationCancellationAndClearDoNotLoadModels()
     {
         Speech.ClearSpeakers(TestContext.Current.CancellationToken); Speech.ClearSpeakers(TestContext.Current.CancellationToken);
-        Assert.Throws<ArgumentException>(() => Speech.Enroll(" ", "missing"));
-        Assert.Throws<ArgumentNullException>(() => Speech.Enroll(null!, "missing"));
-        Assert.Throws<CapabilityNotSupportedException>(() => Speech.Identify("missing", model: "whisper-tiny"));
+        Assert.Throws<ArgumentException>(() => Speech.Enroll(" ", "missing", cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentNullException>(() => Speech.Enroll(null!, "missing", cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Throws<CapabilityNotSupportedException>(() => Speech.Identify("missing", model: "whisper-tiny", cancellationToken: TestContext.Current.CancellationToken));
         using var cancel = new CancellationTokenSource(); cancel.Cancel();
-        Assert.Throws<OperationCanceledException>(() => Speech.Identify("missing", cancel.Token));
+        Assert.Throws<OperationCanceledException>(() => Speech.Identify("missing", cancellationToken: cancel.Token));
         Assert.Throws<OperationCanceledException>(() => Speech.ClearSpeakers(cancel.Token));
-        await Assert.ThrowsAsync<OperationCanceledException>(async () => await Speech.IdentifyAsync(new MemoryStream(), cancel.Token));
-        await Assert.ThrowsAsync<ArgumentException>(async () => await Speech.EnrollAsync(" ", new MemoryStream()));
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await Speech.IdentifyAsync(new MemoryStream(), cancellationToken: cancel.Token));
+        await Assert.ThrowsAsync<ArgumentException>(async () => await Speech.EnrollAsync(" ", new MemoryStream(), cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -57,28 +57,28 @@ public sealed class SpeakerStaticTests
         Speech.ClearSpeakers(TestContext.Current.CancellationToken);
         try
         {
-            Speech.Enroll("Reader", enroll, TestContext.Current.CancellationToken);
-            var match = Speech.Identify(query, TestContext.Current.CancellationToken);
+            Speech.Enroll("Reader", enroll, cancellationToken: TestContext.Current.CancellationToken);
+            var match = Speech.Identify(query, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal("Reader", match.SpeakerId);
             Assert.True(match.Score >= SpeakerServices.EnglishThreshold);
-            Assert.Null(Speech.Identify(other, TestContext.Current.CancellationToken).SpeakerId);
-            Assert.True(Speech.Verify(enroll, query, TestContext.Current.CancellationToken) > Speech.Verify(enroll, other, TestContext.Current.CancellationToken));
+            Assert.Null(Speech.Identify(other, cancellationToken: TestContext.Current.CancellationToken).SpeakerId);
+            Assert.True(Speech.Verify(enroll, query, cancellationToken: TestContext.Current.CancellationToken) > Speech.Verify(enroll, other, cancellationToken: TestContext.Current.CancellationToken));
             await using var enrollment = File.OpenRead(enroll);
             await using var input = File.OpenRead(query);
-            await Speech.EnrollAsync("Reader", enrollment, TestContext.Current.CancellationToken);
-            Assert.Equal("Reader", (await Speech.IdentifyAsync(input, TestContext.Current.CancellationToken)).SpeakerId);
+            await Speech.EnrollAsync("Reader", enrollment, cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal("Reader", (await Speech.IdentifyAsync(input, cancellationToken: TestContext.Current.CancellationToken)).SpeakerId);
             Assert.True(enrollment.CanRead); Assert.True(input.CanRead);
             await using var a = File.OpenRead(enroll);
             await using var b = File.OpenRead(query);
-            Assert.Equal(Speech.Verify(enroll, query, TestContext.Current.CancellationToken), await Speech.VerifyAsync(a, b, TestContext.Current.CancellationToken), 6);
-            var transcript = Speech.Transcribe(query, TestContext.Current.CancellationToken, language: "en", model: "openai/whisper-tiny");
+            Assert.Equal(Speech.Verify(enroll, query, cancellationToken: TestContext.Current.CancellationToken), await Speech.VerifyAsync(a, b, cancellationToken: TestContext.Current.CancellationToken), 6);
+            var transcript = Speech.Transcribe(query, language: "en", model: "openai/whisper-tiny", cancellationToken: TestContext.Current.CancellationToken);
             Assert.NotEmpty(transcript.Turns);
             Assert.All(transcript.Turns, t => Assert.Equal("Reader", t.Speaker.Name));
             Assert.Contains(transcript.Words, w => w.Speaker?.Name == "Reader");
-            Console.WriteLine($"known score={match.Score:R}; unknown score={Speech.Identify(other, TestContext.Current.CancellationToken).Score:R}; named turns={transcript.Turns.Length}");
+            Console.WriteLine($"known score={match.Score:R}; unknown score={Speech.Identify(other, cancellationToken: TestContext.Current.CancellationToken).Score:R}; named turns={transcript.Turns.Length}");
             Speech.ClearSpeakers(TestContext.Current.CancellationToken);
-            Assert.Null(Speech.Identify(query, TestContext.Current.CancellationToken).SpeakerId);
-            Assert.Equal(double.NegativeInfinity, Speech.Identify(query, TestContext.Current.CancellationToken).Score);
+            Assert.Null(Speech.Identify(query, cancellationToken: TestContext.Current.CancellationToken).SpeakerId);
+            Assert.Equal(double.NegativeInfinity, Speech.Identify(query, cancellationToken: TestContext.Current.CancellationToken).Score);
         }
         finally { Speech.ClearSpeakers(TestContext.Current.CancellationToken); }
     }

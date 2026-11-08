@@ -18,7 +18,7 @@ also be selected by their catalog IDs. Large-v3 requires substantially more
 memory than turbo. Selection never silently substitutes a model.
 File input is decoded by OneAudio, including AMR and AAC/M4A. Calls accept an
 explicit `CancellationToken` overload. Stream input uses
-`await Speech.TranscribeAsync(stream, cancellationToken)` and does not own the
+`await Speech.TranscribeAsync(stream, cancellationToken: cancellationToken)` and does not own the
 stream. CPU inference is synchronous; first-use downloads can block the file call.
 
 Each call owns and disposes its models. It makes a VAD-based recognition pass,

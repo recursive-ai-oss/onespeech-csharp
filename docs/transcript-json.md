@@ -54,3 +54,17 @@ var restored = OneSpeech.Transcript.FromJson(json);
 if (restored.Text != document.Text || restored.Words[0].Start is not null)
     throw new InvalidOperationException("Document round-trip changed text or invented timing.");
 ```
+
+## System.Text.Json and web endpoints
+
+`Transcript` carries a stateless converter. Plain `System.Text.Json` (including Web defaults) writes and reads this same **schema version 1** envelope, seconds and enum names; naming policies cannot produce a second shape. The documented wire format has not changed. Bounds and semantic validation are the same as `ToJson` / `FromJson`. The System.Text.Json adapter bounds the raw value to 8 MiB before a temporary raw JSON DOM is allocated; token, string and depth bounds are then checked before constructing the immutable transcript. Optional arrays omitted on the wire retain their documented empty defaults, including nested word/file arrays; explicit null arrays are refused. Invalid documents are `JsonException` through System.Text.Json and `InvalidTranscriptJsonException` through the explicit methods, with a field/index path when validation fails.
+
+For NativeAOT or trimmed applications, include `Transcript` in the application's source-generated JSON context and use its `JsonTypeInfo` overload, also when registering an ASP.NET JSON resolver. Reflection-based serialization is not required by the library. If an application disables reflection without registering a context, System.Text.Json refuses the operation rather than falling back to another wire format.
+
+```csharp
+[JsonSerializable(typeof(Transcript))]
+internal sealed partial class AppJsonContext : JsonSerializerContext;
+// JsonSerializer.Serialize(transcript, AppJsonContext.Default.Transcript)
+```
+
+`Transcript`, `Segment`, `Turn` and `ModelInfo` compare their immutable collections by ordered element value. A valid document equals its JSON round trip and has the same hash code within the process. Equality does not ignore provenance, spacing or null timing.

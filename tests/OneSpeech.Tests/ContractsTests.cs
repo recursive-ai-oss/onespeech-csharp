@@ -76,10 +76,10 @@ public sealed class ContractsTests
     public void HappyPathRefusesUnknownModelsAndHonorsCancellation()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "1089-134686-0001.flac");
-        Assert.Throws<ModelNotFoundException>(() => Speech.Transcribe(path, model: "missing/model"));
+        Assert.Throws<ModelNotFoundException>(() => Speech.Transcribe(path, model: "missing/model", cancellationToken: TestContext.Current.CancellationToken));
         using var canceled = new CancellationTokenSource();
         canceled.Cancel();
-        Assert.Throws<OperationCanceledException>(() => Speech.Transcribe(path, canceled.Token));
+        Assert.Throws<OperationCanceledException>(() => Speech.Transcribe(path, cancellationToken: canceled.Token));
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class ContractsTests
         Assert.Equal(TimeSpan.FromSeconds(1), audio.Duration);
         Assert.Throws<ArgumentException>(() => new AudioBuffer(new float[3], 16000, 2));
         Assert.Throws<ArgumentOutOfRangeException>(() => new AudioBuffer(default, 0));
-        Assert.Throws<FileNotFoundException>(() => Speech.Transcribe("missing.wav"));
+        Assert.Throws<FileNotFoundException>(() => Speech.Transcribe("missing.wav", cancellationToken: TestContext.Current.CancellationToken));
         Assert.IsAssignableFrom<OneSpeechException>(new ModelNotFoundException("fetch model"));
         Assert.IsAssignableFrom<OneSpeechException>(new ModelIntegrityException("hash mismatch"));
         Assert.IsAssignableFrom<OneSpeechException>(new ModelTokenRequiredException("supply token"));

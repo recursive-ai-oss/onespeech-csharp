@@ -2475,6 +2475,61 @@
         ],
         "nativeTimestamps": true
       }
+    },
+    {
+      "id": "pyannote/segmentation-3.0",
+      "family": "pyannote-segmentation",
+      "source": "https://huggingface.co/pyannote/segmentation-3.0",
+      "revision": "e66f3d3b9eb0873085418a7b813d3b369bf160bb",
+      "files": [
+        {
+          "name": "pytorch_model.bin",
+          "size": 5905440,
+          "sha256": "da85c29829d4002daedd676e012936488234d9255e65e86dfab9bec6b1729298",
+          "upstreamUrl": "https://huggingface.co/pyannote/segmentation-3.0/resolve/e66f3d3b9eb0873085418a7b813d3b369bf160bb/pytorch_model.bin",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [],
+      "isDefault": false,
+      "tier": "Tier2",
+      "license": "MIT",
+      "attribution": "pyannote/segmentation-3.0 — pyannote, https://huggingface.co/pyannote/segmentation-3.0, revision e66f3d3b9eb0873085418a7b813d3b369bf160bb. MIT (https://opensource.org/license/mit). Unmodified publisher weights; no endorsement implied.",
+      "gated": true,
+      "capabilities": {
+        "languages": []
+      }
+    },
+    {
+      "id": "pyannote/speaker-diarization-community-1",
+      "family": "pyannote-segmentation",
+      "source": "https://huggingface.co/pyannote/speaker-diarization-community-1",
+      "revision": "3533c8cf8e369892e6b79ff1bf80f7b0286a54ee",
+      "files": [
+        {
+          "name": "segmentation/pytorch_model.bin",
+          "size": 5906507,
+          "sha256": "7ad24338d844fb95985486eb1a464e32d229f6d7a03c9abe60f978bacf3f816e",
+          "upstreamUrl": "https://huggingface.co/pyannote/speaker-diarization-community-1/resolve/3533c8cf8e369892e6b79ff1bf80f7b0286a54ee/segmentation/pytorch_model.bin",
+          "mirrorUrl": null
+        },
+        {
+          "name": "embedding/pytorch_model.bin",
+          "size": 26646242,
+          "sha256": "6f10ff60898a1d185fa22e1d11e0bfa8a92efec811f11bca48cb8cafebefd929",
+          "upstreamUrl": "https://huggingface.co/pyannote/speaker-diarization-community-1/resolve/3533c8cf8e369892e6b79ff1bf80f7b0286a54ee/embedding/pytorch_model.bin",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [],
+      "isDefault": false,
+      "tier": "Tier2",
+      "license": "CC-BY-4.0",
+      "attribution": "pyannote/speaker-diarization-community-1 — pyannote, https://huggingface.co/pyannote/speaker-diarization-community-1, revision 3533c8cf8e369892e6b79ff1bf80f7b0286a54ee. CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/). Unmodified publisher weights; no endorsement implied.",
+      "gated": true,
+      "capabilities": {
+        "languages": []
+      }
     }
   ]
 }

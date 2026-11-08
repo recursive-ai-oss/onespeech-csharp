@@ -24,39 +24,62 @@ internal static class MoonshineLiveMetrics
         });
         json.WriteEndObject();
     }
-    internal static void Run(string directory, string clipPath, string output)
+    internal static void Run(string directory, string clipPath, string output, int threads = 1, bool sixtySeconds = false)
     {
         var clip = OneAudio.Audio.Load(clipPath, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
-        using var model = MoonshineRecognizer.Load(directory, new MoonshineOptions { IntraOpThreads = 1 });
+        ReadOnlyMemory<float> pcm = clip.Samples;
+        if (sixtySeconds)
+        {
+            var samples = new float[60 * 16000];
+            for (int i = 0; i < samples.Length; i++) samples[i] = clip.Samples.Span[i % clip.Samples.Length];
+            pcm = samples;
+        }
+        using var model = MoonshineRecognizer.Load(directory, new MoonshineOptions { IntraOpThreads = threads });
+        bool streaming = MoonshineConfiguration.Load(directory).Streaming;
         using var vad = new SileroVad();
         Measure();
+        // Time the public session path separately from allocation instrumentation.
+        double PublicSeconds()
+        {
+            using var live = model.CreateLiveSession(vad, "en");
+            var timer = Stopwatch.StartNew();
+            for (int start = 0; start < pcm.Length; start += 1600)
+                _ = live.Push(new AudioBuffer(pcm.Slice(start, Math.Min(1600, pcm.Length - start)), 16000));
+            _ = live.Complete();
+            return timer.Elapsed.TotalSeconds;
+        }
         using var file = File.Create(output); using var json = new Utf8JsonWriter(file, new JsonWriterOptions { Indented = true });
         json.WriteStartObject(); json.WriteString("status", "indicative; immutable emitted payload excluded; actual VAD runtime allocation measured separately");
         json.WriteString("runtime", Environment.Version.ToString()); json.WriteString("oneModel", "1.2.0-preview.2"); json.WriteString("oneAudio", "1.7.2"); json.WriteNumber("processorCount", Environment.ProcessorCount);
+        json.WriteNumber("inferenceThreads", threads); json.WriteBoolean("streaming", streaming); json.WriteNumber("convertedBytes", Directory.EnumerateFiles(directory, "*.onemodel").Sum(p => new FileInfo(p).Length));
         json.WriteStartArray("repetitions");
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < (sixtySeconds ? 1 : 3); i++)
         {
-            var row = Measure(); json.WriteStartObject(); json.WriteNumber("rtf", row.Seconds / (clip.Samples.Length / 16000d));
-            json.WriteNumber("audioSeconds", clip.Samples.Length / 16000d); json.WriteNumber("seconds", row.Seconds); json.WriteNumber("chunks", row.Chunks);
+            double publicSeconds = PublicSeconds();
+            var row = Measure(); json.WriteStartObject(); json.WriteNumber("publicRtf", publicSeconds / (pcm.Length / 16000d)); json.WriteNumber("rtf", row.Seconds / (pcm.Length / 16000d));
+            json.WriteNumber("audioSeconds", pcm.Length / 16000d); json.WriteNumber("seconds", row.Seconds); json.WriteNumber("chunks", row.Chunks);
             json.WriteNumber("totalBytes", row.Total); json.WriteNumber("oneModelVadBytes", row.Vad); json.WriteNumber("emittedPayloadBytes", row.Payload); json.WriteNumber("ourWorkingBytes", row.Total - row.Vad - row.Payload);
             json.WriteNumber("nonEmittingChunks", row.Quiet); json.WriteNumber("nonEmittingOurBytes", row.QuietBytes); json.WriteNumber("partials", row.Partials); json.WriteNumber("finals", row.Finals); json.WriteEndObject();
         }
-        json.WriteEndArray(); json.WriteEndObject();
+        json.WriteEndArray(); json.WriteNumber("peakRssBytes", Process.GetCurrentProcess().PeakWorkingSet64); json.WriteEndObject();
         (double Seconds, int Chunks, long Total, long Vad, long Payload, int Quiet, long QuietBytes, int Partials, int Finals) Measure()
         {
             long vadBytes = 0;
             using var state = vad.CreateState(16000);
-            using var session = new UtteranceLiveSession(model, (samples, ct) =>
+            float Probability(ReadOnlyMemory<float> samples, CancellationToken ct)
             {
                 long before = GC.GetAllocatedBytesForCurrentThread();
                 float p = state.ProcessFrame(samples.Span, ct);
                 vadBytes += GC.GetAllocatedBytesForCurrentThread() - before;
                 return p;
-            }, new MoonshineStreamingState(model), "en");
+            }
+            using var session = streaming
+                ? new UtteranceLiveSession(model, Probability, new MoonshineStreamingState(model), "en")
+                : new UtteranceLiveSession(model, Probability, "en");
             double seconds = 0; long total = 0, payload = 0, quietBytes = 0; int chunks = 0, quiet = 0, partials = 0, finals = 0;
-            for (int start = 0; start < clip.Samples.Length; start += 1600)
+            for (int start = 0; start < pcm.Length; start += 1600)
             {
-                var input = new AudioBuffer(clip.Samples.Slice(start, Math.Min(1600, clip.Samples.Length - start)), 16000);
+                var input = new AudioBuffer(pcm.Slice(start, Math.Min(1600, pcm.Length - start)), 16000);
                 long priorVad = vadBytes, before = GC.GetAllocatedBytesForCurrentThread(), tick = Stopwatch.GetTimestamp();
                 var events = session.Push(input);
                 seconds += Stopwatch.GetElapsedTime(tick).TotalSeconds;

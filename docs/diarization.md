@@ -58,7 +58,7 @@ Two bounded-work deviations from the paper are explicit: dense clustering uses u
 
 The symmetric eigensolver uses cyclic Jacobi rotations, at most 60 sweeps, stopping when maximum off-diagonal magnitude is ≤1e-10 times the largest diagonal magnitude (at least 1). Numerical nonconvergence uses AHC instead. When all landmark cosines are within 1e-6 of one, there is no geometric separation evidence; AHC avoids creating speakers from arbitrary graph tie-breaking.
 
-`ClusteringMethod.Agglomerative` is the alternative and the spectral numerical fallback: average-link cosine similarities, stable pair-order ties, merging to the supplied exact count or stopping below the configurable cosine threshold while honoring min/max. This uses the cosine AHC initialization described in Landini §3.2, **not** PLDA. Initial threshold 0.65 is an exposed, untuned starting value. No embedding-model weights are changed.
+`ClusteringMethod.Agglomerative` is the alternative and the spectral numerical fallback: average-link cosine similarities, stable pair-order ties, merging to the supplied exact count or stopping below the configurable cosine threshold while honoring min/max. This uses the cosine AHC initialization described in Landini §3.2, **not** PLDA. The generic threshold 0.65 is an exposed starting value, not a universal model calibration; use the model-specific measured profile below. No embedding-model weights are changed.
 
 `NumSpeakers` is exact for nonempty speech; `MinSpeakers`/`MaxSpeakers` constrain estimates. Default range is 1–8, supported ceiling 32. Exact counts must lie within min/max. If speech produces fewer windows than the required count, the request is refused with `CapabilityNotSupportedException`; silence produces no turns, not fictitious speakers. Invalid parameter combinations are rejected. Cancellation is checked per PCM block, embedding window, eigen sweep, clustering iteration and output turn.
 
@@ -70,6 +70,32 @@ An optional `EmbeddingResegmenter` receives borrowed windows/initial labels sync
 
 ### Development parameters and evaluation
 
-The initial window defaults come from the cited paper; memory/iteration bounds and deterministic choices above are engineering choices, not fitted accuracy claims. The AHC threshold and channel-separation heuristics are currently **not AMI-dev-fitted**. A real embedding implementation is required before such fitting or quality floors can be reported; synthetic test vectors do not count. Development-only slice: AMI Full-corpus-ASR ES2011a/ES2011b. Holdout slices: AMI ES2004a/ES2004b and AliMeeting Eval R8001_M8004_MS801/R8003_M8001_MS801. Holdout references are not used to choose thresholds. See the fetch/preparation scripts and manifests for exact input/output hashes and licence attribution.
+CAM++ English (512 dimensions, float32) was fitted on **AMI Full-corpus-ASR dev ES2011a/ES2011b only**, with the original Mix-Headset signal and word-derived references described in the fetch scripts. Window defaults remain the paper-based 1.5 s / 0.25 s; count range is 1–8, with no oracle speaker count. The grid uses 64/128/256 landmarks and AHC thresholds −0.2, −0.1, 0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85. The initial high-threshold grid was extended using development results only. Selection minimizes pooled speaker-time DER, ties by reference-speaker-macro JER then ordinal profile ID. Embeddings and VAD outputs are replayed from RAM after input SHA checks while varying clustering parameters; no embeddings are saved or model weights altered.
+
+| CAM++ en profile | Method | Landmarks | AHC threshold | Pooled dev DER / JER |
+|---|---|---:|---:|---:|
+| S128, selected primary | Spectral/NME |128|0.65 numerical fallback only|33.3520% / 42.6786%|
+| A64-0.15, fitted alternative | Average-link AHC |64|0.15|57.0071% / 72.1743%|
+
+These are model-specific recipes, not a claim that the generic options are optimal for every embedder. S128 coincides with the existing spectral defaults. To use the fitted AHC alternative, explicitly set `Method=Agglomerative`, `MaxLandmarks=64`, `AgglomerativeThreshold=0.15`; retain 1.5 s / 0.25 s windows and min/max 1/8. All selections were frozen before reading holdout scores.
+
+Channel-layout calibration used AMI dev ES2011a/ES2011b Headset-0/1 only. Ten correlated proxies total (five per meeting) cover separated microphones, 1% statistical leakage, 25%/50% leakage negatives, and dual mono. Leakage is computed on frame energy/cross-energy statistics; no new speech waveform is rendered. Searching 10/15/20/25/30 dB and normalized-dot limits 0.2/0.3/0.4/0.5/0.6 retained **20 dB / 0.3**, with 4 true positives, 6 true negatives and no errors. Ties prefer the smallest change from the initial constants. The fixed three-frame and energy-floor rules are unchanged. This is not independent telephony accuracy or evidence that the heuristic proves separation.
+
+### Initial holdout floors
+
+The embedder is ModelScope `iic/speech_campplus_sv_en_voxceleb_16k` revision `032b8131a7ad812f87061955ca974c99060c5a03`; converted graph SHA-256 `f333a00d5d66b9bf3d7e7abf35f36ff4a01e6e8a0df235b89a125e9fbe3cc15c`. Linux x64, AMD Ryzen 9 7950X3D (32 logical CPUs, AVX2/FMA/AVX-512 available), .NET SDK 10.0.403/runtime 10.0.14, CPU/float32, eight inference threads, OneModel 1.0.0 and OneAudio 1.7.2; no GPU or speed measurement. Silero v6.2.3 uses threshold 0.5, negative 0.35, minimum speech 250 ms, minimum silence 100 ms, pad 30 ms, with the documented independent 30 s horizons. No collar; all overlap scored; no UEM exclusions. Figures are **first-measurement floors**, not reference parity or an absolute quality pass.
+
+| Held-out meeting | S128 DER / JER | A64-0.15 DER / JER |
+|---|---:|---:|
+| AMI test ES2004a, Mix-Headset |33.9706% / 38.1994%|36.2530% / 39.3777%|
+| AMI test ES2004b, Mix-Headset |27.0682% / 29.1370%|28.8334% / 29.0338%|
+| AliMeeting Eval R8001_M8004_MS801, far channel 1 |66.1638% / 64.4226%|67.9955% / 65.5995%|
+| AliMeeting Eval R8003_M8001_MS801, far channel 1 |45.3672% / 51.7859%|47.6219% / 53.7021%|
+
+Pooled S128: AMI DER 29.0875%, JER 33.6682%; AliMeeting DER 55.2437%, JER 58.1043%. Descriptive 95% bootstrap intervals over the **two meetings** (1,000 resamples, seed 1729) are respectively DER [27.0682,33.9706]%, JER [29.1370,38.1994]%, and DER [45.3672,66.1638]%, JER [51.7859,64.4226]%. They do not establish generalization to a new speaker/meeting population. Individual-meeting intervals are unavailable. Missed speaker-time dominates these rows; this measurement does not separate VAD misses from the known inability to represent concurrent speakers.
+
+A black-box ModelScope 1.40.2 `speaker-diarization` pipeline probe rejected the pinned English CAM++ checkpoint at registry initialization (`speaker-verification` is not registered in the `speaker-diarization` group). Network was disabled to prevent unchecked auxiliary downloads. The documented bundle instead uses other VAD/Chinese/change-point checkpoints; no same-checkpoint reference was scored, and repository recipes were not opened or executed. Floors therefore stand without a comparative verdict.
+
+The file pipeline also produced a 300-second AMI test excerpt with a deliberately synthetic **word-timing fixture**, not ASR: 211 timed clock probes, 116 assigned to a diarizer speaker and 95 explicitly unassigned. This proves clock/speaker document integration only, not recognized text, WER, alignment quality or correct speaker attribution. The synthetic separated-party stereo file test independently exercises two channel labels. See the evaluation commands and data manifests for reproducibility; holdout references were never used to choose parameters.
 
 See [evaluation](eval.md) for no-collar, overlap-inclusive DER/JER and RTTM input.

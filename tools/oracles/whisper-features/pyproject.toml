@@ -2,7 +2,7 @@
 name = "onespeech-whisper-features-oracle"
 version = "0.1.0"
 requires-python = ">=3.13,<3.14"
-dependencies = ["openai-whisper==20250625", "transformers==5.22.2", "torch==2.15.0", "numpy==2.5.4", "soundfile==0.14.0"]
+dependencies = ["openai-whisper==20250625", "transformers==5.22.2", "torch==2.15.0", "numpy==2.5.4", "soundfile==0.14.0", "scipy==1.18.1"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }

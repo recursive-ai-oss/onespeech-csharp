@@ -23,3 +23,5 @@
 **/obj/
 **/artifacts/
 !/assets/
+
+!/testdata/

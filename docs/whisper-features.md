@@ -36,3 +36,11 @@ dotnet run --project tools/OneSpeech.WhisperProbe -- "$OUTPUT"
 ```
 
 Use `UV_PROJECT_ENVIRONMENT` to put the environment outside the checkout. Inputs and feature outputs also stay outside the checkout. The preparation manifest records clip IDs and hashes. It chooses test-clean IDs 1089-134686-0000 through 1089-134686-0003 in sorted order, plus a 440 Hz tone, empty input, a single-sample impulse, exactly 400 samples, DC and alternating clipped samples. No evaluation audio is committed. Small tone-value fixtures in the tests record observed output of openai-whisper 20250625.
+
+## Graph conversion and recognition
+
+`tools/OneSpeech.Convert fetch <tiny|small|large-v3-turbo> <directory>` fetches the explicitly pinned upstream data and verifies the safetensors SHA-256. `whisper <directory>` verifies the weight digest again and writes independently constructed encoder and explicit-cache decoder graphs in OneModel format. The encoder also computes cross-attention keys and values once per window. Because OneModel 1.0.0 limits each model file to 2 GiB minus one byte, turbo's encoder is partitioned after its first 16 blocks into `encoder-part0.onemodel` and `encoder.onemodel`.
+
+`WhisperRecognizer.Load(directory, options)` loads local graphs and data without network access. Its offline path uses timestamp tokens to advance through 30-second windows, bounded previous-text conditioning, per-window cancellation and optional audio-time progress. The default temperature schedule is 0/.2/.4/.6/.8/1, with compression ratio 2.4, average log probability -1 and no-speech probability .6. Temperature zero is greedy, not the CLI's beam-search configuration. Positive temperatures sample one candidate with an explicit seed. Native word timestamps are not advertised; optional cross-attention DTW supplies word timing provenance.
+
+The graph and recognition paths are still under numerical and reference validation. In particular, encoder scaled error, special-token decoding and DTW boundary behavior are not yet accepted; feature parity alone must not be read as end-to-end model parity. Reference inference and evaluation drivers under `tools/oracles/whisper-features` write per-utterance files for resumption rather than hiding incomplete runs. No quality claim is made here.

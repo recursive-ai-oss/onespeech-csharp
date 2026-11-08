@@ -17,9 +17,10 @@ alternative. The default clustering method does not detect overlap.
 only until that invocation exits. `verify first.wav second.wav` prints a cosine
 score, not a probability or a calibrated decision. `enroll alice enrollment.wav`
 checks enrollment and discards it on exit; it does not create a database.
-Speaker samples are limited to 60 seconds per file. The default identify threshold
-is 0.3; `--threshold` accepts a finite cosine in [-1,1]. It is not a population
-calibration. Obtain informed consent and check local law (including BIPA and GDPR
+Speaker samples are limited to 60 seconds per file. These commands use the `Speech`
+speaker helpers by default; identification uses their [development-fitted operating points](speakers.md#convenience-identification-operating-points).
+An explicit `--threshold` uses the low-level registry instead and accepts a finite cosine in [-1,1].
+Neither setting is a population authentication guarantee. Obtain informed consent and check local law (including BIPA and GDPR
 Art. 9) before processing voices.
 
 `models list` is offline. `models pull <id>` prefetches a pinned model; gate tokens

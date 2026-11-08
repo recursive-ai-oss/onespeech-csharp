@@ -133,7 +133,7 @@ internal static class CommandLine
         }
         string format = values.GetValueOrDefault("--format", "text");
         if (format is not ("text" or "json" or "srt" or "vtt")) throw new UsageException("Unknown output format.");
-        double threshold = 0.3;
+        double threshold = double.NaN;
         if (values.TryGetValue("--threshold", out string? raw) && (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out threshold) || !double.IsFinite(threshold) || threshold < -1 || threshold > 1))
             throw new UsageException("Threshold must be a finite cosine in [-1,1].");
         return new(command, positional.ToArray(), values.GetValueOrDefault("--model"), values.GetValueOrDefault("--language"), format, values.GetValueOrDefault("--output"), threshold);
@@ -182,12 +182,26 @@ internal static class CommandLine
             };
             if (o.Format == "text") return string.Join('\n', document.Turns.Select(t => string.Create(CultureInfo.InvariantCulture, $"{t.Start.TotalSeconds:F3}\t{t.End.TotalSeconds:F3}\t{t.Speaker.Id}")));
         }
+        else if (o.Command != "identify" || double.IsNaN(o.Threshold))
+        {
+            try
+            {
+                if (o.Command == "verify") return Speech.Verify(a[0], a[1], ct, o.Language, o.Model).ToString("R", CultureInfo.InvariantCulture);
+                if (o.Command == "enroll")
+                {
+                    Speech.Enroll(a[0], a[1], ct, o.Language, o.Model);
+                    return $"Enrolled '{a[0]}' in memory for this invocation only; enrollment discarded on exit.";
+                }
+                for (int i = 1; i < a.Length; i += 2) Speech.Enroll(a[i], a[i + 1], ct, o.Language, o.Model);
+                var match = Speech.Identify(a[0], ct, o.Language, o.Model);
+                return $"{match.SpeakerId ?? "unknown"}\t{match.Score.ToString("R", CultureInfo.InvariantCulture)}";
+            }
+            finally { Speech.ClearSpeakers(CancellationToken.None); }
+        }
         else
         {
             using var embedder = await LoadEmbedderAsync(o, ct);
             using var registry = new InMemorySpeakerRegistry(embedder, o.Threshold);
-            if (o.Command == "verify") return registry.Verify(ReadAudio(a[0], ct), ReadAudio(a[1], ct), ct).ToString("R", CultureInfo.InvariantCulture);
-            if (o.Command == "enroll") { registry.Enroll(a[0], ReadAudio(a[1], ct), ct); return $"Enrolled '{a[0]}' in memory for this invocation only; enrollment discarded on exit."; }
             for (int i = 1; i < a.Length; i += 2) registry.Enroll(a[i], ReadAudio(a[i + 1], ct), ct);
             var match = registry.Identify(ReadAudio(a[0], ct), ct);
             return $"{match.SpeakerId ?? "unknown"}\t{match.Score.ToString("R", CultureInfo.InvariantCulture)}";

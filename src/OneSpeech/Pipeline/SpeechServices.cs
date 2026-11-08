@@ -193,7 +193,10 @@ internal static class SpeechServices
         using var embedder = await ResolveEmbedderAsync(store, language ?? transcript.Language, cancellationToken).ConfigureAwait(false);
         // Activity coverage for diarization is fitted separately; ASR chunking keeps its original VAD.
         using var vad = ResolveVad(store, cancellationToken, DiarizationActivity);
-        var diarizer = new ClusteringDiarizer(embedder, vad);
+        var diarizer = new ClusteringDiarizer(embedder, vad)
+        {
+            IdentifyCluster = (vector, token) => SpeakerServices.Match(embedder.Model.Id, vector, token)
+        };
         var turns = diarizer.DiarizeBlocks(VadChunker.Blocks(source, cancellationToken), cancellationToken);
         var merged = TranscriptDiarization.Merge(transcript, turns.Select(t => new ActiveTurn { Turn = t }), cancellationToken);
         return merged with { Models = [.. merged.Models.Concat(diarizer.Models).DistinctBy(m => (m.Id, m.Revision))] };

@@ -11,6 +11,8 @@ public sealed class ClusteringDiarizer : BlockDiarizer
     private readonly ClusteringOptions options;
     private readonly EmbeddingResegmenter? resegmenter;
 
+    internal Func<ReadOnlyMemory<float>, CancellationToken, SpeakerMatch>? IdentifyCluster { get; init; }
+
     /// <summary>Creates a diarizer for 16 kHz PCM, averaged over input channels. Defaults are ClusteringOptions defaults and cosine resegmentation (penalty 0.4, radius 2).
     /// The supplied detector is never reconfigured; use SileroVadOptions.Diarization for the file-helper activity profile.
     /// Embedder must require 16 kHz with dimension 1–4096. Throws ArgumentException for invalid options and CapabilityNotSupportedException for unsupported embedder shape/rate.</summary>
@@ -103,11 +105,22 @@ public sealed class ClusteringDiarizer : BlockDiarizer
                 throw new InvalidOperationException("Resegmenter violated the requested speaker count.");
             labels = EmbeddingClustering.Canonical(refined);
         }
+        var names = new Dictionary<int, string?>();
+        if (IdentifyCluster is not null)
+        {
+            foreach (int label in labels.Distinct())
+            {
+                var members = windows.Where((_, index) => labels[index] == label).Select(w => w.Embedding).ToArray();
+                var average = OneSpeech.Speakers.EmbeddingMath.Average(members);
+                try { names[label] = IdentifyCluster(average, cancellationToken).SpeakerId; }
+                finally { Array.Clear(average); }
+            }
+        }
         var result = ImmutableArray.CreateBuilder<Turn>();
         for (int i = 0; i < labels.Length; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var speaker = new SpeakerLabel { Id = "speaker-" + (labels[i] + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) };
+            var speaker = new SpeakerLabel { Id = "speaker-" + (labels[i] + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), Name = names.GetValueOrDefault(labels[i]) };
             if (result.Count != 0 && result[^1].Speaker.Id == speaker.Id && result[^1].End == ownership[i].Start) result[^1] = result[^1] with { End = ownership[i].End };
             else result.Add(new Turn { Speaker = speaker, Start = ownership[i].Start, End = ownership[i].End, Text = "" });
         }

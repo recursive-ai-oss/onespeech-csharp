@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using OneSpeech.Catalog.Conversion;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
+if (args is ["speaker-calibrate", var calibrationTrials, var calibrationEmbeddings]) { SpeakerCalibration.Run(calibrationTrials, calibrationEmbeddings); return 0; }
 if (args is ["nemotron-asr-live-batch", var lbDir, var lbCorpus, var lbOut, var lbChunk, var lbBegin, var lbCount]) { NemotronAsrEvaluation.Batch(lbDir, lbCorpus, lbOut, int.Parse(lbChunk, System.Globalization.CultureInfo.InvariantCulture), int.Parse(lbBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(lbCount, System.Globalization.CultureInfo.InvariantCulture), publishedEvents: true); return 0; }
 if (args is ["nemotron-asr-latency-truth", var ltDir, var ltBase, var ltHyp, var ltTruth]) { NemotronAsrLatency.Run(ltDir, ltBase, ltHyp, ltTruth); return 0; }
 if (args is ["nemotron-asr-latency", var nlDir, var nlBase, var nlHyp]) { NemotronAsrLatency.Run(nlDir, nlBase, nlHyp); return 0; }

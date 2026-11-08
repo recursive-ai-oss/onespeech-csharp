@@ -25,7 +25,7 @@ Transcript aligned = Speech.Align("short.wav", "The words that were spoken.", la
 
 `Speech.Listen` consumes caller-supplied mono 16 kHz PCM as an `IAsyncEnumerable<AudioBuffer>`. It emits replacing partials, immutable finals, endpoints and speaker turns on one audio clock. It does not capture a microphone. See [live sessions](docs/live-sessions.md).
 
-For speaker recognition, `InMemorySpeakerRegistry.Enroll`, `.Identify` and `.Verify` provide enrollment, identification and pairwise scoring; the CLI exposes the same verbs. There are currently no `Speech.Enroll` / `Speech.Identify` / `Speech.Verify` statics. See [speaker recognition](docs/speaker-recognition.md).
+For speaker recognition, use `Speech.Enroll("alice", "enrollment.wav")`, `Speech.Identify("query.wav")` and `Speech.Verify("first.wav", "second.wav")`; encoded streams have `*Async` twins. Enrollments live only in process memory: `Speech.ClearSpeakers()` removes them and releases speaker models. File transcription adds matching enrolled names to speaker labels without changing their document-local IDs; unknown clusters keep anonymous labels. Obtain consent and check local biometric law before using these verbs. See [speaker recognition](docs/speaker-recognition.md) for calibrated thresholds, limitations and the low-level registry.
 
 ### Overlapping speech
 

@@ -1,7 +1,7 @@
 namespace OneSpeech;
 
 /// <summary>Thin audio-input entry points over registered recognizers and VAD pipelines.</summary>
-public static class Speech
+public static partial class Speech
 {
     /// <summary>Awaits model I/O and yields final segments from a file in bounded VAD-first chunks, without a whole-file diarization pass. Enumeration owns the decoder and models, including on early disposal. Downloads missing models on first enumeration. Optional language/model select the language and catalog ID; errors follow Transcribe.</summary>
     public static IAsyncEnumerable<Segment> TranscribeStream(string path, string? language = null, string? model = null) =>

@@ -9,6 +9,26 @@ using RecursiveAI.OneModel.Tensors;
 
 internal static class MoonshineAllocationProfile
 {
+    internal static void SileroOperators()
+    {
+        using var resource = typeof(SileroVad).Assembly.GetManifestResourceStream("OneSpeech.silero_vad.onnx")!;
+        using var model = RecursiveAI.OneModel.Onnx.OnnxImporter.Load(resource);
+        var counts = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        Visit(model.Graph);
+        foreach (var pair in counts) Console.WriteLine(pair.Key + " " + pair.Value);
+        void Visit(IrGraph graph)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                counts[node.OpType] = counts.GetValueOrDefault(node.OpType) + 1;
+                foreach (var attr in node.Attributes)
+                {
+                    if (attr.Type == IrAttributeType.Graph) Visit(attr.Graph);
+                    if (attr.Type == IrAttributeType.Graphs) foreach (var child in attr.Graphs) Visit(child);
+                }
+            }
+        }
+    }
     internal static void Run(string? directory, string output)
     {
         using var file = File.Create(output);
@@ -16,7 +36,7 @@ internal static class MoonshineAllocationProfile
         json.WriteStartObject();
         json.WriteString("status", "indicative allocation profile; fixed warmed shapes; one inference thread");
         json.WriteString("runtime", Environment.Version.ToString());
-        json.WriteString("oneModel", "1.0.0");
+        json.WriteString("oneModel", "1.2.0-preview.2");
         string tiny = Path.Combine(Path.GetDirectoryName(output)!, "add-repro.onemodel");
         WriteAdd(tiny);
         using (var session = Session.Load(tiny, new ModelOptions { IntraOpThreads = 1 }))

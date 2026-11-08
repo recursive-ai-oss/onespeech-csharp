@@ -47,6 +47,32 @@ public sealed class MoonshineTests
         Assert.Throws<OperationCanceledException>(() => tokenizer.Encode("test", cancellationToken: new CancellationToken(true)));
     }
     [Fact]
+    public void CachedDecoderMatchesFullPrefixAcrossWindowsAndReset()
+    {
+        string? directory = Environment.GetEnvironmentVariable("ONESPEECH_MOONSHINE_STREAMING_TINY");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(directory), "Set ONESPEECH_MOONSHINE_STREAMING_TINY to the verified model.");
+        using var model = MoonshineRecognizer.Load(directory!, cancellationToken: Token);
+        var clip = OneAudio.Audio.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "1089-134686-0001.flac"), new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 }, Token);
+        int[] expected = [], actual = [];
+        model.TokenTrace = ids => expected = ids;
+        var full = model.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", Token);
+        using var cached = new MoonshineStreamingState(model);
+        model.TokenTrace = ids => actual = ids;
+        for (int end = 1600; end < clip.Samples.Length; end += 1600)
+            cached.Decode(clip.Samples[..end], "en", false, TimeSpan.Zero, TimeSpan.FromSeconds(end / 16000d), Token);
+        var final = cached.Decode(clip.Samples, "en", true, TimeSpan.Zero, TimeSpan.FromSeconds(clip.Samples.Length / 16000d), Token);
+        Assert.Equal(full.Text, final.Text); Assert.Equal(expected, actual);
+        string retained = final.Text;
+        cached.Reset();
+        float[] odd = Enumerable.Range(0, 321).Select(i => .25f * MathF.Sin(2 * MathF.PI * 440 * i / 16000)).ToArray();
+        model.TokenTrace = ids => expected = ids;
+        var shortFull = model.Transcribe(new AudioBuffer(odd, 16000), "en", Token);
+        model.TokenTrace = ids => actual = ids;
+        var shortCached = cached.Decode(odd, "en", true, TimeSpan.Zero, TimeSpan.FromSeconds(321 / 16000d), Token);
+        Assert.Equal(shortFull.Text, shortCached.Text); Assert.Equal(expected, actual); Assert.Equal(retained, final.Text);
+    }
+
+    [Fact]
     public void StreamingFrontendRetainsButMasksTheIncompleteFrame()
     {
         string? directory = Environment.GetEnvironmentVariable("ONESPEECH_MOONSHINE_STREAMING_TINY");

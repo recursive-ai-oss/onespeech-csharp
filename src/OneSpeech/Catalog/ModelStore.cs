@@ -46,7 +46,7 @@ public sealed class ModelStore
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Caches", "OneSpeech", "models")
             : Path.Combine(Environment.GetEnvironmentVariable("XDG_CACHE_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache"), "onespeech", "models");
 
-    /// <summary>Downloads missing publisher files, converts registered runtime graphs locally (tier-2 artifacts remain local-only), and verifies all present files on first open per store. Restartable, atomic per file, with an OS file lock across processes. A corrupt present file is deleted and reported, not silently replaced. Gate tokens come from the argument or ONESPEECH_MODEL_TOKEN and are never persisted. Throws typed model errors or OperationCanceledException. Progress counts bytes per file.</summary>
+    /// <summary>Downloads missing publisher files, converts registered runtime graphs locally (tier-2 outputs remain in the per-user cache only), and verifies all present files on first open per store. Restartable, atomic per file, with an OS file lock across processes. A corrupt present file is deleted and reported, not silently replaced. Gate tokens come from the argument or ONESPEECH_MODEL_TOKEN and are never persisted. Throws typed model errors or OperationCanceledException. Progress counts bytes per file.</summary>
     public async ValueTask<ResolvedModel> PullAsync(string id, string? token = null, IProgress<ModelDownloadProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

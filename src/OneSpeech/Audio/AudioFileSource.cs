@@ -5,6 +5,26 @@ namespace OneSpeech.Audio;
 /// <summary>Bounded pull decoding to 16 kHz interleaved float PCM. Original channels remain separate; recognition mixes them later. Not thread-safe.</summary>
 public sealed class AudioFileSource : IDisposable
 {
+    private static Func<Stream, CancellationToken, IAudioDecoder>? additionalDecoder;
+
+    /// <summary>Optional encoded-audio adapter, null by default. Called only when OneAudio refuses the input format. The readable seekable stream is positioned at its original offset and remains caller-owned. The returned decoder must not close it; disposing the decoder must release all adapter resources. Set once during application startup, before concurrent reads. Adapter failures propagate unchanged.</summary>
+    public static Func<Stream, CancellationToken, IAudioDecoder>? AdditionalDecoder
+    {
+        get => Volatile.Read(ref additionalDecoder);
+        set => Volatile.Write(ref additionalDecoder, value);
+    }
+
+    private static IAudioDecoder OpenDecoder(Stream stream, CancellationToken cancellationToken)
+    {
+        long origin = stream.Position;
+        var factory = AdditionalDecoder;
+        try { return OneAudio.Audio.Open(stream, leaveOpen: true, cancellationToken: cancellationToken); }
+        catch (UnsupportedAudioFormatException) when (factory is not null)
+        {
+            stream.Position = origin;
+            return factory(stream, cancellationToken);
+        }
+    }
     private readonly Stream stream;
     private readonly bool leaveOpen;
     private readonly IAudioDecoder decoder;
@@ -20,7 +40,7 @@ public sealed class AudioFileSource : IDisposable
         long origin = stream.Position;
         var g711 = G711WaveDecoder.TryOpen(stream);
         if (g711 is null) stream.Position = origin;
-        decoder = g711 ?? OneAudio.Audio.Open(stream, leaveOpen: true, cancellationToken: cancellationToken);
+        decoder = g711 ?? OpenDecoder(stream, cancellationToken);
         Channels = decoder.Format.Channels;
         int rate = decoder.Format.SampleRate;
         if (rate is < 250 or > 768000 || Channels is < 1 or > 32)

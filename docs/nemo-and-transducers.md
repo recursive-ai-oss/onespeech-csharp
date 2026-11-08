@@ -75,7 +75,7 @@ The internal FastConformer graph builder emits OneModel-format graphs from an
 abstract float tensor source. Its canonical tensor names are a **converter
 schema**, not publisher tensor names. A checkpoint-specific mapping and
 numerical parity are required before connecting it to a released model.
-There is no Parakeet recognizer or tier-2 model registration in this change.
+`ParakeetTensorSource` maps the pinned publisher header into this schema.
 
 The encoder supports 8x depthwise-separable subsampling, relative-position
 multihead attention, the Conformer convolution module and two half-step
@@ -89,5 +89,52 @@ encoder and predictor vectors and return token logits (including blank),
 followed by duration logits; zero duration columns selects the RNN-T shape.
 
 Small deterministic random-weight tests exercise encoder, split-vs-unsplit,
-predictor and joint graph loading/running on OneModel. These establish shape
-and runtime support only; they do not establish publisher-weight correctness.
+predictor and joint graph loading/running on OneModel. Publisher-weight encoder
+probes use the same five oracle feature arrays as the feature probes. Their
+fp32 maximum absolute tolerance is 2e-5 (fast arithmetic, not bitwise exact
+mode). Subsampling kernels operate on time then frequency. The masked final
+STFT frame is cropped before subsampling; retaining it changes edge outputs
+on odd frame lengths, as observed through NeMo's public encoder API.
+
+## Parakeet-TDT-v3 recognition
+
+Select this model explicitly:
+
+```csharp
+var transcript = Speech.Transcribe("recording.flac", model: "nvidia/parakeet-tdt-0.6b-v3");
+```
+
+The checkpoint is CC-BY-4.0, ungated **tier 2**: never a default, a package or a
+mirror asset. First use fetches the pinned publisher safetensors and tokenizer,
+verifies SHA-256, then converts locally into the per-user cache. The two
+12-layer encoder graphs are each below 2 GiB, so OneModel 1.0.0 can load them
+by path. Predictor, joint and embedding artifacts are local outputs too.
+Their sizes and digests are catalog metadata, not download routes. Nothing
+converted is redistributed. `ModelInfo` retains NVIDIA attribution, licence,
+publisher revision, upstream digests and local output digests; format conversion
+is marked and weights are unchanged.
+
+`ParakeetRecognizer.Load` is the lower-level CPU entry point for a verified
+`ResolvedModel`. It accepts mono 16 kHz PCM, uses greedy independent token and
+duration argmax with durations [0,1,2,3,4], blank ID 8192, and a 10-symbol bound
+per encoder frame. The initial predictor input is zero with zero LSTM state;
+accepted tokens update the predictor exactly once. Its state is local to each
+chunk. There is no beam, contextual biasing or translation in this adapter.
+The output vocabulary uses the publisher's Metaspace decoder: leading ▁ starts
+a word and punctuation remains attached to its preceding token range. Native
+80 ms token-duration intervals are unioned into word intervals; zero durations
+remain zero and final intervals are clipped to the input audio horizon.
+Punctuation-only emissions retain their text and acoustic-clock advance but
+contribute a zero-duration token timing interval. Word endpoints and confidence
+stop at the last lexical emission, excluding trailing punctuation even when
+it is emitted after a blank gap. This matches NeMo's observed timestamp output. The tokenizer's unknown surface is spaced U+2047, not the literal
+`<unk>` vocabulary spelling; this too is checked through the public oracle.
+
+Input above 30 seconds and all file helpers use VAD-first bounded chunks. Shorter
+than 20 ms produces no words. Immutable final segments share one audio clock.
+A supplied supported language labels the document but does not condition this
+automatic multilingual checkpoint. Without it the language field remains null:
+there is no independent language-ID output, and `DetectLanguage` refuses rather
+than guessing from text. All other unsupported requests are refused through
+the capability layer. Instances are not concurrent; cancellation is checked at
+front-end frames, graph boundaries and decoding steps.

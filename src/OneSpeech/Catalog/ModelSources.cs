@@ -15,6 +15,12 @@ public sealed class HttpModelSource : ModelSource
 {
     private static readonly HttpClient Client = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromMinutes(30) };
 
+    private readonly HttpClient client;
+    /// <summary>Creates the HTTPS publisher transport. Redirects never receive credentials.</summary>
+    public HttpModelSource() => client = Client;
+    // Tests replace the wire, not the catalog or authorization rules.
+    internal HttpModelSource(HttpClient client) => this.client = client;
+
     /// <inheritdoc />
     public override ValueTask<Stream> OpenReadAsync(CatalogEntry model, CatalogFile file, CancellationToken cancellationToken) => OpenReadAsync(model, file, null, cancellationToken);
 
@@ -36,7 +42,7 @@ public sealed class HttpModelSource : ModelSource
                     try { request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token); }
                     catch (FormatException) { throw new ModelTokenRequiredException("Invalid model token format. Supply a single publisher access token."); }
                 }
-                var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 if (response.StatusCode is HttpStatusCode.Moved or HttpStatusCode.Redirect or HttpStatusCode.RedirectMethod or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect)
                 {
                     var location = response.Headers.Location;
@@ -48,9 +54,11 @@ public sealed class HttpModelSource : ModelSource
                 if (!response.IsSuccessStatusCode)
                 {
                     var status = response.StatusCode;
+                    bool gateRefused = response.Headers.TryGetValues("X-Error-Code", out var codes) && codes.Contains("GatedRepo", StringComparer.OrdinalIgnoreCase);
                     response.Dispose();
+                    if (gateRefused && status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) throw new ModelGateNotAcceptedException("Accept the publisher repository gate with the account that owns this token, then retry.");
                     if (status == HttpStatusCode.NotFound) throw new ModelNotFoundException($"Publisher file not found for '{model.Id}'.");
-                    if (status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) throw new ModelTokenRequiredException("Publisher refused access. Accept its gate and supply ONESPEECH_MODEL_TOKEN or an API token.");
+                    if (status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) throw new ModelTokenRejectedException("Publisher rejected the token. Check its validity and repository permissions, then retry.");
                     throw new ModelNetworkException($"Model request failed (HTTP {(int)status}).");
                 }
                 if (response.Content.Headers.ContentLength is long length && length != file.Size)
@@ -62,6 +70,8 @@ public sealed class HttpModelSource : ModelSource
                 catch { response.Dispose(); throw; }
             }
         }
+        catch (IOException) { throw new ModelNetworkException("Model network response failed; retry the pull."); }
+        catch (FormatException) { throw new ModelNetworkException("Publisher returned an invalid response header or redirect."); }
         catch (HttpRequestException) { throw new ModelNetworkException("Model network request failed; check connectivity and retry."); }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { throw new ModelNetworkException("Model request timed out; retry the pull."); }
         throw new ModelNetworkException("Model redirect limit reached.");
@@ -74,7 +84,12 @@ public sealed class HttpModelSource : ModelSource
         public override bool CanWrite => false;
         public override long Length => throw new NotSupportedException();
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            try { return inner.Read(buffer, offset, count); }
+            catch (IOException) { throw new ModelNetworkException("Model response stream failed; retry the pull."); }
+            catch (HttpRequestException) { throw new ModelNetworkException("Model response stream failed; retry the pull."); }
+        }
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             try { return await inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false); }

@@ -6,7 +6,7 @@ namespace OneSpeech;
 /// <summary>A single-use, non-thread-safe push recognizer accepting mono 16 kHz PCM. Push and Complete are synchronous CPU work; Listen awaits only its input. Dispose never completes pending speech.</summary>
 public abstract class LiveSession : IDisposable
 {
-    private readonly List<LiveEvent> pending = [];
+    private readonly List<LiveEvent> pending = new(4);
     private long frames;
     private long utterance;
     private long revision;

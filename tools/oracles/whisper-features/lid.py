@@ -31,6 +31,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("cache", type=Path)
     parser.add_argument("--weights", type=Path, required=True)
+    parser.add_argument("--model", choices=["small", "turbo"], default="small")
     args = parser.parse_args()
     args.cache.mkdir(parents=True, exist_ok=True)
     records = []
@@ -55,13 +56,13 @@ def main():
     (args.cache / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (args.cache / "ids").write_text("\n".join(r["id"] for r in records) + "\n")
     torch.set_num_threads(8)
-    model = whisper.load_model("small", device="cpu", download_root=str(args.weights)).float().eval()
+    model = whisper.load_model(args.model, device="cpu", download_root=str(args.weights)).float().eval()
     for record in records:
         audio = np.fromfile(args.cache / (record["id"] + ".pcm"), dtype="<f4")
         mel = whisper.log_mel_spectrogram(whisper.pad_or_trim(audio), n_mels=model.dims.n_mels)
         _, probabilities = model.detect_language(mel)
         record["prediction"] = max(probabilities, key=probabilities.get)
-    (args.cache / "reference.json").write_text(json.dumps({"oracle": "openai-whisper20250625", "precision": "fp32", "records": records}, indent=2) + "\n")
+    (args.cache / "reference.json").write_text(json.dumps({"oracle": "openai-whisper20250625", "model": args.model, "precision": "fp32", "records": records}, indent=2) + "\n")
     print("LID reference", sum(r["prediction"] == r["label"] for r in records), "/", len(records), flush=True)
 
 

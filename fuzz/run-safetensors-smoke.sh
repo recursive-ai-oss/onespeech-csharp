@@ -3,7 +3,7 @@
 set -euo pipefail
 work=${1:?absolute scratch directory required}
 seconds=${2:-60}
-[[ "$work" = /* && "$seconds" =~ ^[0-9]+$ && "$seconds" -le 300 ]] || exit 2
+[[ "$work" = /* && "$seconds" =~ ^[0-9]+$ && "$seconds" -ge 1 && "$seconds" -le 600 ]] || exit 2
 mkdir -p "$work/tools" "$work/corpus" "$work/findings" "$work/pub"
 curl -fsSL https://github.com/Metalnem/libfuzzer-dotnet/releases/download/v2025.05.02.0904/libfuzzer-dotnet-ubuntu -o "$work/libfuzzer-dotnet"
 echo "c2c2a90d94c409a4af339a0d4f244e0442c5a5d249be0f1252ba07871f285958  $work/libfuzzer-dotnet" | sha256sum -c -

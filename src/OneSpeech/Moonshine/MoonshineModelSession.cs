@@ -8,13 +8,30 @@ internal sealed class MoonshineModelSession : IDisposable
     internal MoonshineConfiguration Configuration { get; }
     private readonly Session encoder;
     private readonly Session decoder;
+    private readonly Session? project;
+    private readonly Session? step;
+    private static readonly string[] LiveEncoderInputs = ["audio", "local_mask", "causal_mask"];
+    private static readonly string[] EncoderOutput = ["encoder"];
+    private static readonly string[] ProjectInputs = ["encoder", "encoder_positions"];
     internal MoonshineModelSession(string directory, int threads, CancellationToken cancellationToken)
     {
         Configuration = MoonshineConfiguration.Load(directory);
         encoder = Session.Load(Path.Combine(directory, "encoder.onemodel"), new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 2 }, cancellationToken: cancellationToken);
         try { decoder = Session.Load(Path.Combine(directory, "decoder.onemodel"), new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 2 }, cancellationToken: cancellationToken); }
         catch { encoder.Dispose(); throw; }
+        try
+        {
+            if (Configuration.Streaming)
+            {
+                project = Session.Load(Path.Combine(directory, "decoder-project.onemodel"), new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 5 }, cancellationToken: cancellationToken);
+                step = Session.Load(Path.Combine(directory, "decoder-step.onemodel"), new ModelOptions { IntraOpThreads = threads, MaxCachedPlans = 5 }, cancellationToken: cancellationToken);
+            }
+        }
+        catch { Dispose(); throw; }
     }
+    internal void RunLiveEncoder(Tensor[] inputs, Tensor[] outputs) => encoder.Run(LiveEncoderInputs, inputs, EncoderOutput, outputs);
+    internal void RunProject(Tensor[] inputs, string[] names, Tensor[] outputs) => project!.Run(ProjectInputs, inputs, names, outputs);
+    internal void RunStep(string[] names, Tensor[] inputs, string[] outputNames, Tensor[] outputs) => step!.Run(names, inputs, outputNames, outputs);
     internal SessionOutputs Encode(AudioBuffer audio, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -77,5 +94,5 @@ internal sealed class MoonshineModelSession : IDisposable
         }
         return tensor;
     }
-    public void Dispose() { decoder.Dispose(); encoder.Dispose(); }
+    public void Dispose() { step?.Dispose(); project?.Dispose(); decoder.Dispose(); encoder.Dispose(); }
 }

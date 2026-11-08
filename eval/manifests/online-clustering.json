@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "algorithm": "causal-unit-centroid-no-retrospective-merge",
+  "minimumCosineSimilarity": 0.3,
+  "capacityPerEmbeddingSpace": 16,
+  "maximumCentroidWeight": 100,
+  "windowSamples": 24000,
+  "minimumWindowSamples": 720,
+  "sampleRate": 16000,
+  "chunkSamples": 1600,
+  "maximumUtteranceSeconds": 30,
+  "vad": { "threshold": 0.5, "negativeThreshold": 0.35, "minimumSpeechMs": 250, "minimumSilenceMs": 100, "speechPaddingMs": 30 },
+  "englishEmbedder": "iic/speech_campplus_sv_en_voxceleb_16k",
+  "chineseEmbedder": "iic/speech_campplus_sv_zh-cn_16k-common",
+  "development": ["ES2011a", "ES2011b"],
+  "testedSimilarities": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+  "selection": "minimum pooled development DER; no collar; overlap scored"
+}

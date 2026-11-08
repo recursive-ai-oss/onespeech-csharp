@@ -38,6 +38,9 @@ public sealed class UtteranceLiveSession : LiveSession
     internal UtteranceLiveSession(SpeechRecognizer recognizer, Func<ReadOnlyMemory<float>, CancellationToken, float> probability, string? language = null, TimeSpan? maximumUtteranceDuration = null, SileroVadOptions? options = null)
         : this(recognizer, language, maximumUtteranceDuration, options) => this.probability = probability;
 
+    internal UtteranceLiveSession(SpeechRecognizer recognizer, Func<ReadOnlyMemory<float>, CancellationToken, float> probability, IIncrementalUtteranceRecognizer incremental, string? language)
+        : this(recognizer, probability, language) => this.incremental = incremental;
+
     private UtteranceLiveSession(SpeechRecognizer recognizer, string? language, TimeSpan? maximumUtteranceDuration, SileroVadOptions? options)
     {
         ArgumentNullException.ThrowIfNull(recognizer);
@@ -79,16 +82,17 @@ public sealed class UtteranceLiveSession : LiveSession
     {
         if (incremental is null || speechStart < 0 || silenceStart >= 0 || position - speechStart <= options.MinimumSpeech.TotalSeconds * 16000 || position - lastPartial < 3200) return;
         var result = Decode(position, false, cancellationToken);
-        PublishPartial(Segment(result, position));
+        PublishPartial(result);
         lastPartial = position;
     }
 
-    private Transcript Decode(long end, bool final, CancellationToken cancellationToken)
+    private Segment Decode(long end, bool final, CancellationToken cancellationToken)
     {
         int count = checked((int)(end - paddedStart));
         for (int i = 0; i < count; i++) utterance[i] = ring[(int)((paddedStart + i) % ring.Length)];
-        var audio = new AudioBuffer(utterance.AsMemory(0, count), 16000);
-        return incremental is null ? recognizer.Transcribe(audio, language, cancellationToken) : incremental.Decode(audio, language, final, cancellationToken);
+        var memory = utterance.AsMemory(0, count);
+        if (incremental is not null) return incremental.Decode(memory, language, final, TimeSpan.FromSeconds(paddedStart / 16000d), TimeSpan.FromSeconds(end / 16000d), cancellationToken);
+        return Segment(recognizer.Transcribe(new AudioBuffer(memory, 16000), language, cancellationToken), end);
     }
 
     private Segment Segment(Transcript result, long end)
@@ -143,7 +147,7 @@ public sealed class UtteranceLiveSession : LiveSession
         {
             var result = Decode(end, true, cancellationToken);
             language ??= result.Language;
-            if (result.Text.Length != 0) PublishFinal(Segment(result, end));
+            if (result.Text.Length != 0) PublishFinal(result);
             PublishEndpoint(TimeSpan.FromSeconds(end / 16000d), reason);
         }
         lastEnd = end;

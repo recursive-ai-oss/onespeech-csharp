@@ -6,7 +6,7 @@ namespace OneSpeech;
 /// <summary>A single-use, non-thread-safe push recognizer accepting mono 16 kHz PCM. Push and Complete are synchronous CPU work; Listen awaits only its input. Dispose never completes pending speech.</summary>
 public abstract class LiveSession : IDisposable
 {
-    private readonly List<LiveEvent> pending = [];
+    private readonly List<LiveEvent> pending = new(4);
     private long frames;
     private long utterance;
     private long revision;
@@ -74,11 +74,19 @@ public abstract class LiveSession : IDisposable
         pending.Add(new PartialEvent { AudioTime = AudioTime, UtteranceId = utterance, Revision = checked(++revision), Segment = segment });
     }
     /// <summary>Commits one immutable hypothesis for the current utterance. Throws InvalidOperationException for a second FinalEvent before EndpointEvent, or for timing outside accepted audio.</summary>
-    protected void PublishFinal(Segment segment)
+    protected void PublishFinal(Segment segment) => PublishFinal(segment, []);
+
+    /// <summary>Commits a final with immutable speaker activity, including for words without timing. Bounds/errors follow PublishFinal and PublishSpeakerTurn; default arrays are rejected with ArgumentException. Does not publish duplicate SpeakerTurnEvents automatically.</summary>
+    protected void PublishFinal(Segment segment, ImmutableArray<Turn> speakerTurns)
     {
         if (finalized) throw new InvalidOperationException("An utterance already has a FinalEvent.");
         Validate(segment);
-        pending.Add(new FinalEvent { AudioTime = AudioTime, UtteranceId = utterance, Segment = segment });
+        if (speakerTurns.IsDefault) throw new ArgumentException("Speaker turns must be initialized.", nameof(speakerTurns));
+        foreach (var turn in speakerTurns)
+        {
+            if (turn is null || turn.Start < TimeSpan.Zero || turn.End < turn.Start || turn.End > AudioTime) throw new ArgumentOutOfRangeException(nameof(speakerTurns));
+        }
+        pending.Add(new FinalEvent { AudioTime = AudioTime, UtteranceId = utterance, Segment = segment, SpeakerTurns = speakerTurns });
         finalized = true;
     }
     /// <summary>Closes this utterance and starts a new revision sequence. End must be between zero and AudioTime; throws ArgumentOutOfRangeException otherwise.</summary>

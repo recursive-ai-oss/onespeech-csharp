@@ -49,7 +49,10 @@ internal static class SpeechServices
         using var recognizer = await ResolveAsync(store, model ?? store.Catalog.GetDefault("moonshine").Id, cancellationToken).ConfigureAwait(false);
         using var vad = ResolveVad(store, cancellationToken);
         using var session = recognizer.CreateLiveSession(vad, language);
-        await foreach (var update in session.Listen(source, cancellationToken).ConfigureAwait(false)) yield return update;
+        using var embedder = await ResolveEmbedderAsync(store, language, cancellationToken).ConfigureAwait(false);
+        using var chinese = language is null ? await ResolveEmbedderAsync(store, "zh", cancellationToken).ConfigureAwait(false) : null;
+        using var diarized = new Live.OnlineDiarizationSession(session, embedder, chineseEmbedder: chinese);
+        await foreach (var update in diarized.Listen(source, cancellationToken).ConfigureAwait(false)) yield return update;
     }
 
     internal static async ValueTask<OneSpeech.Alignment.OmniAsrAligner> ResolveAlignerAsync(ModelStore store, string? model, CancellationToken cancellationToken)

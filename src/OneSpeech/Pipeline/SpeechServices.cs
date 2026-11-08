@@ -76,20 +76,29 @@ internal static class SpeechServices
     private static bool IsChinese(string? language) => language is not null &&
         (language.Equals("Chinese", StringComparison.OrdinalIgnoreCase) || language.Equals("zh", StringComparison.OrdinalIgnoreCase) || language.StartsWith("zh-", StringComparison.OrdinalIgnoreCase));
 
-    private static async ValueTask<Transcript> DiarizeAsync(AudioFileSource source, Transcript transcript, string? language, ModelStore store, SileroVad vad, CancellationToken cancellationToken)
+    internal static SileroVadOptions DiarizationActivity => new()
+    {
+        Threshold = 0.2f, NegativeThreshold = 0.2f - 0.15f,
+        MinimumSpeech = TimeSpan.FromMilliseconds(250), MinimumSilence = TimeSpan.FromMilliseconds(250),
+        SpeechPadding = TimeSpan.FromMilliseconds(150)
+    };
+
+    private static async ValueTask<Transcript> DiarizeAsync(AudioFileSource source, Transcript transcript, string? language, ModelStore store, CancellationToken cancellationToken)
     {
         using var embedder = await ResolveEmbedderAsync(store, language ?? transcript.Language, cancellationToken).ConfigureAwait(false);
+        // Activity coverage for diarization is fitted separately; ASR chunking keeps its original VAD.
+        using var vad = ResolveVad(store, cancellationToken, DiarizationActivity);
         var diarizer = new ClusteringDiarizer(embedder, vad);
         var turns = diarizer.DiarizeBlocks(VadChunker.Blocks(source, cancellationToken), cancellationToken);
         var merged = TranscriptDiarization.Merge(transcript, turns.Select(t => new ActiveTurn { Turn = t }), cancellationToken);
         return merged with { Models = [.. merged.Models.Concat(diarizer.Models).DistinctBy(m => (m.Id, m.Revision))] };
     }
 
-    private static SileroVad ResolveVad(ModelStore store, CancellationToken cancellationToken)
+    private static SileroVad ResolveVad(ModelStore store, CancellationToken cancellationToken, SileroVadOptions? options = null)
     {
         var entry = store.Catalog.GetDefault("silero");
         if (entry.Id != "silero/vad-v6.2.3") throw new CapabilityNotSupportedException("The registered VAD is Silero v6.2.3, embedded in the core package.");
-        return new SileroVad(cancellationToken: cancellationToken);
+        return new SileroVad(options, cancellationToken);
     }
 
     internal static Transcript Transcribe(string path, string? language, string? model, CancellationToken cancellationToken)
@@ -102,7 +111,7 @@ internal static class SpeechServices
         using var vad = ResolveVad(store, cancellationToken);
         var transcript = new VadTranscriptionPipeline(recognizer, vad).Transcribe(path, language, cancellationToken);
         using var source = AudioFileSource.Open(path, cancellationToken);
-        return DiarizeAsync(source, transcript, language, store, vad, cancellationToken).AsTask().GetAwaiter().GetResult();
+        return DiarizeAsync(source, transcript, language, store, cancellationToken).AsTask().GetAwaiter().GetResult();
     }
 
     internal static async ValueTask<Transcript> TranscribeAsync(Stream stream, string? language, string? model, CancellationToken cancellationToken)
@@ -124,7 +133,7 @@ internal static class SpeechServices
             transcript = new VadTranscriptionPipeline(recognizer, vad).TranscribeBlocks(VadChunker.Blocks(recognitionSource, cancellationToken), language, cancellationToken);
         spool.Position = 0;
         using var source = AudioFileSource.Open(spool, true, cancellationToken);
-        return await DiarizeAsync(source, transcript, language, store, vad, cancellationToken).ConfigureAwait(false);
+        return await DiarizeAsync(source, transcript, language, store, cancellationToken).ConfigureAwait(false);
     }
 
     internal static string DetectLanguage(string path, string? language, string? model, CancellationToken cancellationToken)

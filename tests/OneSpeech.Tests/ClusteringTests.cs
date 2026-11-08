@@ -82,6 +82,21 @@ public sealed class ClusteringTests
         Assert.Throws<InvalidOperationException>(() => new ClusteringDiarizer(invalid, detector).Diarize(Probe(), Token));
     }
 
+    [Theory]
+    [InlineData(0.1, 960, false)]
+    [InlineData(0.045, 960, true)]
+    [InlineData(0.045, 480, false)]
+    public void ShortRegionCutoffIsExplicitAndDoesNotExtendActivity(double cutoff, int frames, bool retained)
+    {
+        using var embedder = new ProbeEmbedder();
+        var audio = new AudioBuffer(Enumerable.Repeat(0.2f, frames).ToArray(), 16000);
+        var diarizer = new ClusteringDiarizer(embedder, new ProbeVad(), new ClusteringOptions { MinimumSegmentSeconds = cutoff });
+        var turns = diarizer.Diarize(audio, Token);
+        if (retained) { Assert.Single(turns); Assert.Equal(TimeSpan.Zero, turns[0].Start); Assert.Equal(audio.Duration, turns[0].End); }
+        else Assert.Empty(turns);
+        Assert.Throws<ArgumentException>(() => new ClusteringDiarizer(embedder, new ProbeVad(), new ClusteringOptions { MinimumSegmentSeconds = 0.01 }));
+    }
+
     [Fact]
     public void IdenticalEmbeddingsDoNotInventExtraSpeakers()
     {

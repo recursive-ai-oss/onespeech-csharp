@@ -86,3 +86,13 @@ International, https://creativecommons.org/licenses/by/4.0/ .
 OneSpeech selected and paired these identifiers for evaluation; no original audio or transcript
 text is included in these files. The selection, pairing method and seed are documented in
 `docs/speakers.md`. This attribution does not imply endorsement by the dataset authors.
+
+### ECAPA reference-only auxiliary files
+
+The pinned `speechbrain/spkrec-ecapa-voxceleb` reference also initializes `classifier.ckpt`
+(5,534,328 bytes, SHA-256 `fd9e3634fe68bd0a427c95e354c0c677374f62b3f434e45b78599950d860d535`)
+and `mean_var_norm_emb.ckpt` (1,921 bytes, SHA-256
+`cd70225b05b37be64fc5a95e24395d804231d43f74b2e1e5a513db7b69b34c33`). They are under the same
+publisher-declared Apache-2.0 licence at revision `0f99f2d0ebe89ac095bcc5903c4dd8f72b367286`.
+These files are used only by the separate evaluation oracle; no classifier or global-embedding
+normalization weights are included in OneSpeech's converted embedding graph or package.

@@ -173,3 +173,49 @@ available), eight inference threads, .NET SDK 10.0.403/runtime 10.0.14, OneModel
 OneAudio 1.7.2. No GPU was used. Oracle dependencies and wheel hashes are pinned in the speaker
 oracle's `uv.lock`; model and identifier pins are given above. Conversion is deterministic: its
 recorded graph SHA-256 was reproduced from the same checkpoint independently.
+
+## ECAPA-TDNN
+
+`EcapaTdnnEmbedder` accepts the converted VoxCeleb checkpoint and truthful `ModelInfo`, returning
+192 raw embedding values at mono 16 kHz. Calls are serialized; inputs must be 40 ms through 60 s.
+The minimum ensures reflected temporal convolution pads are smaller than the frame dimension.
+The graph follows Desplanques et al. (2020), Sections 3.1–3.3 and the pinned checkpoint config:
+1024-channel TDNN, three scale-8 SE-Res2Blocks (dilations 2/3/4), multi-layer aggregation,
+channel-dependent attentive statistics pooling and the final 192-dimensional projection. Convolution
+uses reflected padding; TDNN activation is Conv → ReLU → BN. The first Res2 split bypasses its
+convolution; subsequent splits add the preceding processed split. Global and weighted pooling
+standard deviations use population statistics with a 1e-12 variance floor. These details were
+confirmed against numeric black-box outputs, not implementation source.
+
+`EcapaFbank` is a distinct public feature profile, not the CAM++ filterbank: centered zero-padded
+400-sample periodic Hamming windows, 160-sample hops, 400-point power FFT, no preemphasis/DC removal
+or amplitude scaling. There are 80 symmetric Hz-domain triangles with centers evenly spaced in
+HTK mel from 0 through 8 kHz; each triangle's half-width is its center's distance from the preceding
+center. Energies are floored at 1e-10, converted by 10 log10, clipped at the utterance maximum minus
+80 dB, and mean-normalized by feature dimension. `ComputeRaw` exposes the decibel energies before
+mean subtraction. Numeric public feature probes settle this profile; the model paper's MFCC input
+description does not replace its released checkpoint's Fbank configuration.
+
+The 50 committed LibriSpeech probe IDs, using SpeechBrain 1.1.2 with torch/torchaudio 2.11.0 CPU,
+produce max/mean normalized-feature absolute errors 0.001542/0.00002079 dB, and minimum/mean embedding
+cosine 0.999999999983/0.999999999990. Feature tolerance is max 0.002 dB (about 0.000461 natural-log
+energy units); embedding target is cosine >=0.999. The mixed-radix 400-point transform uses managed
+16-point FFTs and 25-way combination, not a native frontend. Feature-only probes also cover
+silence, tone, DC-offset, impulse, seeded noise and sub-window audio. The feature extractor accepts
+1 sample through 60 s; the model's stricter 40 ms limit still applies.
+
+```sh
+dotnet run --project tools/OneSpeech.Convert -- speaker-convert-ecapa embedding_model.ckpt ecapa.onemodel
+```
+
+The converted graph is 83,294,800 bytes, SHA-256
+`f107ead463783cab70914fd0470cc6b42e2ec74b7a717bb42c1360879076c669`. As with CAM++, its catalog
+release URI is reserved/unpublished; run the converter locally. No speaker default is declared.
+
+On the same 20,000-trial LibriSpeech slice, ECAPA and its pinned reference both score **1.10% EER**
+and **0.0548 normalized minDCF**, using the same raw cosine scorer, prior/costs and conditional
+paired-trial bootstrap described above. Our-minus-reference intervals are [0,0] for both metrics.
+The ECAPA oracle uses the publisher's exact `/resolve/<commit>` URL as its source and pretrained
+path, because the released `from_hparams` interface does not accept a `revision` constructor keyword.
+Auxiliary classifier/global-normalization files loaded by the oracle are recorded in notices but are
+not part of the converted graph; embedding normalization is explicitly disabled on the reference call.

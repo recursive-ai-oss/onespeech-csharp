@@ -19,6 +19,20 @@ internal static class SpeakerProbe
         Write(Path.Combine(output, "embedding.f32"), embedding);
         Console.WriteLine($"frames={features.Length / 80} dimension={embedding.Length}");
     }
+    internal static void RunEcapa(string graph, string audioPath, string output)
+    {
+        var clip = OneAudio.Audio.Load(audioPath, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
+        Directory.CreateDirectory(output);
+        var features = new EcapaFbank();
+        Write(Path.Combine(output, "features.f32"), features.Compute(clip.Samples.Span, CancellationToken.None));
+        Write(Path.Combine(output, "raw.f32"), features.ComputeRaw(clip.Samples.Span, CancellationToken.None));
+        if (graph == "features") return;
+        var info = new ModelInfo { Id = "speechbrain/spkrec-ecapa-voxceleb", Source = "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb", Revision = "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286", License = "Apache-2.0", Tier = ModelTier.Tier1, Attribution = "SpeechBrain ECAPA-TDNN, published checkpoint." };
+        using var model = new EcapaTdnnEmbedder(graph, info, threads: 8);
+        float[] vector = new float[192];
+        model.Embed(new AudioBuffer(clip.Samples, 16000), vector, CancellationToken.None);
+        Write(Path.Combine(output, "embedding.f32"), vector);
+    }
     internal static void RunFeatures(string graphPath, string featurePath, string outputPath)
     {
         byte[] bytes = File.ReadAllBytes(featurePath);

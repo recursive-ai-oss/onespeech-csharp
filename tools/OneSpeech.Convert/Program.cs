@@ -1,3 +1,19 @@
+if (args is ["speaker-extract-ecapa", var ecapaGraph, var ecapaData, var ecapaIds, var ecapaDestination, var ecapaStart, var ecapaCount])
+{
+    SpeakerBatch.Extract(ecapaGraph, ecapaData, ecapaIds, ecapaDestination, int.Parse(ecapaStart, System.Globalization.CultureInfo.InvariantCulture), int.Parse(ecapaCount, System.Globalization.CultureInfo.InvariantCulture), 192, ecapa: true);
+    return;
+}
+if (args is ["speaker-probe-ecapa", var ecapaProbeGraph, var ecapaAudio, var ecapaProbeOutput])
+{
+    SpeakerProbe.RunEcapa(ecapaProbeGraph, ecapaAudio, ecapaProbeOutput);
+    return;
+}
+if (args is ["speaker-convert-ecapa", var ecapaInput, var ecapaOutput])
+{
+    using var input = File.OpenRead(ecapaInput);
+    new EcapaConverter(TensorCheckpoint.Read(input)).Save(ecapaOutput);
+    return;
+}
 if (args is ["speaker-ids", var idsTrials, var idsClean, var idsOutput, var idsParity])
 {
     SpeakerBatch.PrepareIds(idsTrials, idsClean, idsOutput, idsParity);

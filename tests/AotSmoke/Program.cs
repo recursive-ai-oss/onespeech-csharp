@@ -40,6 +40,19 @@ if (args is ["--camp", var campGraph, var campAudio])
     Console.WriteLine("CAM++ real graph NativeAOT extraction passed.");
 }
 
+if (args is ["--ecapa", var ecapaGraph, var ecapaAudio])
+{
+    var entry = OneSpeech.Catalog.ModelCatalog.Default.Get("speechbrain/spkrec-ecapa-voxceleb");
+    if (entry.ConvertedFiles[0].Sha256 != "f107ead463783cab70914fd0470cc6b42e2ec74b7a717bb42c1360879076c669")
+        throw new InvalidOperationException("ECAPA graph pin failed.");
+    var clip = OneAudio.Audio.Load(ecapaAudio, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
+    var info = new ModelInfo { Id = entry.Id, Source = entry.Source, Revision = entry.Revision, License = entry.License, Tier = entry.Tier, Attribution = entry.Attribution };
+    using var model = new OneSpeech.Embedders.EcapaTdnnEmbedder(ecapaGraph, info);
+    float[] vector = new float[192];
+    model.Embed(new AudioBuffer(clip.Samples, 16000), vector, CancellationToken.None);
+    Console.WriteLine("ECAPA real graph NativeAOT extraction passed.");
+}
+
 internal sealed class SmokeEmbedder(ModelInfo model) : SpeakerEmbedder
 {
     public override ModelInfo Model => model;

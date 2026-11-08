@@ -1450,6 +1450,20 @@
           "sha256": "0f6ea3d8dcf09bb7b06e3c268fcf9e040a76caa82affbab5f19b748a204c52d6",
           "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-decoder.onemodel",
           "mirrorUrl": null
+        },
+        {
+          "name": "decoder-project.onemodel",
+          "size": 10167264,
+          "sha256": "a452d70666e29d54daa34f799d5f8299706e83f6b1fa1f6a82318af23c1c7da8",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-decoder-project.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder-step.onemodel",
+          "size": 128333376,
+          "sha256": "f233ca9ba92529e43716b5be61c3a4ce35d9a7315d3a9d1d2be8b95cab00191b",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-tiny-decoder-step.onemodel",
+          "mirrorUrl": null
         }
       ],
       "tier": "Tier1",
@@ -1534,6 +1548,20 @@
           "sha256": "ae1ac6fa5397522122167c070bba68a0677a7caab49b94642eda1f5e0be0cb69",
           "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-small-decoder.onemodel",
           "mirrorUrl": null
+        },
+        {
+          "name": "decoder-project.onemodel",
+          "size": 32414432,
+          "sha256": "9cf7933785522d9af51a213d8465ab6223465c3d325e4d942080163e59eba86f",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-small-decoder-project.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder-step.onemodel",
+          "size": 323404928,
+          "sha256": "b908b39199c66ac01abd10ee2a038b9c6ab9df6f4abe3841968945b0f82ce784",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-small-decoder-step.onemodel",
+          "mirrorUrl": null
         }
       ],
       "tier": "Tier1",
@@ -1617,6 +1645,20 @@
           "size": 641744192,
           "sha256": "5e865188d1109b1ffd7f88f289fd9159a8cf1ab921a8f1b5f8dd70eaa5a0c881",
           "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-medium-decoder.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder-project.onemodel",
+          "size": 60444896,
+          "sha256": "3dbc4862d713e2abfe6b8c8ca5ea521de0e45ab25e06956c6697ec639ab1d323",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-medium-decoder-project.onemodel",
+          "mirrorUrl": null
+        },
+        {
+          "name": "decoder-step.onemodel",
+          "size": 581355968,
+          "sha256": "1976eeaef93f4dc25c03fd88bced4e6883f97552c5dffe4c9cf97c80b1b8117a",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-streaming-medium-decoder-step.onemodel",
           "mirrorUrl": null
         }
       ],
@@ -2331,6 +2373,192 @@
         ],
         "biasing": false,
         "nativeTimestamps": true
+      }
+    },
+    {
+      "id": "nvidia/parakeet-tdt-0.6b-v3",
+      "family": "parakeet-tdt",
+      "source": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
+      "revision": "541d1f99c6b0c3cd0b11a95167540bb8edefd82b",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 2508311120,
+          "sha256": "3a2026366188c8c68598edbbff92f8d11590a08e0ae2e6775544e7b07d6a5e11",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "config.json",
+          "size": 1153,
+          "sha256": "e747b85e1bdfd300c8b8ac63bac8dd5221f8fe9bc275b48d06c735fcd6971b6e",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/config.json",
+          "mirrorUrl": null
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 1159960,
+          "sha256": "bd321b096832a3f270bd3b2a88823957920f1a5c5ada71114a26ea729d0cbe91",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/tokenizer.json",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "embedding.f32",
+          "size": 20974080,
+          "sha256": "569bbbad3b00263b7b86f870845e834e722a67a433fd49fbd820c0c09e5316bb",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "encoder-part0.onemodel",
+          "size": 1226691200,
+          "sha256": "fd42845f5f55e5db47525d7928f23b4d08fd3387c1c4a235a874cfef2667508e",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "encoder-part1.onemodel",
+          "size": 1209349824,
+          "sha256": "ed74599b259f7435a3a9166d8b5ff81b87379c4a3082c4b73fc1142f23946aa0",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "joint.onemodel",
+          "size": 25287704,
+          "sha256": "22906ea4e2f9f13864c13ff075eea46802041d28a223df10fb15d62b641a5673",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        },
+        {
+          "name": "predictor.onemodel",
+          "size": 26265928,
+          "sha256": "6e49dfbddcec4ae253858f03fec3d90bce8da4d8ec0c403cea7bd9d046eae075",
+          "upstreamUrl": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+          "mirrorUrl": null
+        }
+      ],
+      "isDefault": false,
+      "tier": "Tier2",
+      "license": "CC-BY-4.0",
+      "attribution": "NVIDIA, parakeet-tdt-0.6b-v3, https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3. Licensed under CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/). Converted locally to OneModel format; weights unchanged.",
+      "gated": false,
+      "capabilities": {
+        "languages": [
+          "en",
+          "es",
+          "fr",
+          "de",
+          "bg",
+          "hr",
+          "cs",
+          "da",
+          "nl",
+          "et",
+          "fi",
+          "el",
+          "hu",
+          "it",
+          "lv",
+          "lt",
+          "mt",
+          "pl",
+          "pt",
+          "ro",
+          "sk",
+          "sl",
+          "sv",
+          "ru",
+          "uk"
+        ],
+        "nativeTimestamps": true
+      }
+    },
+    {
+      "id": "pyannote/segmentation-3.0",
+      "family": "pyannote-segmentation",
+      "source": "https://huggingface.co/pyannote/segmentation-3.0",
+      "revision": "e66f3d3b9eb0873085418a7b813d3b369bf160bb",
+      "files": [
+        {
+          "name": "pytorch_model.bin",
+          "size": 5905440,
+          "sha256": "da85c29829d4002daedd676e012936488234d9255e65e86dfab9bec6b1729298",
+          "upstreamUrl": "https://huggingface.co/pyannote/segmentation-3.0/resolve/e66f3d3b9eb0873085418a7b813d3b369bf160bb/pytorch_model.bin",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [],
+      "isDefault": false,
+      "tier": "Tier2",
+      "license": "MIT",
+      "attribution": "pyannote/segmentation-3.0 — pyannote, https://huggingface.co/pyannote/segmentation-3.0, revision e66f3d3b9eb0873085418a7b813d3b369bf160bb. MIT (https://opensource.org/license/mit). Unmodified publisher weights; no endorsement implied.",
+      "gated": true,
+      "capabilities": {
+        "languages": []
+      }
+    },
+    {
+      "id": "pyannote/speaker-diarization-community-1",
+      "family": "pyannote-segmentation",
+      "source": "https://huggingface.co/pyannote/speaker-diarization-community-1",
+      "revision": "3533c8cf8e369892e6b79ff1bf80f7b0286a54ee",
+      "files": [
+        {
+          "name": "segmentation/pytorch_model.bin",
+          "size": 5906507,
+          "sha256": "7ad24338d844fb95985486eb1a464e32d229f6d7a03c9abe60f978bacf3f816e",
+          "upstreamUrl": "https://huggingface.co/pyannote/speaker-diarization-community-1/resolve/3533c8cf8e369892e6b79ff1bf80f7b0286a54ee/segmentation/pytorch_model.bin",
+          "mirrorUrl": null
+        },
+        {
+          "name": "embedding/pytorch_model.bin",
+          "size": 26646242,
+          "sha256": "6f10ff60898a1d185fa22e1d11e0bfa8a92efec811f11bca48cb8cafebefd929",
+          "upstreamUrl": "https://huggingface.co/pyannote/speaker-diarization-community-1/resolve/3533c8cf8e369892e6b79ff1bf80f7b0286a54ee/embedding/pytorch_model.bin",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [],
+      "isDefault": false,
+      "tier": "Tier2",
+      "license": "CC-BY-4.0",
+      "attribution": "pyannote/speaker-diarization-community-1 — pyannote, https://huggingface.co/pyannote/speaker-diarization-community-1, revision 3533c8cf8e369892e6b79ff1bf80f7b0286a54ee. CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/). Unmodified publisher weights; no endorsement implied.",
+      "gated": true,
+      "capabilities": {
+        "languages": []
+      }
+    },
+    {
+      "id": "nvidia/Nemotron-3-Diarization",
+      "family": "nemotron-diarization",
+      "source": "https://huggingface.co/nvidia/Nemotron-3-Diarization",
+      "revision": "f667ed73aee57d40cc39428eb768b4fd87a0a29e",
+      "files": [
+        {
+          "name": "model.safetensors",
+          "size": 396954592,
+          "sha256": "c074d86335b3b794f8fa5edc25594558f128bdb3914d27806a3a5a2e44963cb6",
+          "upstreamUrl": "https://huggingface.co/nvidia/Nemotron-3-Diarization/resolve/f667ed73aee57d40cc39428eb768b4fd87a0a29e/model.safetensors",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [],
+      "isDefault": false,
+      "tier": 2,
+      "license": "OpenMDW-1.1",
+      "attribution": "NVIDIA Nemotron 3 Diarization, NVIDIA Corporation.\nSource: https://huggingface.co/nvidia/Nemotron-3-Diarization\nRevision: f667ed73aee57d40cc39428eb768b4fd87a0a29e\nPublished parameters are unmodified. OneSpeech constructs local runtime graphs; these are not redistributed.\n\nOpenMDW License Agreement, version 1.1 (OpenMDW-1.1)\n\nBy exercising rights granted to you under this agreement, you accept and agree to its terms.\n\nAs used in this agreement, “Model Materials” means the materials provided to you under this agreement, consisting of: (1) one or more machine learning models (including architecture and parameters); and (2) all related artifacts (including associated data, documentation and software) that are provided to you hereunder.\n\nSubject to your compliance with this agreement, permission is hereby granted, free of charge, to deal in the Model Materials without restriction, including under all copyright, patent, database, and trade secret rights included or embodied therein.\n\nIf you distribute any portion of the Model Materials, you shall retain in your distribution (1) a copy of this agreement, and (2) all copyright notices and other notices of origin included in the Model Materials that are applicable to your distribution.\n\nIf you file, maintain, or voluntarily participate in a lawsuit against any person or entity asserting that the Model Materials directly or indirectly infringe any patent or copyright, then all rights and grants made to you hereunder are terminated, unless that lawsuit was in response to a corresponding lawsuit first brought against you.\n\nThis agreement does not impose any restrictions or obligations with respect to any use, modification, or sharing of any outputs generated by using the Model Materials.\n\nTHE MODEL MATERIALS ARE PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NONINFRINGEMENT, ACCURACY, OR THE ABSENCE OF LATENT OR OTHER DEFECTS OR ERRORS, WHETHER OR NOT DISCOVERABLE, ALL TO THE GREATEST EXTENT PERMISSIBLE UNDER APPLICABLE LAW.\n\nYOU ARE SOLELY RESPONSIBLE FOR (1) CLEARING RIGHTS OF OTHER PERSONS THAT MAY APPLY TO THE MODEL MATERIALS OR ANY USE THEREOF, INCLUDING WITHOUT LIMITATION ANY PERSON’S COPYRIGHTS OR OTHER RIGHTS INCLUDED OR EMBODIED IN THE MODEL MATERIALS; (2) OBTAINING ANY NECESSARY CONSENTS, PERMISSIONS OR OTHER RIGHTS REQUIRED FOR ANY USE OF THE MODEL MATERIALS; OR (3) PERFORMING ANY DUE DILIGENCE OR UNDERTAKING ANY OTHER INVESTIGATIONS INTO THE MODEL MATERIALS OR ANYTHING INCORPORATED OR EMBODIED THEREIN.\n\nIN NO EVENT SHALL THE PROVIDERS OF THE MODEL MATERIALS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE MODEL MATERIALS, THE USE THEREOF OR OTHER DEALINGS THEREIN.",
+      "gated": false,
+      "capabilities": {
+        "languages": [],
+        "translation": false,
+        "nativeTimestamps": false,
+        "forcedAlignment": false,
+        "streaming": false,
+        "biasing": false,
+        "maxSpeakers": 8
       }
     }
   ]

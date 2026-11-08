@@ -4,5 +4,13 @@
   <Project Path="tools/OneSpeech.DiarizationData/OneSpeech.DiarizationData.csproj" /><Project Path="fuzz/OneSpeech.RttmFuzz/OneSpeech.RttmFuzz.csproj" /><Project Path="eval/OneSpeech.Eval/OneSpeech.Eval.csproj" /><Project Path="eval/OneSpeech.Eval.Tests/OneSpeech.Eval.Tests.csproj" /><Project Path="tools/OneSpeech.Convert/OneSpeech.Convert.csproj" /><Project Path="fuzz/OneSpeech.Fuzz/OneSpeech.Fuzz.csproj" /><Project Path="bench/OneSpeech.Bench/OneSpeech.Bench.csproj" /><Project Path="tools/OneSpeech.WhisperProbe/OneSpeech.WhisperProbe.csproj" /><Project Path="fuzz/OneSpeech.SafeTensors.Fuzz/OneSpeech.SafeTensors.Fuzz.csproj" />
   <Project Path="tools/OneSpeech.Integration/OneSpeech.Integration.csproj" />
   <Project Path="fuzz/OneSpeech.MoonshineFuzz/OneSpeech.MoonshineFuzz.csproj" /><Project Path="tools/OneSpeech.TimingFloor/OneSpeech.TimingFloor.csproj" />
+  <Project Path="tools/OneSpeech.OnlineDiarization/OneSpeech.OnlineDiarization.csproj" />
   <Project Path="tools/OneSpeech.NemoProbe/OneSpeech.NemoProbe.csproj" />
+  <Project Path="fuzz/OneSpeech.ParakeetFuzz/OneSpeech.ParakeetFuzz.csproj" />
+  <Project Path="tests/OneSpeech.Media.Tests/OneSpeech.Media.Tests.csproj" />
+  <Project Path="tests/MediaAotSmoke/MediaAotSmoke.csproj" />
+  <Project Path="tests/AudioChecks/AudioChecks.csproj" />
+  <Project Path="tests/ModelPullProbe/ModelPullProbe.csproj" />
+  <Project Path="fuzz/OneSpeech.AudioFuzz/OneSpeech.AudioFuzz.csproj" />
+  <Project Path="fuzz/OneSpeech.CheckpointFuzz/OneSpeech.CheckpointFuzz.csproj" />
 </Solution>

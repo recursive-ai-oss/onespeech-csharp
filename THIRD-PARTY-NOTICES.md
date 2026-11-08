@@ -165,3 +165,12 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## NVIDIA Nemotron 3 Diarization (optional publisher download)
+
+`nvidia/Nemotron-3-Diarization` revision
+`f667ed73aee57d40cc39428eb768b4fd87a0a29e` is governed by the
+[OpenMDW License Agreement, version 1.1](https://openmdw.ai/license/1-1/).
+No weights or converted graphs are redistributed by this package. Explicit loading
+fetches the pinned publisher file into the user's cache and constructs runtime
+artifacts locally. `ModelInfo` retains NVIDIA's model origin and the full agreement.

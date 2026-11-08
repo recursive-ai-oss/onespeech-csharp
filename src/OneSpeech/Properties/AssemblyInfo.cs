@@ -9,3 +9,5 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("onespeech-eval")]
 [assembly: InternalsVisibleTo("OneSpeech.MoonshineFuzz")]
+
+[assembly: InternalsVisibleTo("OneSpeech.ParakeetFuzz")]

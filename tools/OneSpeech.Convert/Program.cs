@@ -2,6 +2,53 @@ using System.Security.Cryptography;
 using OneSpeech.Catalog.Conversion;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
+if (args is ["nemotron-topk-probe", var nemotronTopKDirectory]) { NemotronTools.TopKProbe(nemotronTopKDirectory); return 0; }
+if (args is ["nemotron-score", var nemotronScoreTruth, var nemotronScoreHypothesis, var nemotronScoreReference]) { NemotronBatch.ScoreOnly(nemotronScoreTruth, nemotronScoreHypothesis, nemotronScoreReference); return 0; }
+if (args is ["nemotron-cache-map", var nemotronMapNative, var nemotronMapReference, var nemotronMapSilence]) { NemotronTools.CacheMap(nemotronMapNative, nemotronMapReference, nemotronMapSilence); return 0; }
+if (args is ["nemotron-stream-probe", var nemotronStreamModel, var nemotronStreamAudio, var nemotronStreamOutput, var nemotronStreamRef]) { NemotronTools.StreamProbe(nemotronStreamModel, nemotronStreamAudio, nemotronStreamOutput, nemotronStreamRef); return 0; }
+if (args is ["nemotron-native", var nemotronDirectory, var nemotronRecording, var nemotronResults, var nemotronTruth, var nemotronReference]) { NemotronBatch.Run(nemotronDirectory, nemotronRecording, nemotronResults, nemotronTruth, nemotronReference); return 0; }
+if (args is ["nemotron-cache", var nemotronCacheDir]) { NemotronTools.CacheProbe(nemotronCacheDir); return 0; }
+if (args is ["nemotron-features", var nemotronAudio, var nemotronMel]) { NemotronTools.Features(nemotronAudio, nemotronMel); return 0; }
+if (args is ["nemotron-convert", var nemotronInput, var nemotronOutput]) { NemotronTools.Convert(nemotronInput, nemotronOutput); return 0; }
+if (args is ["nemotron-probe", var nemotronGraph, var nemotronFeatures, var nemotronProbeOutput]) { NemotronTools.Probe(nemotronGraph, nemotronFeatures, nemotronProbeOutput); return 0; }
+if (args is ["nemotron-compare", var nemotronFirst, var nemotronSecond]) { NemotronTools.Compare(nemotronFirst, nemotronSecond); return 0; }
+if (args is ["custom-fixture", var customFixture]) { CustomGraphProbe.Fixture(customFixture); return 0; }
+if (args is ["custom-probe", var customKind, var customDirectory, var customCorpus, var customOutput]) { CustomGraphProbe.Run(customKind, customDirectory, customCorpus, customOutput); return 0; }
+if (args is ["parakeet-vocabulary", var parakeetTokenizerDirectory, var parakeetTokenizerFixtures]) { ParakeetTools.Vocabulary(parakeetTokenizerDirectory, parakeetTokenizerFixtures); return 0; }
+if (args is ["parakeet-eval", var parakeetEvalCorpus, var parakeetOurs, var parakeetReference, var parakeetEvalOutput]) { ParakeetEvaluation.Prepare(parakeetEvalCorpus, parakeetOurs, parakeetReference, parakeetEvalOutput); return 0; }
+if (args is ["parakeet-timing", var parakeetTimingReference, var parakeetTimingHypothesis]) { ParakeetEvaluation.Timing(parakeetTimingReference, parakeetTimingHypothesis); return 0; }
+if (args is ["parakeet-batch", var parakeetDirectory, var parakeetCorpus, var parakeetResults, var parakeetBegin, var parakeetCount]) { ParakeetTools.Batch(parakeetDirectory, parakeetCorpus, parakeetResults, int.Parse(parakeetBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(parakeetCount, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
+if (args is ["parakeet-convert", var parakeetInput, var parakeetOutput]) { ParakeetConverter.Convert(parakeetInput, parakeetOutput, CancellationToken.None); return 0; }
+if (args is ["parakeet-probe", var parakeetModel, var parakeetProbe]) { ParakeetTools.Probe(parakeetModel, parakeetProbe); return 0; }
+if (args is ["moonshine-live-compare", var liveBefore, var liveAfter])
+{
+    MoonshineLiveProbe.Compare(liveBefore, liveAfter);
+    return 0;
+}
+if (args is ["silero-operators"])
+{
+    MoonshineAllocationProfile.SileroOperators();
+    return 0;
+}
+if (args is ["moonshine-live-inspect", var inspectDirectory, var inspectOutput])
+{
+    MoonshineLiveMetrics.Inspect(inspectDirectory, inspectOutput);
+    return 0;
+}
+if (args is ["moonshine-cache-convert", var cacheSource])
+{
+    _ = OneSpeech.Moonshine.MoonshineProvenance.Verify(cacheSource, converted: false, CancellationToken.None);
+    var cc = OneSpeech.Moonshine.MoonshineConfiguration.Load(cacheSource);
+    using var ci = File.OpenRead(Path.Combine(cacheSource, "model.safetensors")); using var cw = new SafeTensorFile(ci);
+    var cp = new MoonshineGraphWriter(cw); cp.DecoderProject(cc); cp.Save(Path.Combine(cacheSource, "decoder-project.onemodel"), CancellationToken.None);
+    var cs = new MoonshineGraphWriter(cw); cs.DecoderStep(cc); cs.Save(Path.Combine(cacheSource, "decoder-step.onemodel"), CancellationToken.None);
+    return 0;
+}
+if (args is ["moonshine-live-metrics", var metricsModel, var metricsClip, var metricsOutput])
+{
+    MoonshineLiveMetrics.Run(metricsModel, metricsClip, metricsOutput);
+    return 0;
+}
 if (args is ["qwen-precision-repro", var precisionRepro]) { QwenPrecisionProbe.Run(precisionRepro); return 0; }
 if (args is ["qwen-cache-paths", var cachePathsRoot]) { QwenTools.CachePaths(cachePathsRoot); return 0; }
 if (args is ["qwen-e2e", var e2eCache, var e2eAudio, var e2eJson]) { QwenTools.EndToEnd(e2eCache, e2eAudio, e2eJson); return 0; }
@@ -165,6 +212,11 @@ if (args is ["moonshine-edges", var meOutput])
     MoonshineProbe.Edges(meOutput);
     return 0;
 }
+if (args is ["moonshine-bakeoff-metrics", var bakeModel, var bakeClip, var bakeOutput, var bakeThreads])
+{
+    MoonshineLiveMetrics.Run(bakeModel, bakeClip, bakeOutput, int.Parse(bakeThreads, System.Globalization.CultureInfo.InvariantCulture), sixtySeconds: true);
+    return 0;
+}
 if (args is ["moonshine-indicative", var indicativeDirectory, var indicativeAudio, var indicativeOutput])
 {
     MoonshineIndicative.Run(indicativeDirectory, indicativeAudio, indicativeOutput);
@@ -262,6 +314,11 @@ if (args.Length is 2 or 3 && args[0] is "moonshine-convert" or "moonshine-conver
     me.Encoder(mc); me.Save(Path.Combine(moonshineDestination, "encoder.onemodel"), CancellationToken.None);
     var md = new MoonshineGraphWriter(mw, diagnostics: args[0].EndsWith("debug", StringComparison.Ordinal));
     md.Decoder(mc); md.Save(Path.Combine(moonshineDestination, "decoder.onemodel"), CancellationToken.None);
+    if (mc.Streaming)
+    {
+        var project = new MoonshineGraphWriter(mw); project.DecoderProject(mc); project.Save(Path.Combine(moonshineDestination, "decoder-project.onemodel"), CancellationToken.None);
+        var step = new MoonshineGraphWriter(mw); step.DecoderStep(mc); step.Save(Path.Combine(moonshineDestination, "decoder-step.onemodel"), CancellationToken.None);
+    }
     return 0;
 }
 if (args is ["moonshine-fetch", var moonshineName, var moonshineDirectory])

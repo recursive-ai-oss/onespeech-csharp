@@ -27,7 +27,7 @@ public sealed class MoonshineRecognizer : SpeechRecognizer, IDisposable
     public override ModelInfo Model { get; }
     /// <inheritdoc />
     public override Capabilities Capabilities => capabilities;
-    /// <summary>Creates a VAD-endpointed session. Streaming checkpoints emit replacing partials with cached encoder prefixes; offline checkpoints emit finals only. Borrows this recognizer and detector; dispose the session before either model.</summary>
+    /// <summary>Creates a VAD-endpointed session. Streaming checkpoints emit replacing partials with cached encoder prefixes and per-hypothesis decoder KV/cross-attention projections; offline checkpoints emit finals only. Streaming session creation preallocates and warms bounded working buffers. Borrows this recognizer and detector; dispose the session before either model.</summary>
     public override LiveSession CreateLiveSession(Vad.SileroVad detector, string? language = null)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -51,6 +51,8 @@ public sealed class MoonshineRecognizer : SpeechRecognizer, IDisposable
         return DecodeEncoded(encoded["encoder"], audio.Duration, cancellationToken);
     }
     internal MoonshineModelSession Runtime => runtime;
+    internal MoonshineTokenizer Tokenizer => tokenizer;
+    internal double TokenRate => options.TokensPerSecond;
     internal Transcript DecodeEncoded(RecursiveAI.OneModel.Tensors.Tensor memory, TimeSpan duration, CancellationToken cancellationToken)
     {
         int maximum = Math.Max(1, (int)(duration.TotalSeconds * options.TokensPerSecond));

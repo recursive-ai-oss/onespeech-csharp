@@ -14,6 +14,7 @@ internal static class MoonshineTools
             int[] ids = tokenizer.Encode(text);
             if (!ids.SequenceEqual(item.GetProperty("ids").EnumerateArray().Select(i => i.GetInt32())) || tokenizer.Decode(ids, false) != item.GetProperty("decoded").GetString() || tokenizer.Decode(ids) != item.GetProperty("withoutSpecials").GetString())
                 throw new InvalidDataException("Tokenizer mismatch at case " + count + " text=" + text);
+            Scratch(ids, item.GetProperty("withoutSpecials").GetString()!);
             count++;
         }
         foreach (var item in document.RootElement.GetProperty("decodeCases").EnumerateArray())
@@ -21,9 +22,16 @@ internal static class MoonshineTools
             int[] ids = item.GetProperty("ids").EnumerateArray().Select(i => i.GetInt32()).ToArray();
             if (tokenizer.Decode(ids, false) != item.GetProperty("decoded").GetString() || tokenizer.Decode(ids) != item.GetProperty("withoutSpecials").GetString())
                 throw new InvalidDataException("Decoder mismatch: " + string.Join(",", ids) + " ours=" + tokenizer.Decode(ids) + " reference=" + item.GetProperty("withoutSpecials").GetString());
+            Scratch(ids, item.GetProperty("withoutSpecials").GetString()!);
             count++;
         }
-        Console.WriteLine(count + " tokenizer cases, zero mismatches.");
+        Console.WriteLine(count + " tokenizer cases, zero mismatches (owned and caller-buffer decoders).");
+        void Scratch(int[] ids, string expected)
+        {
+            var chars = new char[ids.Length * tokenizer.MaximumPieceCharacters + 1];
+            int used = tokenizer.DecodeInto(ids, chars, new byte[ids.Length + 1]);
+            if (new string(chars, 0, used) != expected) throw new InvalidDataException("Caller-buffer decoder mismatch at case " + count);
+        }
     }
 
     internal static void Reproduce(string catalog, string root)
@@ -63,7 +71,7 @@ internal static class MoonshineTools
             foreach (string file in new[] { "model.safetensors", "config.json", "tokenizer.json", "preprocessor_config.json", "generation_config.json", "tokenizer_config.json", "special_tokens_map.json" })
                 if (File.Exists(Path.Combine(directory, file))) Write(file, "https://huggingface.co/" + id + "/resolve/" + pin.Revision + "/" + file);
             json.WriteEndArray(); json.WriteStartArray("convertedFiles");
-            foreach (string file in new[] { "encoder.onemodel", "decoder.onemodel" }) Write(file, "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-" + name + "-" + file);
+            foreach (string file in name.StartsWith("streaming-", StringComparison.Ordinal) ? new[] { "encoder.onemodel", "decoder.onemodel", "decoder-project.onemodel", "decoder-step.onemodel" } : new[] { "encoder.onemodel", "decoder.onemodel" }) Write(file, "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/moonshine-" + name + "-" + file);
             json.WriteEndArray(); json.WriteString("tier", "Tier1"); json.WriteString("license", "MIT"); json.WriteString("attribution", OneSpeech.Moonshine.MoonshineProvenance.Attribution); json.WriteBoolean("gated", false); json.WriteBoolean("isDefault", name == "streaming-tiny");
             json.WriteStartObject("capabilities"); json.WriteStartArray("languages"); json.WriteStringValue("en"); json.WriteEndArray(); json.WriteBoolean("streaming", name.StartsWith("streaming-", StringComparison.Ordinal)); json.WriteEndObject(); json.WriteEndObject();
             void Write(string file, string url)

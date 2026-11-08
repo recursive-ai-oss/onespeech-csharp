@@ -14,9 +14,9 @@ internal static class MoonshineLiveProbe
         var whole = recognizer.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", CancellationToken.None);
         recognizer.TokenTrace = null;
         using var state = new MoonshineStreamingState(recognizer);
-        for (int end = 1600; end < clip.Samples.Length; end += 1600) state.Decode(new AudioBuffer(clip.Samples.Slice(0, end), 16000), "en", false, CancellationToken.None);
+        for (int end = 1600; end < clip.Samples.Length; end += 1600) state.Decode(clip.Samples.Slice(0, end), "en", false, TimeSpan.Zero, TimeSpan.FromSeconds(end / 16000d), CancellationToken.None);
         recognizer.TokenTrace = ids => actual = ids;
-        var final = state.Decode(new AudioBuffer(clip.Samples, 16000), "en", true, CancellationToken.None);
+        var final = state.Decode(clip.Samples, "en", true, TimeSpan.Zero, TimeSpan.FromSeconds(clip.Samples.Length / 16000d), CancellationToken.None);
         if (whole.Text != final.Text || !expected.SequenceEqual(actual)) throw new InvalidOperationException("Cached streaming final differs from whole-utterance decoding.");
         using var vad = new SileroVad();
         using var session = recognizer.CreateLiveSession(vad, "en");
@@ -26,6 +26,30 @@ internal static class MoonshineLiveProbe
         int partials = events.OfType<PartialEvent>().Count(), finals = events.OfType<FinalEvent>().Count();
         if (partials == 0 || finals == 0) throw new InvalidOperationException("Expected true partials and a final.");
         Console.WriteLine($"Cached final token identity: {expected.Length} tokens; session partials={partials} finals={finals}; {final.Text}");
+    }
+
+    internal static void Compare(string before, string after)
+    {
+        int files = 0, finals = 0;
+        foreach (string path in Directory.EnumerateFiles(after, "*.json").Order(StringComparer.Ordinal))
+        {
+            using var expected = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(before, Path.GetFileName(path))));
+            using var actual = JsonDocument.Parse(File.ReadAllBytes(path));
+            foreach (string key in new[] { "text", "partials" })
+                if (expected.RootElement.GetProperty(key).GetRawText() != actual.RootElement.GetProperty(key).GetRawText()) throw new InvalidDataException("Live row mismatch: " + path + " " + key);
+            var e = expected.RootElement.GetProperty("finals"); var a = actual.RootElement.GetProperty("finals");
+            if (e.GetArrayLength() != a.GetArrayLength()) throw new InvalidDataException("Final count differs: " + path);
+            for (int i = 0; i < e.GetArrayLength(); i++)
+            {
+                foreach (string key in new[] { "text", "start", "end", "available" })
+                    if (e[i].GetProperty(key).GetRawText() != a[i].GetProperty(key).GetRawText()) throw new InvalidDataException("Final field differs: " + path + " " + key);
+                if (!e[i].GetProperty("ids").EnumerateArray().Select(v => v.GetInt32()).SequenceEqual(a[i].GetProperty("ids").EnumerateArray().Select(v => v.GetInt32()))) throw new InvalidDataException("Final IDs differ: " + path);
+                finals++;
+            }
+            files++;
+        }
+        if (files == 0 || files != Directory.EnumerateFiles(before, "*.json").Count()) throw new InvalidDataException("Live row file sets differ or are empty.");
+        Console.WriteLine($"{files} recordings, {finals} final ID arrays and all endpoint fields identical to baseline.");
     }
 
     internal static void Batch(string directory, string split, string output, int begin, int count, int chunk)

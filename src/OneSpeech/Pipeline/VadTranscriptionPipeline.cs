@@ -41,7 +41,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     {
         ArgumentNullException.ThrowIfNull(audio);
         var transcript = Combine([audio], language, cancellationToken);
-        return MergeDocument(transcript, diarizer?.Diarize(audio, cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray(), cancellationToken);
+        return MergeDocument(transcript, ActiveTurns(audio, cancellationToken), cancellationToken);
     }
 
     /// <summary>Decodes and transcribes a file without retaining its PCM. The returned document necessarily grows with the recognized text. Filesystem errors remain IOException; corrupt/unsupported audio throws UnsupportedAudioException.</summary>
@@ -66,7 +66,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         if (blockDiarizer is not null)
         {
             using var firstPass = AudioFileSource.Open(spool, true, cancellationToken);
-            turns = blockDiarizer.DiarizeBlocks(VadChunker.Blocks(firstPass, cancellationToken), cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray();
+            turns = ActiveTurns(blockDiarizer, VadChunker.Blocks(firstPass, cancellationToken), cancellationToken);
         }
         spool.Position = 0;
         using var source = AudioFileSource.Open(spool, true, cancellationToken);
@@ -77,7 +77,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
     public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(audio);
-        var activeTurns = diarizer?.Diarize(audio, cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray();
+        var activeTurns = ActiveTurns(audio, cancellationToken);
         foreach (var chunk in chunker.Read([audio], progress, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -114,6 +114,17 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         }
     }
 
+    private ActiveTurn[]? ActiveTurns(AudioBuffer audio, CancellationToken cancellationToken) => diarizer switch
+    {
+        NemotronDiarizer nemotron => nemotron.DiarizeActive(audio, cancellationToken).ToArray(),
+        null => null,
+        _ => diarizer.Diarize(audio, cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray()
+    };
+
+    private static ActiveTurn[] ActiveTurns(BlockDiarizer block, IEnumerable<AudioBuffer> blocks, CancellationToken cancellationToken) =>
+        block is NemotronDiarizer nemotron ? nemotron.DiarizeActiveBlocks(blocks, cancellationToken).ToArray() :
+        block.DiarizeBlocks(blocks, cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray();
+
     private BlockDiarizer? RequireBlockDiarizer()
     {
         if (diarizer is null) return null;
@@ -125,7 +136,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         var blockDiarizer = RequireBlockDiarizer();
         if (blockDiarizer is null) return null;
         using var source = AudioFileSource.Open(path, cancellationToken);
-        return blockDiarizer.DiarizeBlocks(VadChunker.Blocks(source, cancellationToken), cancellationToken).Select(t => new ActiveTurn { Turn = t }).ToArray();
+        return ActiveTurns(blockDiarizer, VadChunker.Blocks(source, cancellationToken), cancellationToken);
     }
 
     private Transcript MergeDocument(Transcript transcript, ActiveTurn[]? turns, CancellationToken cancellationToken)

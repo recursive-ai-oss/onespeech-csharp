@@ -20,11 +20,11 @@ public sealed class CatalogTests
     public void EmbeddedCatalogHasPinnedCompleteEntriesAndExplicitDefaults()
     {
         var catalog = ModelCatalog.Default;
-        Assert.Equal(18, catalog.Entries.Length);
+        Assert.Equal(22, catalog.Entries.Length);
         var ctc = catalog.GetDefault("omniasr-ctc");
         Assert.True(ctc.Capabilities.ForcedAlignment);
         Assert.Equal("68de1b359aca88f025dbaeec5801d845900941b9a6548ba02e50dd0ec0987870", ctc.ConvertedFiles[0].Sha256);
-        Assert.All(catalog.Entries, e => { Assert.Equal(ModelTier.Tier1, e.Tier); Assert.False(e.Gated); Assert.All(e.Files, f => Assert.Null(f.MirrorUrl)); });
+        Assert.All(catalog.Entries, e => { if (e.Gated) Assert.Equal(ModelTier.Tier2, e.Tier); if (e.Tier == ModelTier.Tier2) Assert.False(e.IsDefault); Assert.All(e.Files, f => Assert.Null(f.MirrorUrl)); });
         Assert.Equal("openai/whisper-large-v3-turbo", catalog.GetDefault("whisper").Id);
         Assert.Equal("169d4a4341b33bc18d8881c4b69c2e104e1cc0af", catalog.Get("openai/whisper-tiny").Revision);
     }
@@ -47,6 +47,28 @@ public sealed class CatalogTests
             Assert.False(File.Exists(path));
             await Assert.ThrowsAsync<CapabilityNotSupportedException>(async () => await new ModelStore(root, new FailingSource(), new([entry])).PullAsync(entry.Id, cancellationToken: TestContext.Current.CancellationToken));
             Assert.Empty(Directory.GetDirectories(initial.Directory, ".convert-*"));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task Tier2CachedRuntimeFilesAreVerifiedButNeverRequestedFromSource()
+    {
+        string root = Temp();
+        var entry = Entry with { Tier = ModelTier.Tier2, License = "CC-BY-4.0" };
+        var output = entry.Files[0] with { Name = "local-runtime.onemodel" };
+        try
+        {
+            var initial = await new ModelStore(root, new FakeSource(), new([entry])).PullAsync(entry.Id, cancellationToken: TestContext.Current.CancellationToken);
+            await File.WriteAllBytesAsync(Path.Combine(initial.Directory, output.Name), Bytes, TestContext.Current.CancellationToken);
+            entry = entry with { ConvertedFiles = [output] };
+            var resolved = await new ModelStore(root, new FailingSource(), new([entry])).PullAsync(entry.Id, cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal(ModelTier.Tier2, resolved.Info.Tier);
+            Assert.Equal(entry.Attribution, resolved.Info.Attribution);
+            Assert.Equal(2, resolved.Info.Files.Length);
+            File.Delete(Path.Combine(initial.Directory, output.Name));
+            // A missing output invokes a registered local converter or refuses; it is never fetched.
+            await Assert.ThrowsAsync<CapabilityNotSupportedException>(async () => await new ModelStore(root, new FailingSource(), new([entry])).PullAsync(entry.Id, cancellationToken: TestContext.Current.CancellationToken));
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }

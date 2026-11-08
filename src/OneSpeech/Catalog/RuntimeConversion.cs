@@ -10,7 +10,14 @@ internal static class RuntimeConversion
     internal static void Convert(CatalogEntry entry, string input, string output, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (entry.Tier != ModelTier.Tier1) throw new CapabilityNotSupportedException("Local conversion is limited to tier-1 catalog models.");
+        if (entry.Tier == ModelTier.Tier2)
+        {
+            if (entry.Id != "nvidia/parakeet-tdt-0.6b-v3" || entry.Family != "parakeet-tdt" || entry.Revision != "541d1f99c6b0c3cd0b11a95167540bb8edefd82b")
+                throw new CapabilityNotSupportedException("No publisher-only local converter is registered for this tier-2 checkpoint.");
+            ParakeetConverter.Convert(input, output, cancellationToken);
+            return;
+        }
+        if (entry.Tier != ModelTier.Tier1) throw new CapabilityNotSupportedException("Unsupported model tier.");
         if (entry.Family == "whisper")
         {
             var configuration = WhisperConfiguration.Load(input);
@@ -28,7 +35,6 @@ internal static class RuntimeConversion
         else if (entry.Family is "qwen3-asr" or "qwen3-aligner")
         {
             QwenConverter.Convert(input, output, cancellationToken);
-            if (entry.Family == "qwen3-asr") QwenConverter.Convert(input, output, cancellationToken, OneSpeech.Qwen3.Qwen3Precision.BFloat16);
         }
         else if (entry.Family == "moonshine")
         {
@@ -40,6 +46,8 @@ internal static class RuntimeConversion
                 var graph = new MoonshineGraphWriter(weights);
                 if (file.Name == "encoder.onemodel") graph.Encoder(configuration);
                 else if (file.Name == "decoder.onemodel") graph.Decoder(configuration);
+                else if (file.Name == "decoder-project.onemodel" && configuration.Streaming) graph.DecoderProject(configuration);
+                else if (file.Name == "decoder-step.onemodel" && configuration.Streaming) graph.DecoderStep(configuration);
                 else throw new ModelIntegrityException("Unknown Moonshine runtime artifact.");
                 graph.Save(Path.Combine(output, file.Name), cancellationToken);
             }

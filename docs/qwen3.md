@@ -1,51 +1,139 @@
-# Qwen3 model data and tokenization
+# Qwen3-ASR and forced alignment
 
-The tokenizer loads the published Qwen3-ASR / Qwen3-ForcedAligner `vocab.json`,
-`merges.txt` and `tokenizer_config.json`. It does not execute model-repository
-code. Supported tokenizer data declares `Qwen2Tokenizer`, with added tokens
-that neither strip whitespace nor require word boundaries or normalization.
-Each file is limited to 16 MiB; vocabulary IDs and merge counts are below
-200,000. Input text is limited to 1 MiB of UTF-8 and invalid UTF-16 is rejected.
+Qwen3-ASR-0.6B and Qwen3-ASR-1.7B run on OneModel, including their AuT audio
+encoder/projector and Qwen language decoder with a past/present KV cache.
+The published ungated checkpoints are Apache-2.0. Model revisions, publisher
+file SHA-256s and independently reproduced runtime-file SHA-256s are pinned
+in the catalog. Weights are not embedded in the core package.
+
+```csharp
+var document = Speech.Transcribe("speech.flac", model: "Qwen/Qwen3-ASR-0.6B");
+```
+
+This file path uses VAD-first chunks, language identification, clustering
+speaker attribution and Qwen3-ForcedAligner for its eleven languages. The
+Qwen entries do not change the default ASR model. Missing tier-1 publisher
+files download on first use; verified tensors are converted locally to
+OneModel's format. No Python, native neural runtime or executable model-repo
+code is needed by the library.
+
+## Low-level recognition
+
+```csharp
+using var recognizer = Qwen3Recognizer.Load(modelDirectory, new Qwen3Options
+{
+    Context = "Vocabulary: Recursive AI, log-mel, transcription.",
+    Precision = Qwen3Precision.Binary32,
+    Threads = 4,
+});
+Transcript result = recognizer.Transcribe(audio, "en", cancellationToken);
+```
+
+Input is 16 kHz mono float PCM. File decoding/downmixing/resampling belongs to
+OneAudio and `AudioFileSource`. More than 30 seconds uses VAD-first chunks;
+each chunk has fresh decoder state. Empty audio returns an empty document;
+unpadded nonempty audio must exceed 200 samples. Nonfinite samples and inputs
+whose power exceeds float32 range are rejected.
+
+Recognition is greedy. `MaxNewTokens` defaults to 512 per chunk (1–4096);
+reaching the limit throws rather than returning silently truncated text.
+`Context` is the system-context prompt for biasing, at most 4096 tokenizer
+IDs. Special tokens in user context are refused. A language tag such as
+`en`, `zh`, `fr` or `yue` forces that language; null requests the model's own
+`language ...<asr_text>` output. Unsupported tags are refused. Translation
+and true live partials are not declared by this family.
+
+Low-level recognition does not download a timing model. Its word timings
+remain null unless a timing stage supplies them. The Qwen file resolver
+attaches Qwen3-ForcedAligner for supported languages.
+An additive preferred-aligner resolver allows the general alignment dispatcher
+to select it before CTC/DTW fallbacks and returns no selection outside the
+eleven supported languages.
+
+## Forced alignment
+
+```csharp
+using var aligner = Qwen3ForcedAligner.Load(alignmentDirectory, threads: 4);
+Transcript aligned = aligner.Align(audio, text, "en", cancellationToken);
+```
+
+Supported tags are `zh`, `en`, `yue`, `fr`, `de`, `it`, `ja`, `ko`, `pt`, `ru`
+and `es`. Language is required. Audio must exceed 200 samples and not exceed
+300 seconds of 16 kHz mono PCM; text is limited to 1 MiB UTF-8 and 4096 units.
+The released config defines 5000 timestamp classes with an 80-ms class step.
+This config, rather than the report's illustrative class count, defines the
+loaded head. The model predicts start/end slots in one forward pass, not by
+autoregressive generation.
+
+Whitespace delimits written units outside Chinese/Cantonese/Japanese, where
+Unicode characters delimit units. Letters, numbers and ASCII apostrophes
+form the spoken input; other punctuation is removed without inserting spaces.
+Written whitespace-delimited forms are retained in words, and the document's
+text is preserved. Combining marks removed by this cleaning do not reappear
+through the tokenizer's later NFC normalization. These English unit rules
+are checked against public toolkit output, including apostrophes and hyphens.
+Character units do not claim the reference toolkit's language-specific
+morphological segmentation.
+
+Valid predictions carry `TimingMethod.ForcedAligner`. Predictions with reversed
+bounds or an end beyond the audio duration retain null times. Confidence is
+the mean of the two slot-class probabilities, not a calibrated probability
+that the written word was spoken. No boundaries are interpolated or invented.
+
+## Front end and graph numerics
+
+The pinned preprocessors request 128-bin Whisper features: 16 kHz mono,
+400-sample periodic Hann windows, 160-sample hops, centered reflection, Slaney
+mel filters, power floor 1e-10, log10 peak-minus-eight clipping, then
+`(x + 4) / 4`. Mel-major single-input output has `sample_count / 160` frames,
+dropping the final STFT frame. Maximum absolute feature tolerance is 3e-5
+against the published float32 feature extractor. The public Whisper extractor
+retains its 30-second bound; the shared internal alignment path allows the
+aligner's bounded 300-second input.
+
+Convolution chunks have 100 mel frames, padded independently, and yield up to
+13 audio tokens each. Sinusoidal positions reset at each convolution chunk.
+Learned activation arithmetic, including positional addition and audio-token
+embedding substitution, is performed in OneModel graphs. The released CPU
+toolkit emits attention-window metadata, but changing frames beyond an
+eight-second boundary changes earlier encoder outputs. The CPU graphs
+therefore use full-input encoder attention within each bounded input. This
+is not a claim about a FlashAttention backend's window policy.
+
+`Binary32` expands the original bfloat16 tensors exactly and retains float32
+activations. `BFloat16` stores published tensors as bfloat16 and rounds neural
+operator boundaries to nearest-even bfloat16; OneModel accumulates in float32.
+Attention score/softmax intermediates remain float32, with the attended output
+rounded to bfloat16. This does not promise bit-identical fused-kernel output
+across runtimes. Decoder files contain four layers each; embedding and output
+heads are separate files so every artifact fits OneModel's file-size limit.
+
+## Tokenizer
+
+`Qwen3Tokenizer` loads `vocab.json`, `merges.txt` and `tokenizer_config.json`
+without executing model-repository code. Each file is limited to 16 MiB;
+vocabulary IDs and merge counts are below 200,000. Input text is limited to
+1 MiB UTF-8; invalid UTF-16 is rejected. It adds no implicit task tokens.
 
 Text undergoes Unicode NFC normalization before byte-level BPE. Splitting is
-Unicode-scalar-aware, including astral letters. Numeric scalars are separated
-individually; contractions are case-insensitive. Whitespace, punctuation and
-newline grouping are significant. Merge rank ties are resolved left-to-right.
-These behaviors are checked against the public `Qwen2Tokenizer` API in
-Transformers 5.22.2, including combining marks, numbers, emoji and newlines.
-The implementation does not add BOS, EOS, language or conversation tokens.
+Unicode-scalar-aware, including astral letters, individual numeric scalars,
+case-insensitive contractions and significant whitespace/newline grouping.
+Merge rank ties go left-to-right. Added tokens are atomic, but not all added
+tokens are special: `<asr_text>` and the aligner's `<timestamp>` remain when
+special tokens are omitted. Encoding special tokens requires permission.
+Unknown IDs are rejected; incomplete UTF-8 decoding uses replacement characters.
 
-Added tokens are recognized atomically, but not all added tokens are special:
-`<asr_text>` and the aligner's `<timestamp>` are ordinary added tokens and
-remain present when decoding with special tokens omitted. Encoding special
-tokens requires explicit permission. Unknown IDs are rejected; decoding
-incomplete UTF-8 byte sequences uses the replacement character.
+## Reproduction
 
-The pinned ASR and aligner preprocessors both request 128-bin Whisper features:
-16 kHz mono input, 400-sample periodic Hann windows, 160-sample hops, centered
-reflection, Slaney mel filters, power floor 1e-10, log10 peak-minus-eight
-clipping, then `(x + 4) / 4`. A variable-length single-input probe uses
-`WhisperLogMelSpectrogram(128).Extract(audio, padToWindow: false)`.
-It returns mel-major data with `sample_count / 160` frames, dropping the final
-STFT frame. Unpadded input must exceed 200 samples; this extractor is bounded
-to 30-second windows. The maximum absolute feature tolerance is 3e-5 against
-the published feature extractor's float32 output on the synthetic probe set.
-This is a feature tolerance, not an encoder or logit equivalence claim.
-Long-audio batching and encoder attention windows require separate validation.
+`tools/oracles/qwen3/` contains the locked tokenizer/feature observations.
+`tools/oracles/qwen3-asr/` uses released `qwen-asr` 0.0.6 and its required
+Transformers 4.57.6 through public APIs, with CPU-only Torch. Public tensor
+hooks export parity observations, never implementation source. Fixed slices
+are the first 200 sorted IDs of each LibriSpeech test split. Generated audio,
+features, hypotheses and transcript-derived observations stay outside git;
+the committed tokenizer fixture contains only synthetic strings.
 
-## Reproducing observations
-
-`tools/oracles/qwen3/probe.py` runs only the released tokenizer and feature
-extractor public APIs, at the versions in its `uv.lock`. It fetches only pinned
-JSON/vocabulary/merge data, never weights or remote Python modules. Its output
-records tokenizer data SHA-256s, versions, IDs, decoded text and raw float32
-feature arrays. `--librispeech` adds the first 200 sorted IDs of test-clean and
-test-other; these derived observations stay outside the repository. The
-committed fixture contains only synthetic text observations.
-
-Set `ONESPEECH_QWEN_TOKENIZERS` to the probe's tokenizer-data root to run
-`Qwen3TokenizerTests` and the optional NativeAOT tokenizer smoke. Set
-`ONESPEECH_QWEN_PROBES` to the probe output for the full feature comparison.
-`ONESPEECH_QWEN_TOKENIZER_FIXTURE` optionally selects the external transcript
-slice observations. No ASR or forced-alignment graph is provided by the
-tokenizer API; these checks do not establish transcription or timing accuracy.
+`tools/OneSpeech.Convert` provides `qwen-fetch`, `qwen-convert`,
+`qwen-convert-bf16`, `qwen-reproduce`, probe and fixed-slice commands. Fetching,
+weight expansion and graph construction are C#. The runtime uses the same
+converter and checks converted sizes/digests before installing any graphs.

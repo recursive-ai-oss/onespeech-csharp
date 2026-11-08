@@ -114,3 +114,11 @@ and `mean_var_norm_emb.ckpt` (1,921 bytes, SHA-256
 publisher-declared Apache-2.0 licence at revision `0f99f2d0ebe89ac095bcc5903c4dd8f72b367286`.
 These files are used only by the separate evaluation oracle; no classifier or global-embedding
 normalization weights are included in OneSpeech's converted embedding graph or package.
+
+## Qwen3-ASR and Qwen3-ForcedAligner
+
+Qwen Team, Qwen3-ASR and Qwen3-ForcedAligner. The published model cards declare
+Apache License 2.0. The full licence is provided in LICENSE-APACHE. Model data
+and converted weights are downloaded separately, not embedded in this package.
+Pinned checkpoint revisions and file digests are in the model catalog; model
+provenance and attribution are retained in the returned ModelInfo.

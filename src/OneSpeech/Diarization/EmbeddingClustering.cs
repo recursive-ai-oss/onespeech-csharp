@@ -20,13 +20,26 @@ internal static class EmbeddingClustering
         if (count == 0) return [];
         if (count < (options.NumSpeakers ?? options.MinSpeakers))
             throw new CapabilityNotSupportedException("The requested speaker count exceeds the available speech embedding windows.");
-        int n = Math.Min(count, options.MaxLandmarks), dimension = windows[0].Embedding.Length;
+        // A sparse rank graph cannot distinguish one compact speaker from many small nearest-neighbor
+        // components on short audio. Use absolute cosine evidence instead, without capping the count.
+        bool shortRecording = windows[^1].End - windows[0].Start <= TimeSpan.FromSeconds(60);
+        int[] eligible = Enumerable.Range(0, count).ToArray();
+        if (shortRecording)
+        {
+            // Truncated tails (down to 100 ms) are useful for activity ownership, not reliable
+            // speaker-count evidence. Assign them to the full-window centroids after clustering.
+            var full = eligible.Where(i => windows[i].End - windows[i].Start >= TimeSpan.FromSeconds(options.WindowSeconds)).ToArray();
+            if (full.Length >= (options.NumSpeakers ?? options.MinSpeakers)) eligible = full;
+        }
+        int n = Math.Min(eligible.Length, options.MaxLandmarks), dimension = windows[0].Embedding.Length;
         var indices = new int[n]; var points = new float[n][];
-        for (int i = 0; i < n; i++) { indices[i] = n == 1 ? 0 : (int)((long)i * (count - 1) / (n - 1)); points[i] = windows[indices[i]].Embedding.ToArray(); }
+        for (int i = 0; i < n; i++) { indices[i] = eligible[n == 1 ? 0 : (int)((long)i * (eligible.Length - 1) / (n - 1))]; points[i] = windows[indices[i]].Embedding.ToArray(); }
         var cosine = new double[n, n];
         for (int i = 0; i < n; i++) for (int j = 0; j <= i; j++) cosine[i, j] = cosine[j, i] = Dot(points[i], points[j]);
-        int[]? labels = options.Method == ClusteringMethod.Spectral ? Spectral(cosine, options, token) : null;
-        labels ??= Agglomerative(cosine, options, token);
+        int[]? labels = options.Method == ClusteringMethod.Spectral && !shortRecording ? Spectral(cosine, options, token) : null;
+        var effective = shortRecording && options.Method == ClusteringMethod.Spectral
+            ? options with { AgglomerativeThreshold = options.ShortRecordingThreshold } : options;
+        labels ??= Agglomerative(cosine, effective, token);
         int k = labels.Max() + 1;
         var centers = new float[k][];
         for (int i = 0; i < k; i++) centers[i] = new float[dimension];

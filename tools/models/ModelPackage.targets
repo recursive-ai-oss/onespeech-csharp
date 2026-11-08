@@ -1,0 +1,19 @@
+<Project>
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeSymbols>false</IncludeSymbols>
+    <PackageReadmeFile>MODEL.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../OneSpeech/OneSpeech.csproj" />
+    <None Include="PACKAGE.md" Pack="true" PackagePath="/MODEL.md" />
+    <None Include="buildTransitive/*.targets" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="$(ModelPackageFiles)/*" Pack="true" PackagePath="weights/" Condition="'$(ModelPackageFiles)' != ''" />
+    <None Include="$(MSBuildThisFileDirectory)empty" Pack="true" PackagePath="lib/net10.0/_._" />
+  </ItemGroup>
+  <Target Name="VerifyModelPackageFiles" BeforeTargets="GenerateNuspec">
+    <Error Condition="'$(ModelPackageFiles)' == '' Or '$(ModelPackagePreparer)' == ''" Text="Use tools/models/pack-model-packages.sh to fetch and verify pinned publisher files before packing." />
+    <Exec Command="dotnet &quot;$(ModelPackagePreparer)&quot; --verify &quot;$(ModelId)&quot; &quot;$(ModelPackageFiles)&quot;" />
+  </Target>
+</Project>

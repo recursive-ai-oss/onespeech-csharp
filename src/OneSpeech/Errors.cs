@@ -71,3 +71,17 @@ public sealed class FeatureUnavailableException : OneSpeechException
     /// <summary>Creates a typed failure preserving the underlying cause.</summary>
     public FeatureUnavailableException(string message, Exception innerException) : base(message, innerException) { }
 }
+
+/// <summary>The publisher rejected the supplied credential (HTTP 401 or 403 without a gate-specific response). No credential or response body is retained.</summary>
+public sealed class ModelTokenRejectedException : OneSpeechException
+{
+    /// <summary>Creates a sanitized credential rejection with a suggested fix.</summary>
+    public ModelTokenRejectedException(string message) : base(message) { }
+}
+
+/// <summary>The publisher reports that this account has not been granted access to a gated repository.</summary>
+public sealed class ModelGateNotAcceptedException : OneSpeechException
+{
+    /// <summary>Creates a sanitized gate refusal with a suggested fix.</summary>
+    public ModelGateNotAcceptedException(string message) : base(message) { }
+}

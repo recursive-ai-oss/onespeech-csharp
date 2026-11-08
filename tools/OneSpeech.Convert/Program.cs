@@ -19,6 +19,18 @@ if (args is ["nemotron-asr-convert-probe", var nemotronProbeInput, var nemotronP
 if (args is ["nemotron-asr-convert", var nemotronInput, var nemotronOutput]) { NemotronAsrConverter.Convert(nemotronInput, nemotronOutput, CancellationToken.None); return 0; }
 if (args is ["nemotron-asr-compare-encoder", var compareModel, var nativeProbe, var hfProbe]) { NemotronAsrTools.ProbeEncoder(compareModel, nativeProbe, transformerProbes: hfProbe); return 0; }
 if (args is ["nemotron-asr-probe-encoder", var nemotronModel, var nemotronProbe]) { NemotronAsrTools.ProbeEncoder(nemotronModel, nemotronProbe); return 0; }
+if (args is ["nemotron-topk-probe", var nemotronTopKDirectory]) { NemotronTools.TopKProbe(nemotronTopKDirectory); return 0; }
+if (args is ["nemotron-score", var nemotronScoreTruth, var nemotronScoreHypothesis, var nemotronScoreReference]) { NemotronBatch.ScoreOnly(nemotronScoreTruth, nemotronScoreHypothesis, nemotronScoreReference); return 0; }
+if (args is ["nemotron-cache-map", var nemotronMapNative, var nemotronMapReference, var nemotronMapSilence]) { NemotronTools.CacheMap(nemotronMapNative, nemotronMapReference, nemotronMapSilence); return 0; }
+if (args is ["nemotron-stream-probe", var nemotronStreamModel, var nemotronStreamAudio, var nemotronStreamOutput, var nemotronStreamRef]) { NemotronTools.StreamProbe(nemotronStreamModel, nemotronStreamAudio, nemotronStreamOutput, nemotronStreamRef); return 0; }
+if (args is ["nemotron-native", var nemotronDirectory, var nemotronRecording, var nemotronResults, var nemotronTruth, var nemotronReference]) { NemotronBatch.Run(nemotronDirectory, nemotronRecording, nemotronResults, nemotronTruth, nemotronReference); return 0; }
+if (args is ["nemotron-cache", var nemotronCacheDir]) { NemotronTools.CacheProbe(nemotronCacheDir); return 0; }
+if (args is ["nemotron-features", var nemotronAudio, var nemotronMel]) { NemotronTools.Features(nemotronAudio, nemotronMel); return 0; }
+if (args is ["nemotron-convert", var nemotronInput, var nemotronOutput]) { NemotronTools.Convert(nemotronInput, nemotronOutput); return 0; }
+if (args is ["nemotron-probe", var nemotronGraph, var nemotronFeatures, var nemotronProbeOutput]) { NemotronTools.Probe(nemotronGraph, nemotronFeatures, nemotronProbeOutput); return 0; }
+if (args is ["nemotron-compare", var nemotronFirst, var nemotronSecond]) { NemotronTools.Compare(nemotronFirst, nemotronSecond); return 0; }
+if (args is ["custom-fixture", var customFixture]) { CustomGraphProbe.Fixture(customFixture); return 0; }
+if (args is ["custom-probe", var customKind, var customDirectory, var customCorpus, var customOutput]) { CustomGraphProbe.Run(customKind, customDirectory, customCorpus, customOutput); return 0; }
 if (args is ["parakeet-vocabulary", var parakeetTokenizerDirectory, var parakeetTokenizerFixtures]) { ParakeetTools.Vocabulary(parakeetTokenizerDirectory, parakeetTokenizerFixtures); return 0; }
 if (args is ["parakeet-eval", var parakeetEvalCorpus, var parakeetOurs, var parakeetReference, var parakeetEvalOutput]) { ParakeetEvaluation.Prepare(parakeetEvalCorpus, parakeetOurs, parakeetReference, parakeetEvalOutput); return 0; }
 if (args is ["parakeet-timing", var parakeetTimingReference, var parakeetTimingHypothesis]) { ParakeetEvaluation.Timing(parakeetTimingReference, parakeetTimingHypothesis); return 0; }
@@ -215,6 +227,11 @@ if (args is ["moonshine-validate-saved", var savedModel, var savedOurs, var save
 if (args is ["moonshine-edges", var meOutput])
 {
     MoonshineProbe.Edges(meOutput);
+    return 0;
+}
+if (args is ["moonshine-bakeoff-metrics", var bakeModel, var bakeClip, var bakeOutput, var bakeThreads])
+{
+    MoonshineLiveMetrics.Run(bakeModel, bakeClip, bakeOutput, int.Parse(bakeThreads, System.Globalization.CultureInfo.InvariantCulture), sixtySeconds: true);
     return 0;
 }
 if (args is ["moonshine-indicative", var indicativeDirectory, var indicativeAudio, var indicativeOutput])

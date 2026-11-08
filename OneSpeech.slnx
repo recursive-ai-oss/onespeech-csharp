@@ -7,4 +7,17 @@
   <Project Path="tools/OneSpeech.OnlineDiarization/OneSpeech.OnlineDiarization.csproj" />
   <Project Path="tools/OneSpeech.NemoProbe/OneSpeech.NemoProbe.csproj" />
   <Project Path="fuzz/OneSpeech.ParakeetFuzz/OneSpeech.ParakeetFuzz.csproj" />
+  <Project Path="tests/OneSpeech.Media.Tests/OneSpeech.Media.Tests.csproj" />
+  <Project Path="tests/MediaAotSmoke/MediaAotSmoke.csproj" />
+  <Project Path="tests/AudioChecks/AudioChecks.csproj" />
+  <Project Path="tests/ModelPullProbe/ModelPullProbe.csproj" />
+  <Project Path="fuzz/OneSpeech.AudioFuzz/OneSpeech.AudioFuzz.csproj" />
+  <Project Path="fuzz/OneSpeech.CheckpointFuzz/OneSpeech.CheckpointFuzz.csproj" />
+  <Project Path="src/OneSpeech.Models.CamPlusEnglish/OneSpeech.Models.CamPlusEnglish.csproj" />
+  <Project Path="src/OneSpeech.Models.MoonshineTiny/OneSpeech.Models.MoonshineTiny.csproj" />
+  <Project Path="src/OneSpeech.Models.MoonshineBase/OneSpeech.Models.MoonshineBase.csproj" />
+  <Project Path="src/OneSpeech.Models.MoonshineStreamingTiny/OneSpeech.Models.MoonshineStreamingTiny.csproj" />
+  <Project Path="tools/OneSpeech.ModelPackages/OneSpeech.ModelPackages.csproj" />
+  <Project Path="tests/OneSpeech.Cli.Tests/OneSpeech.Cli.Tests.csproj" />
+  <Project Path="tests/CliSmoke/CliSmoke.csproj" />
 </Solution>

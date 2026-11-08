@@ -151,8 +151,6 @@ internal static class SpeechServices
             catch { recognition.Dispose(); throw; }
         }
         if (entry.Family is not ("whisper" or "moonshine")) throw new CapabilityNotSupportedException($"Model {entry.Id} is not a registered speech recognizer.");
-        if (entry.ConvertedFiles.Any(f => f.Size > int.MaxValue))
-            throw new CapabilityNotSupportedException($"'{entry.Id}' requires a runtime graph larger than OneModel 1.0.0's 2 GiB file limit. Select openai/whisper-large-v3-turbo until a larger-file loader is available.");
         var resolved = await store.PullAsync(entry.Id, cancellationToken: cancellationToken).ConfigureAwait(false);
         if (entry.Family == "moonshine")
         {
@@ -188,21 +186,14 @@ internal static class SpeechServices
     private static bool IsChinese(string? language) => language is not null &&
         (language.Equals("Chinese", StringComparison.OrdinalIgnoreCase) || language.Equals("zh", StringComparison.OrdinalIgnoreCase) || language.StartsWith("zh-", StringComparison.OrdinalIgnoreCase));
 
-    internal static SileroVadOptions DiarizationActivity => new()
-    {
-        Threshold = 0.2f, NegativeThreshold = 0.2f - 0.15f,
-        MinimumSpeech = TimeSpan.FromMilliseconds(250), MinimumSilence = TimeSpan.FromMilliseconds(250),
-        SpeechPadding = TimeSpan.FromMilliseconds(150)
-    };
-
-    internal static CosineResegmenter DiarizationResegmentation => new(0.4, 2);
+    internal static SileroVadOptions DiarizationActivity => SileroVadOptions.Diarization;
 
     private static async ValueTask<Transcript> DiarizeAsync(AudioFileSource source, Transcript transcript, string? language, ModelStore store, CancellationToken cancellationToken)
     {
         using var embedder = await ResolveEmbedderAsync(store, language ?? transcript.Language, cancellationToken).ConfigureAwait(false);
         // Activity coverage for diarization is fitted separately; ASR chunking keeps its original VAD.
         using var vad = ResolveVad(store, cancellationToken, DiarizationActivity);
-        var diarizer = new ClusteringDiarizer(embedder, vad, resegmenter: DiarizationResegmentation);
+        var diarizer = new ClusteringDiarizer(embedder, vad);
         var turns = diarizer.DiarizeBlocks(VadChunker.Blocks(source, cancellationToken), cancellationToken);
         var merged = TranscriptDiarization.Merge(transcript, turns.Select(t => new ActiveTurn { Turn = t }), cancellationToken);
         return merged with { Models = [.. merged.Models.Concat(diarizer.Models).DistinctBy(m => (m.Id, m.Revision))] };

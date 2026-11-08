@@ -53,9 +53,10 @@ revisions and file digests are recorded in the catalog and model provenance.
 
 ## Optional speaker checkpoints
 
-The following publisher checkpoints are not included in this package. English CAM++ is
-downloaded and converted on first use of the default diarizer; the other entries are
-pinned by the development fetch tool. The model
+The core and tool packages do not include the following publisher checkpoints.
+`RecursiveAI.OneSpeech.Models.CamPlusEnglish` includes the pinned English CAM++
+publisher files below; without that package they are downloaded and converted on
+first use of the default diarizer. The other entries are pinned by the development fetch tool. The model
 cards declare Apache-2.0; the licence text is included in LICENSE-APACHE. These are published
 pretrained weights, not models trained or fine-tuned by this project. The training-data statements
 below are the publishers' descriptions, not an independent audit or a licence grant for that data.
@@ -65,7 +66,9 @@ below are the publishers' descriptions, not an independent audit or a licence gr
   SHA-256 `0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2`.
   Source: https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb .
   Publisher-stated training data: VoxCeleb1 and VoxCeleb2.
-- CAM++ English, `iic/speech_campplus_sv_en_voxceleb_16k` revision
+- CAM++ English — Hui Wang, Siqi Zheng, Yafeng Chen, Luyao Cheng and Qian Chen,
+  published by 3D-Speaker/ModelScope iic under Apache-2.0.
+  `iic/speech_campplus_sv_en_voxceleb_16k` revision
   `032b8131a7ad812f87061955ca974c99060c5a03`, `campplus_voxceleb.bin`,
   SHA-256 `5b1a88b6f8d85826fabef804779c3372b42f3af21457fa48bd5c097c0686b2de`.
   Source: https://modelscope.cn/models/iic/speech_campplus_sv_en_voxceleb_16k .
@@ -141,7 +144,13 @@ redistributing the model or converted weights.
 
 The tiny, base, streaming-tiny, streaming-small and streaming-medium checkpoints
 from moonshine-ai are MIT-licensed. Their pinned model cards and source links
-are in the model catalog. No Community License checkpoints are included.
+are in the model catalog. The optional `.Models.MoonshineTiny`, `.MoonshineBase`
+and `.MoonshineStreamingTiny` packages include their respective pinned publisher
+files (weights, configuration and tokenizer data). These are published pretrained
+weights, not models trained or fine-tuned by this project. Publisher-stated training data: tiny/base, 200,000 hours of internet audio and
+open datasets; streaming-tiny, roughly 300,000 hours comprising those sources
+plus 100,000 hours of internally prepared speech data. These descriptions are
+not an independent audit or a licence grant for the training data. No Community License checkpoints are included.
 Publisher licence: https://github.com/moonshine-ai/moonshine/blob/main/LICENSE
 
 MIT License
@@ -178,3 +187,12 @@ NVIDIA Nemotron 3.5 ASR weights are loaded only by explicit name from the pinned
 publisher revision and converted in the user's cache. They are not embedded,
 mirrored, or redistributed by OneSpeech. The full agreement and NVIDIA origin
 notice are retained in `ModelInfo`.
+
+## NVIDIA Nemotron 3 Diarization (optional publisher download)
+
+`nvidia/Nemotron-3-Diarization` revision
+`f667ed73aee57d40cc39428eb768b4fd87a0a29e` is governed by the
+[OpenMDW License Agreement, version 1.1](https://openmdw.ai/license/1-1/).
+No weights or converted graphs are redistributed by this package. Explicit loading
+fetches the pinned publisher file into the user's cache and constructs runtime
+artifacts locally. `ModelInfo` retains NVIDIA's model origin and the full agreement.

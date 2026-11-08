@@ -9,7 +9,7 @@ public sealed record Qwen3Options
     public int MaxNewTokens { get; init; } = 512;
     /// <summary>OneModel threads per operator; zero selects the runtime default. Range 0–256.</summary>
     public int Threads { get; init; }
-    /// <summary>Activation storage precision; Binary32 by default. BFloat16 requires the separately converted bfloat16 graphs.</summary>
+    /// <summary>Activation storage precision; Binary32 by default. BFloat16 lazily converts missing graphs from the pinned publisher files in the local model directory and verifies catalog hashes; no download is performed.</summary>
     public Qwen3Precision Precision { get; init; }
     internal void Validate()
     {

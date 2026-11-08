@@ -14,9 +14,9 @@ if (args is ["nemotron-asr-eval", var neCorpus, var neOurs, var neRef, var neOut
 if (args is ["nemotron-asr-batch", var nbDir, var nbCorpus, var nbOut, var nbChunk, var nbBegin, var nbCount]) { NemotronAsrEvaluation.Batch(nbDir, nbCorpus, nbOut, int.Parse(nbChunk, System.Globalization.CultureInfo.InvariantCulture), int.Parse(nbBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(nbCount, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
 if (args is ["nemotron-asr-probe-caches", var cacheModel, var cacheProbe]) { NemotronAsrTools.ProbeCaches(cacheModel, cacheProbe); return 0; }
 if (args is ["nemotron-asr-probe-decoder", var decoderModel, var decoderNative, var decoderHf]) { NemotronAsrTools.ProbeDecoder(decoderModel, decoderNative, decoderHf); return 0; }
-if (args is ["nemotron-asr-convert-streaming", var nemotronStreamInput, var nemotronStreamOutput]) { NemotronAsrConverter.Convert(nemotronStreamInput, nemotronStreamOutput, CancellationToken.None, streaming: true); return 0; }
-if (args is ["nemotron-asr-convert-probe", var nemotronProbeInput, var nemotronProbeOutput]) { NemotronAsrConverter.Convert(nemotronProbeInput, nemotronProbeOutput, CancellationToken.None, probeOutputs: true); return 0; }
-if (args is ["nemotron-asr-convert", var nemotronInput, var nemotronOutput]) { NemotronAsrConverter.Convert(nemotronInput, nemotronOutput, CancellationToken.None); return 0; }
+if (args is ["nemotron-asr-convert-streaming", var asrNemotronStreamInput, var asrNemotronStreamOutput]) { NemotronAsrConverter.Convert(asrNemotronStreamInput, asrNemotronStreamOutput, CancellationToken.None, streaming: true); return 0; }
+if (args is ["nemotron-asr-convert-probe", var asrNemotronProbeInput, var asrNemotronProbeOutput]) { NemotronAsrConverter.Convert(asrNemotronProbeInput, asrNemotronProbeOutput, CancellationToken.None, probeOutputs: true); return 0; }
+if (args is ["nemotron-asr-convert", var asrNemotronInput, var asrNemotronOutput]) { NemotronAsrConverter.Convert(asrNemotronInput, asrNemotronOutput, CancellationToken.None); return 0; }
 if (args is ["nemotron-asr-compare-encoder", var compareModel, var nativeProbe, var hfProbe]) { NemotronAsrTools.ProbeEncoder(compareModel, nativeProbe, transformerProbes: hfProbe); return 0; }
 if (args is ["nemotron-asr-probe-encoder", var nemotronModel, var nemotronProbe]) { NemotronAsrTools.ProbeEncoder(nemotronModel, nemotronProbe); return 0; }
 if (args is ["nemotron-topk-probe", var nemotronTopKDirectory]) { NemotronTools.TopKProbe(nemotronTopKDirectory); return 0; }

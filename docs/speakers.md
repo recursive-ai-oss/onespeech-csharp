@@ -61,3 +61,34 @@ consent and determine applicable local-law requirements, including Illinois BIPA
 Article 9 where relevant. Avoid logging embeddings, restrict access to process memory, and
 remove enrollments when no longer needed. The library never persists embeddings or audio.
 Tests use algebraic vectors, not recordings, generated voices or biometric identities.
+
+## Checkpoint inspection
+
+The development converter can fetch and SHA-256 verify four publisher checkpoints:
+
+```sh
+dotnet run --project tools/OneSpeech.Convert -- speaker-fetch /caller/selected/model-cache
+dotnet run --project tools/OneSpeech.Convert -- speaker-inspect /caller/selected/checkpoint
+```
+
+The fetch command verifies existing files too; a mismatch fails rather than overwriting an
+existing checkpoint. Downloads are bounded to 128 MiB, verified before rename, and temporary
+files are removed on failure. Do not run concurrent fetches against the same directory.
+Inspection prints only tensor names and dimensions, not a runtime graph or inferred architecture.
+These commands do not register a model or select a default embedder.
+
+Inspection supports a deliberately restricted tensor-only ZIP/pickle data language. It never
+executes Python or invokes globals. Only inert ordered-map, storage and tensor-view constructors
+are accepted; all other global names, reductions and object state are refused. Float32, float64,
+float16 and int64 storage can be converted to float32 arrays, including bounded noncontiguous
+views. Optional ordered-map metadata is parsed under the same bounds and discarded. No archive
+entry is extracted to disk. All index text is strict UTF-8.
+
+Limits: 256 MiB archive, expanded entries, and output arrays (each budget independently);
+8 MiB central directory and pickle index; 20,000 ZIP entries; rank at most 8;
+dimensions at most 10,000,000; no negative strides or views outside storage; two million parser
+operations and aggregate collection slots; 200,000 stack and memo entries; 65,536-byte strings.
+Multi-disk and ZIP64-only directory records are not supported. Invalid data throws
+`InvalidDataException`; ordinary stream I/O failures remain I/O errors. Inspection is a developer
+tool, not the shipped model-loading API. No embedding model implementation or parity claim is
+provided by checkpoint inspection.

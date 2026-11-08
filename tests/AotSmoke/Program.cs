@@ -1,5 +1,6 @@
 using OneSpeech;
 TransducerSmoke.Run();
+NemotronSmoke.Run();
 ParakeetSmoke.Run();
 CustomSmoke.Run();
 

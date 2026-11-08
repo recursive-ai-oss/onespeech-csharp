@@ -119,6 +119,11 @@ public sealed class ModelStore
 
     private async ValueTask EnsureRuntimeAsync(CatalogEntry entry, string directory, CancellationToken cancellationToken)
     {
+        if (entry.Family == "nemotron-diarization")
+        {
+            NemotronDiarizationAssets.EnsureRuntime(entry, directory, cancellationToken);
+            return;
+        }
         bool missing = false;
         foreach (var file in entry.ConvertedFiles)
         {

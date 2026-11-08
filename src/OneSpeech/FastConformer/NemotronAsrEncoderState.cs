@@ -17,14 +17,16 @@ internal sealed class NemotronAsrEncoderState : IDisposable
     private readonly List<Tensor> recurrent = [];
     private readonly Tensor initialFeatures, features, mask, encoded;
     private readonly Binding firstInitial, firstRegular, second;
+    private readonly Session finalFirst;
     private bool firstChunk = true;
     private bool completed;
     private int pending, pastFrames;
     internal int EncodedFrames { get; private set; }
 
-    internal NemotronAsrEncoderState(Session first, Session last, FastConformerDimensions dimensions, int chunkFrames, NemotronEncodedChunk emit, CancellationToken cancellationToken)
+    internal NemotronAsrEncoderState(Session first, Session last, Session finalFirst, FastConformerDimensions dimensions, int chunkFrames, NemotronEncodedChunk emit, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(first); ArgumentNullException.ThrowIfNull(last); ArgumentNullException.ThrowIfNull(emit);
+        ArgumentNullException.ThrowIfNull(first); ArgumentNullException.ThrowIfNull(last); ArgumentNullException.ThrowIfNull(finalFirst); ArgumentNullException.ThrowIfNull(emit);
+        this.finalFirst = finalFirst;
         dimensions.Validate();
         if (dimensions.Layers % 2 != 0 || chunkFrames is not (1 or 2 or 4 or 7 or 14)) throw new ArgumentException("Expected an even layer count and a supported chunk size.");
         this.dimensions = dimensions; this.chunkFrames = chunkFrames; this.emit = emit;
@@ -94,9 +96,34 @@ internal sealed class NemotronAsrEncoderState : IDisposable
     {
         if (completed) throw new InvalidOperationException("Encoder state is complete; reset before reuse.");
         cancellationToken.ThrowIfCancellationRequested();
-        int valid = firstChunk ? (pending + 7) / 8 : pending / 8;
-        if (valid > 0) RunChunk(valid, cancellationToken);
+        if (pending > 0) RunFinalChunk(cancellationToken);
         completed = true;
+    }
+
+    private void RunFinalChunk(CancellationToken cancellationToken)
+    {
+        // End padding belongs at each strided layer, not on the mel input: later layers
+        // must see zeros rather than convolution biases evaluated beyond the real tail.
+        int valid = firstChunk ? ((pending / 2 + 1) / 2 + 1) / 2 + 1 : (pending + 7) / 8;
+        int width = dimensions.Width, capacity = firstChunk ? chunkFrames * 8 - 7 : chunkFrames * 8;
+        using var tail = Tensor.Zeros(DType.F32, Shape.Create(1, dimensions.MelBins, pending));
+        var source = (firstChunk ? initialFeatures : features).Data<float>();
+        for (int channel = 0; channel < dimensions.MelBins; channel++) source.Slice(channel * capacity, pending).CopyTo(tail.MutableData<float>().Slice(channel * pending));
+        using var tailMask = Tensor.Zeros(DType.F32, Shape.Create(1, 1, valid, 56 + valid));
+        for (int query = 0; query < valid; query++) for (int key = 0; key < 56 - pastFrames; key++) tailMask.MutableData<float>()[query * (56 + valid) + key] = float.NegativeInfinity;
+        using var middle = Tensor.Zeros(DType.F32, Shape.Create(1, width, valid));
+        using var output = Tensor.Zeros(DType.F32, Shape.Create(1, width, valid));
+        Binding Rebind(Binding template, Session session, Tensor input, Tensor result)
+        {
+            var inputs = template.Inputs.ToArray(); var outputs = template.Outputs.ToArray();
+            inputs[0] = input; inputs[1] = tailMask; outputs[0] = result;
+            return new(session, template.InputNames, inputs, template.OutputNames, outputs);
+        }
+        Rebind(firstChunk ? firstInitial : firstRegular, finalFirst, tail, middle).Run(cancellationToken);
+        Rebind(second, second.Session, middle, output).Run(cancellationToken);
+        encoded.MutableData<float>().Clear();
+        for (int channel = 0; channel < width; channel++) output.Data<float>().Slice(channel * valid, valid).CopyTo(encoded.MutableData<float>().Slice(channel * chunkFrames));
+        emit(encoded.Data<float>(), valid, cancellationToken); EncodedFrames += valid; pending = 0;
     }
 
     private void RunChunk(int validFrames, CancellationToken cancellationToken)

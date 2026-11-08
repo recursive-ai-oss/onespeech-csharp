@@ -27,7 +27,7 @@ internal sealed class NemotronAsrTensorSource(SafeTensorFile file) : IFloatTenso
 internal static class NemotronAsrConverter
 {
     internal static readonly FastConformerDimensions Dimensions = new(Vocabulary: 13088, DurationCount: 0);
-    internal static void Convert(string input, string output, CancellationToken cancellationToken, bool streaming = false)
+    internal static void Convert(string input, string output, CancellationToken cancellationToken, bool streaming = false, bool probeOutputs = false)
     {
         Directory.CreateDirectory(output);
         using var file = new SafeTensorFile(File.OpenRead(Path.Combine(input, "model.safetensors")));
@@ -36,11 +36,12 @@ internal static class NemotronAsrConverter
         {
             new NemotronAsrGraphBuilder(source, Dimensions).EncoderStep(Path.Combine(output, "encoder-step0.onemodel"), 0, 12, true, cancellationToken);
             new NemotronAsrGraphBuilder(source, Dimensions).EncoderStep(Path.Combine(output, "encoder-step1.onemodel"), 12, 12, false, cancellationToken);
+            new NemotronAsrGraphBuilder(source, Dimensions).EncoderStep(Path.Combine(output, "encoder-tail0.onemodel"), 0, 12, true, cancellationToken, finalSubsampling: true);
         }
         else
         {
-            new NemotronAsrGraphBuilder(source, Dimensions).Encoder(Path.Combine(output, "encoder-part0.onemodel"), 0, 12, true, cancellationToken);
-            new NemotronAsrGraphBuilder(source, Dimensions).Encoder(Path.Combine(output, "encoder-part1.onemodel"), 12, 12, false, cancellationToken);
+            new NemotronAsrGraphBuilder(source, Dimensions).Encoder(Path.Combine(output, "encoder-part0.onemodel"), 0, 12, true, cancellationToken, probeOutputs);
+            new NemotronAsrGraphBuilder(source, Dimensions).Encoder(Path.Combine(output, "encoder-part1.onemodel"), 12, 12, false, cancellationToken, probeOutputs);
         }
         new NemotronAsrGraphBuilder(source, Dimensions).PromptProjector(Path.Combine(output, "prompt.onemodel"), cancellationToken);
         new FastConformerGraphBuilder(source, Dimensions).Predictor(Path.Combine(output, "predictor.onemodel"), cancellationToken);

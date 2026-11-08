@@ -17,13 +17,14 @@ internal sealed class NemotronAsrGraphBuilder
 
     // FastConformer §2: 8x depthwise-separable subsampling followed by Conformer blocks.
     // Splitting at layer boundaries keeps each serialized graph below the runtime's 2 GiB limit.
-    internal void Encoder(string path, int firstLayer, int layerCount, bool subsample, CancellationToken cancellationToken)
+    internal void Encoder(string path, int firstLayer, int layerCount, bool subsample, CancellationToken cancellationToken, bool probeOutputs = false)
     {
         if (firstLayer < 0 || layerCount < 1 || firstLayer > dimensions.Layers - layerCount || subsample && firstLayer != 0) throw new ArgumentException("Invalid encoder layer range.");
         int d = dimensions.Width;
         graph.Input("features", 1, subsample ? dimensions.MelBins : d, "frames");
         graph.Input("attention_mask", 1, 1, "encoded_frames", "encoded_frames");
         string x = subsample ? Subsample("features") : graph.Transpose("features", 0, 2, 1);
+        if (probeOutputs) graph.Output(x, "hidden" + firstLayer, 1, "encoded_frames", d);
         var (positions, indices) = RelativePositions(x);
         for (int layer = firstLayer; layer < firstLayer + layerCount; layer++)
         {
@@ -34,6 +35,7 @@ internal sealed class NemotronAsrGraphBuilder
             x = graph.Op("Add", [x, Attention(graph.Norm(x, prefix + ".attention_norm", d), prefix + ".attention", positions, indices)]);
             x = graph.Op("Add", [x, Convolution(graph.Norm(x, prefix + ".conv_norm", d), prefix + ".conv")]);
             x = graph.Norm(FeedForward(x, prefix + ".ff2"), prefix + ".final_norm", d);
+            if (probeOutputs) graph.Output(x, "hidden" + (layer + 1), 1, "encoded_frames", d);
         }
         graph.Output(graph.Transpose(x, 0, 2, 1), "encoded", 1, d, "encoded_frames");
         graph.Save(path, cancellationToken);
@@ -59,13 +61,13 @@ internal sealed class NemotronAsrGraphBuilder
 
     // Noroozi et al. §3.3: ordinary tensor inputs/outputs carry attention and convolution state.
     // Projected keys/values are cached instead of re-projecting the same stored activations.
-    internal void EncoderStep(string path, int firstLayer, int layerCount, bool subsample, CancellationToken cancellationToken)
+    internal void EncoderStep(string path, int firstLayer, int layerCount, bool subsample, CancellationToken cancellationToken, bool finalSubsampling = false)
     {
         if (firstLayer < 0 || layerCount < 1 || firstLayer > dimensions.Layers - layerCount || subsample && firstLayer != 0) throw new ArgumentException("Invalid encoder layer range.");
         int d = dimensions.Width;
         graph.Input("features", 1, subsample ? dimensions.MelBins : d, "frames");
         graph.Input("attention_mask", 1, 1, "query_frames", "key_frames");
-        string x = subsample ? SubsampleStep("features") : graph.Transpose("features", 0, 2, 1);
+        string x = subsample ? SubsampleStep("features", finalSubsampling) : graph.Transpose("features", 0, 2, 1);
         var (positions, indices) = RelativePositions(x, 56);
         for (int layer = firstLayer; layer < firstLayer + layerCount; layer++)
         {
@@ -80,7 +82,7 @@ internal sealed class NemotronAsrGraphBuilder
         graph.Save(path, cancellationToken);
     }
 
-    private string SubsampleStep(string x)
+    private string SubsampleStep(string x, bool finalPadding = false)
     {
         int c = dimensions.SubsamplingChannels, frequency = dimensions.MelBins;
         x = graph.Op("Unsqueeze", [graph.Transpose(x, 0, 2, 1), graph.Ints(1)]);
@@ -92,10 +94,10 @@ internal sealed class NemotronAsrGraphBuilder
             // Causal stride-two convolutions start with two zero history frames. After the
             // first odd-length chunk, exactly one history frame preserves the stride phase.
             graph.Output(graph.Slice(x, 2, -1, int.MaxValue), "next_" + cache, 1, stage == 0 ? 1 : c, 1, frequency);
-            if (stage == 0) x = graph.Op("Conv", [x, graph.Weight(prefix + ".weight", c, 1, 3, 3), graph.Weight(prefix + ".bias", c)], As("strides", 2, 2), As("pads", 0, 1, 0, 2));
+            if (stage == 0) x = graph.Op("Conv", [x, graph.Weight(prefix + ".weight", c, 1, 3, 3), graph.Weight(prefix + ".bias", c)], As("strides", 2, 2), As("pads", 0, 2, finalPadding ? 1 : 0, 1));
             else
             {
-                x = graph.Op("Conv", [x, graph.Weight(prefix + ".depthwise.weight", c, 1, 3, 3), graph.Weight(prefix + ".depthwise.bias", c)], A("group", c), As("strides", 2, 2), As("pads", 0, 1, 0, 1));
+                x = graph.Op("Conv", [x, graph.Weight(prefix + ".depthwise.weight", c, 1, 3, 3), graph.Weight(prefix + ".depthwise.bias", c)], A("group", c), As("strides", 2, 2), As("pads", 0, 2, finalPadding ? 1 : 0, 1));
                 x = graph.Op("Conv", [x, graph.Weight(prefix + ".pointwise.weight", c, c, 1, 1), graph.Weight(prefix + ".pointwise.bias", c)]);
             }
             x = graph.Op("Relu", [x]); frequency = frequency / 2 + 1;
@@ -108,13 +110,15 @@ internal sealed class NemotronAsrGraphBuilder
     {
         int c = dimensions.SubsamplingChannels;
         x = graph.Op("Unsqueeze", [graph.Transpose(x, 0, 2, 1), graph.Ints(1)]);
+        // End padding is applied at every strided layer, not just to the original mel
+        // sequence. Observed native lengths follow f(f(f(L))), f(L)=floor(L/2)+1.
         for (int stage = 0; stage < 3; stage++)
         {
             string prefix = "encoder.subsampling." + stage;
-            if (stage == 0) x = graph.Op("Conv", [x, graph.Weight(prefix + ".weight", c, 1, 3, 3), graph.Weight(prefix + ".bias", c)], As("strides", 2, 2), As("pads", 2, 1, 0, 2));
+            if (stage == 0) x = graph.Op("Conv", [x, graph.Weight(prefix + ".weight", c, 1, 3, 3), graph.Weight(prefix + ".bias", c)], As("strides", 2, 2), As("pads", 2, 2, 1, 1));
             else
             {
-                x = graph.Op("Conv", [x, graph.Weight(prefix + ".depthwise.weight", c, 1, 3, 3), graph.Weight(prefix + ".depthwise.bias", c)], A("group", c), As("strides", 2, 2), As("pads", 2, 1, 0, 1));
+                x = graph.Op("Conv", [x, graph.Weight(prefix + ".depthwise.weight", c, 1, 3, 3), graph.Weight(prefix + ".depthwise.bias", c)], A("group", c), As("strides", 2, 2), As("pads", 2, 2, 1, 1));
                 x = graph.Op("Conv", [x, graph.Weight(prefix + ".pointwise.weight", c, c, 1, 1), graph.Weight(prefix + ".pointwise.bias", c)]);
             }
             x = graph.Op("Relu", [x]);

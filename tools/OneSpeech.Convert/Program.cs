@@ -2,8 +2,12 @@ using System.Security.Cryptography;
 using OneSpeech.Catalog.Conversion;
 using OneSpeech.Formats;
 using OneSpeech.Whisper;
+if (args is ["nemotron-asr-probe-caches", var cacheModel, var cacheProbe]) { NemotronAsrTools.ProbeCaches(cacheModel, cacheProbe); return 0; }
+if (args is ["nemotron-asr-probe-decoder", var decoderModel, var decoderNative, var decoderHf]) { NemotronAsrTools.ProbeDecoder(decoderModel, decoderNative, decoderHf); return 0; }
 if (args is ["nemotron-asr-convert-streaming", var nemotronStreamInput, var nemotronStreamOutput]) { NemotronAsrConverter.Convert(nemotronStreamInput, nemotronStreamOutput, CancellationToken.None, streaming: true); return 0; }
+if (args is ["nemotron-asr-convert-probe", var nemotronProbeInput, var nemotronProbeOutput]) { NemotronAsrConverter.Convert(nemotronProbeInput, nemotronProbeOutput, CancellationToken.None, probeOutputs: true); return 0; }
 if (args is ["nemotron-asr-convert", var nemotronInput, var nemotronOutput]) { NemotronAsrConverter.Convert(nemotronInput, nemotronOutput, CancellationToken.None); return 0; }
+if (args is ["nemotron-asr-compare-encoder", var compareModel, var nativeProbe, var hfProbe]) { NemotronAsrTools.ProbeEncoder(compareModel, nativeProbe, transformerProbes: hfProbe); return 0; }
 if (args is ["nemotron-asr-probe-encoder", var nemotronModel, var nemotronProbe]) { NemotronAsrTools.ProbeEncoder(nemotronModel, nemotronProbe); return 0; }
 if (args is ["parakeet-vocabulary", var parakeetTokenizerDirectory, var parakeetTokenizerFixtures]) { ParakeetTools.Vocabulary(parakeetTokenizerDirectory, parakeetTokenizerFixtures); return 0; }
 if (args is ["parakeet-eval", var parakeetEvalCorpus, var parakeetOurs, var parakeetReference, var parakeetEvalOutput]) { ParakeetEvaluation.Prepare(parakeetEvalCorpus, parakeetOurs, parakeetReference, parakeetEvalOutput); return 0; }

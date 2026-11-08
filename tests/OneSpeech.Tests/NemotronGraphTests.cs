@@ -20,19 +20,19 @@ public sealed class NemotronGraphTests
             string path = Path.Combine(directory, "encoder.onemodel");
             new NemotronAsrGraphBuilder(source, dimensions).Encoder(path, 0, 2, true, ct);
             using var model = Session.Load(path, new ModelOptions { IntraOpThreads = 1 }, cancellationToken: ct);
-            float[] mel = Enumerable.Range(0, 16 * 64).Select(i => MathF.Sin(i * .1f)).ToArray();
+            float[] mel = Enumerable.Range(0, 16 * 57).Select(i => MathF.Sin(i * .1f)).ToArray();
             float[] mask = new float[8 * 8];
             for (int q = 0; q < 8; q++) for (int k = 0; k < 8; k++) if (k / 4 > q / 4) mask[q * 8 + k] = float.NegativeInfinity;
             float[] Run()
             {
                 ct.ThrowIfCancellationRequested();
-                using var input = Tensor.FromSpan<float>(mel, Shape.Create(1, 16, 64));
+                using var input = Tensor.FromSpan<float>(mel, Shape.Create(1, 16, 57));
                 using var maskInput = Tensor.FromSpan<float>(mask, Shape.Create(1, 1, 8, 8));
                 using var output = model.Run(new Dictionary<string, Tensor> { ["features"] = input, ["attention_mask"] = maskInput });
                 return output["encoded"].Data<float>().ToArray();
             }
             var first = Run();
-            for (int channel = 0; channel < 16; channel++) for (int frame = 32; frame < 64; frame++) mel[channel * 64 + frame] += 10;
+            for (int channel = 0; channel < 16; channel++) for (int frame = 32; frame < 57; frame++) mel[channel * 57 + frame] += 10;
             var changed = Run();
             Assert.Equal(64, first.Length);
             for (int channel = 0; channel < 8; channel++) for (int frame = 0; frame < 4; frame++) Assert.Equal(first[channel * 8 + frame], changed[channel * 8 + frame]);
@@ -122,6 +122,13 @@ public sealed class NemotronGraphTests
     [Theory]
     [InlineData(1, 64)]
     [InlineData(2, 19)]
+    [InlineData(4, 1)]
+    [InlineData(4, 2)]
+    [InlineData(4, 7)]
+    [InlineData(4, 8)]
+    [InlineData(4, 24)]
+    [InlineData(4, 25)]
+    [InlineData(4, 26)]
     [InlineData(4, 121)]
     [InlineData(4, 124)]
     [InlineData(4, 640)]
@@ -135,14 +142,16 @@ public sealed class NemotronGraphTests
         Directory.CreateDirectory(directory); var ct = TestContext.Current.CancellationToken;
         try
         {
-            string offline = Path.Combine(directory, "all.onemodel"), first = Path.Combine(directory, "first.onemodel"), last = Path.Combine(directory, "last.onemodel");
+            string offline = Path.Combine(directory, "all.onemodel"), first = Path.Combine(directory, "first.onemodel"), last = Path.Combine(directory, "last.onemodel"), tail = Path.Combine(directory, "tail.onemodel");
             new NemotronAsrGraphBuilder(source, dimensions).Encoder(offline, 0, 2, true, ct);
             new NemotronAsrGraphBuilder(source, dimensions).EncoderStep(first, 0, 1, true, ct);
             new NemotronAsrGraphBuilder(source, dimensions).EncoderStep(last, 1, 1, false, ct);
+            new NemotronAsrGraphBuilder(source, dimensions).EncoderStep(tail, 0, 1, true, ct, finalSubsampling: true);
             using var all = Session.Load(offline, new ModelOptions { IntraOpThreads = 1 }, cancellationToken: ct);
             using var a = Session.Load(first, new ModelOptions { IntraOpThreads = 1 }, cancellationToken: ct);
             using var b = Session.Load(last, new ModelOptions { IntraOpThreads = 1 }, cancellationToken: ct);
-            int encodedFrames = (frames + 7) / 8;
+            using var tailSession = Session.Load(tail, new ModelOptions { IntraOpThreads = 1 }, cancellationToken: ct);
+            int encodedFrames = ((frames / 2 + 1) / 2 + 1) / 2 + 1;
             float[] mel = Enumerable.Range(0, 16 * frames).Select(i => MathF.Sin(i * .07f)).ToArray(), mask = new float[encodedFrames * encodedFrames];
             for (int q = 0; q < encodedFrames; q++) for (int k = 0; k < encodedFrames; k++) if (k < q / chunk * chunk - 56 || k >= q / chunk * chunk + chunk) mask[q * encodedFrames + k] = float.NegativeInfinity;
             using var audio = Tensor.FromSpan<float>(mel, Shape.Create(1, 16, frames));
@@ -155,7 +164,7 @@ public sealed class NemotronGraphTests
                 for (int channel = 0; channel < 8; channel++) values.Slice(channel * chunk, valid).CopyTo(actual.AsSpan(channel * encodedFrames + used));
                 used += valid;
             }
-            using var state = new OneSpeech.FastConformer.NemotronAsrEncoderState(a, b, dimensions, chunk, Emit, ct);
+            using var state = new OneSpeech.FastConformer.NemotronAsrEncoderState(a, b, tailSession, dimensions, chunk, Emit, ct);
             float[] frame = new float[16];
             for (int pass = 0; pass < 2; pass++)
             {

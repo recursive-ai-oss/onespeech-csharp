@@ -30,7 +30,7 @@ internal static class MoonshineProvenance
         return entry;
     }
 
-    internal static (string Revision, string Sha256) Get(string id) => id switch
+    internal static (string Revision, string Sha256) Get(string id) => (id == "moonshine-ai/moonshine-streaming-tiny-int8" ? "moonshine-ai/moonshine-streaming-tiny" : id) switch
     {
         "moonshine-ai/moonshine-tiny" => ("390624ed33d594443aa4aa221f5b9f283b545b5a", "867cd2215804859c55aa972d740bd5002be149b4e7526328c895d2408848c736"),
         "moonshine-ai/moonshine-base" => ("7a73d8d55ac0ba2ef3ae761593f6784b51f96dcf", "e020c79d0a979a7ec099f718ff1cd2f19e92aead230d69654bca5975a8e1b862"),

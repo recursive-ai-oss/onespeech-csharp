@@ -5,6 +5,7 @@ All notable changes are documented here, following Keep a Changelog.
 ## [Unreleased]
 
 ### Added
+- Mixed-int8 variants of Whisper large-v3-turbo, Whisper small and Moonshine streaming-tiny, selected by model ID (`-int8`) and converted locally from the same pinned weights; defaults remain fp32.
 - Contextual phrase biasing through `SpeechRecognizer.WithPhrases`: Whisper prompt conditioning, Qwen3-ASR context, and shallow fusion over a phrase trie for Parakeet and custom CTC/RNN-T/TDT models. Families that cannot bias refuse with `CapabilityNotSupportedException`.
 - `Speech.Enroll`, `Speech.Identify`, `Speech.Verify` and `Speech.ClearSpeakers`, with enrolled names on transcript speakers.
 - `Speech.PrefetchAsync(language, model)` fetches every model a call would need.

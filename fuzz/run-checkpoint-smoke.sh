@@ -11,10 +11,10 @@ chmod +x "$work/libfuzzer-dotnet"
 if [[ ! -x "$work/tools/sharpfuzz" ]]; then
   dotnet tool install SharpFuzz.CommandLine --version 2.2.0 --tool-path "$work/tools"
 fi
-rm -f "$work/pub/OneSpeech.Convert.dll" "$work/pub/OneSpeech.CheckpointFuzz.dll"
+rm -f "$work/pub/OneSpeech.dll" "$work/pub/OneSpeech.Convert.dll" "$work/pub/OneSpeech.CheckpointFuzz.dll"
 dotnet publish fuzz/OneSpeech.CheckpointFuzz -c Release -o "$work/pub" -m:2 -v quiet
 "$work/pub/OneSpeech.CheckpointFuzz" seed "$work/corpus"
-DOTNET_ROLL_FORWARD=Major "$work/tools/sharpfuzz" "$work/pub/OneSpeech.Convert.dll"
+DOTNET_ROLL_FORWARD=Major "$work/tools/sharpfuzz" "$work/pub/OneSpeech.dll"
 if [[ "${ONESPEECH_CHECKPOINT_PICKLE:-0}" == 1 ]]; then rm "$work/corpus/tensor.zip"; else rm "$work/corpus/tensor.pkl"; fi
 "$work/libfuzzer-dotnet" --target_path="$work/pub/OneSpeech.CheckpointFuzz" "$work/corpus" \
   -max_total_time="$seconds" -timeout=10 -rss_limit_mb=2048 -max_len=65536 \

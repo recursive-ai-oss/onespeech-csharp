@@ -15,16 +15,16 @@ internal sealed class TensorCheckpoint
     private const int MaxItems = 200000;
     private const long MaxBytes = 256L * 1024 * 1024;
 
-    internal static Dictionary<string, Tensor> Read(Stream stream, bool largeModel = false)
+    internal static Dictionary<string, Tensor> Read(Stream stream, bool largeModel = false, bool segmentation = false)
     {
         ArgumentNullException.ThrowIfNull(stream);
-        try { return ReadCore(stream, largeModel); }
+        try { return ReadCore(stream, largeModel, segmentation); }
         catch (OverflowException e) { throw new InvalidDataException("Checkpoint integer overflow.", e); }
         catch (DecoderFallbackException e) { throw new InvalidDataException("Invalid checkpoint UTF-8.", e); }
         catch (EndOfStreamException e) { throw new InvalidDataException("Truncated checkpoint entry.", e); }
     }
 
-    private static Dictionary<string, Tensor> ReadCore(Stream stream, bool largeModel)
+    private static Dictionary<string, Tensor> ReadCore(Stream stream, bool largeModel, bool segmentation)
     {
         long maxBytes = largeModel ? 1536L * 1024 * 1024 : MaxBytes;
         if (!stream.CanSeek || stream.Length > maxBytes || stream.Length < 22) throw Bad("Checkpoint size or stream.");
@@ -42,9 +42,11 @@ internal sealed class TensorCheckpoint
         if (indices.Length != 1) throw Bad("Expected one tensor index.");
         var pickle = indices[0];
         string prefix = pickle.FullName[..^8];
-        var root = new Parser(Bytes(pickle, 8 * 1024 * 1024)).Run();
+        var root = new Parser(Bytes(pickle, 8 * 1024 * 1024), segmentation).Run();
         if (entries.TryGetValue(prefix + "byteorder", out var byteOrder) && Utf8.GetString(Bytes(byteOrder, 16)) != "little") throw Bad("Only little-endian storage is supported.");
         if (root is not Dictionary<string, object?> map) throw Bad("Expected state dictionary.");
+        if (segmentation)
+            map = map.TryGetValue("state_dict", out var state) && state is Dictionary<string, object?> dictionary ? dictionary : throw Bad("Missing segmentation state dictionary.");
         if (largeModel && map.TryGetValue("model", out var nested))
             map = nested as Dictionary<string, object?> ?? throw Bad("Invalid model tensor dictionary.");
         var storages = new Dictionary<string, byte[]>(StringComparer.Ordinal);
@@ -141,7 +143,11 @@ internal sealed class TensorCheckpoint
 
     private static InvalidDataException Bad(string message) => new(message);
 
-    private sealed class Parser(byte[] data)
+    // Checkpoint descriptors are inert data: their class names are allowlisted, but
+    // no constructors, enum functions, attributes, or code objects are evaluated.
+    private sealed record Metadata(Global Type, object?[] Arguments);
+
+    private sealed class Parser(byte[] data, bool segmentation)
     {
         private readonly List<object?> stack = [];
         private readonly Dictionary<int, object?> memo = [];
@@ -170,6 +176,13 @@ internal sealed class TensorCheckpoint
                     case (int)'K': stack.Add((long)Byte()); break;
                     case (int)'M': stack.Add((long)UInt16()); break;
                     case (int)'J': stack.Add((long)Int32()); break;
+                    case (int)'G': stack.Add(BitConverter.Int64BitsToDouble(BinaryPrimitives.ReadInt64BigEndian(Take(8)))); break;
+                    case 0x81:
+                    {
+                        var arguments = Array(Pop());
+                        if (!segmentation || Pop() is not Global type || !IsMetadata(type.Module, type.Name)) throw Bad("Unsupported object data.");
+                        stack.Add(new Metadata(type, arguments)); break;
+                    }
                     case 0x8a:
                     {
                         int n = Byte();
@@ -223,13 +236,16 @@ internal sealed class TensorCheckpoint
                             Charge(shape.Length * 2);
                             stack.Add(new View(storage, Number(args[1]), shape.Select(Number).ToArray(), strides.Select(Number).ToArray()));
                         }
+                        else if (segmentation && IsMetadata(callable.Module, callable.Name)) stack.Add(new Metadata(callable, args));
                         else throw Bad("Unsupported reduction data.");
                         break;
                     }
                     case (int)'b':
                     {
                         // OrderedDict's optional _metadata is discarded without interpreting it.
-                        if (Pop() is not Dictionary<string, object?> state || state.Count != 1 || !state.TryGetValue("_metadata", out var metadata) || metadata is not Dictionary<string, object?> || Peek() is not Dictionary<string, object?>)
+                        var objectState = Pop();
+                        if (segmentation && Peek() is Metadata && objectState is Dictionary<string, object?>) break;
+                        if (objectState is not Dictionary<string, object?> state || state.Count != 1 || !state.TryGetValue("_metadata", out var metadata) || metadata is not Dictionary<string, object?> || Peek() is not Dictionary<string, object?>)
                             throw Bad("Unsupported pickle state.");
                         break;
                     }
@@ -239,10 +255,13 @@ internal sealed class TensorCheckpoint
             throw Bad("Truncated pickle.");
         }
 
-        private static Global AllowedGlobal(string module, string name)
+        private static bool IsMetadata(string module, string name) => (module == "pyannote.audio.core.task" && name is "Specifications" or "Problem" or "Resolution") || (module == "torch.torch_version" && name == "TorchVersion");
+
+        private Global AllowedGlobal(string module, string name)
         {
             if ((module == "collections" && name == "OrderedDict") || (module == "torch._utils" && name == "_rebuild_tensor_v2") ||
                 (module == "torch" && name is "FloatStorage" or "LongStorage" or "HalfStorage" or "DoubleStorage")) return new(module, name);
+            if (segmentation && IsMetadata(module, name)) return new(module, name);
             throw Bad("Global outside inert tensor allowlist.");
         }
         private void SetItems(object?[] items)

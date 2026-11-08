@@ -1,0 +1,14 @@
+[project]
+name = "onespeech-pyannote-oracle"
+version = "0.1.0"
+requires-python = ">=3.13,<3.14"
+dependencies = ["pyannote-audio==4.0.7", "torch==2.11.0", "torchaudio==2.11.0", "soundfile==0.14.0"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }

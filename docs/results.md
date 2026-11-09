@@ -1,8 +1,56 @@
 # Measured results and limits
 
-These are fixed-slice correctness results, not full-corpus or cross-hardware guarantees. Lower is better for all errors below. Scores are percentages unless otherwise stated. All recognition rows use float32. Models and publisher revisions are pinned in the [catalog](models.md); see [notices](../THIRD-PARTY-NOTICES.md) for attribution. No speed comparison with a native implementation is made here.
+The release revalidation table distinguishes full-split measurements from the earlier fixed-slice evidence below. The release matrix is still incomplete; these results are not a cross-hardware guarantee. Lower is better for all errors below. Scores are percentages unless otherwise stated. Unless noted, recognition quality rows use float32. Models and publisher revisions are pinned in the [catalog](models.md); see [notices](../THIRD-PARTY-NOTICES.md) for attribution. No speed comparison with a native implementation is made here.
 
-**CI convention:** intervals below are 95% paired bootstrap intervals for **our score minus the reference score**, in percentage points, not intervals on our absolute score. The available evidence does not supply absolute-score intervals. Recognition uses 1,000 utterance resamples, seed 1729, and the same `en/1` scoring normalizer on both sides. “Within noise” means the difference interval includes zero. With no computable CI, the comparison uses a 0.5-point bound. Slices must not be interpreted as full-test results.
+**CI convention:** the release table labels absolute-score and paired-difference 95% intervals separately. The older slice tables give only intervals for **our score minus the reference score**, in percentage points. Recognition uses 1,000 utterance resamples, seed 1729, and the same `en/1` scoring normalizer on both sides. “Within noise” means the difference interval includes zero. With no computable CI, the comparison uses a 0.5-point bound. Slices must not be interpreted as full-test results.
+
+## Release revalidation (2026-11-08, incomplete)
+
+These measurements use core source `dd63517` through the public recognizer, live-session and embedding APIs; this revalidation changes no inference code. Moonshine uses its default greedy decoding, 6.5 generated tokens per audio second, no biasing, and two CPU threads. The reference uses the pinned publisher weights, Transformers 5.22.2, float32, eager attention and deterministic generation. Speaker extraction uses eight threads on each side. No previously saved hypotheses or embeddings were substituted for the new inference runs.
+
+| Model / task | Dataset | Metric | Ours [absolute 95% CI] | Reference / version | Paired difference CI | Verdict |
+|---|---|---|---|---|---|---|
+| Moonshine streaming-tiny, offline | Full LibriSpeech test-clean, 2,620 utterances | WER % | 4.811 [4.505, 5.138] | 4.811 / Transformers 5.22.2 | [0, 0] pp | Within noise |
+| Moonshine streaming-tiny, offline | Full LibriSpeech test-other, 2,939 utterances | WER % | 12.616 [12.089, 13.133] | 12.620 / Transformers 5.22.2 | [-0.012, 0] pp | Within noise |
+| Moonshine streaming-tiny, live, 100 ms pushes | LibriSpeech test-clean, first 200 | WER % | 5.070 [4.016, 6.222] | No equivalent streaming-policy oracle | — | Floor |
+| Moonshine streaming-tiny, live, 100 ms pushes | LibriSpeech test-other, first 200 | WER % | 18.185 [16.110, 20.255] | No equivalent streaming-policy oracle | — | Floor |
+| Moonshine streaming-tiny, live, 100 ms pushes | LibriSpeech test-clean, first 200 | Mean finalisation latency, ms | 2254.6 [2000.6, 2559.8] | Whisper tiny DTW word-end estimates, openai-whisper 20250625 | — | Floor, not independent truth |
+| Moonshine streaming-tiny, live, 100 ms pushes | LibriSpeech test-other, first 200 | Mean finalisation latency, ms | 1535.6 [1416.3, 1649.1] | Whisper tiny DTW word-end estimates, openai-whisper 20250625 | — | Floor, not independent truth |
+| CAM++ English | LibriSpeech fixed 20,000 trials | EER % | 0.750 [not computed] | 0.750 / ModelScope 1.40.2 | [0, 0] pp | Within noise |
+| CAM++ English | LibriSpeech fixed 20,000 trials | minDCF | 0.0379 [not computed] | 0.0379 / ModelScope 1.40.2 | [0, 0] | Within noise |
+| ECAPA-TDNN | LibriSpeech fixed 20,000 trials | EER % | 1.100 [not computed] | 1.100 / SpeechBrain 1.1.2 | [0, 0] pp | Within noise |
+| ECAPA-TDNN | LibriSpeech fixed 20,000 trials | minDCF | 0.0548 [not computed] | 0.0548 / SpeechBrain 1.1.2 | [0, 0] | Within noise |
+| Whisper large-v3-turbo, language ID | FLEURS, five each English/French/German | Accuracy | 15/15 [not computed] | 15/15 / openai-whisper 20250625 | — | Information only |
+
+Full-split Moonshine token/text identity is 5,558/5,559 sequences. The differing test-other recording is `6070-86744-0018` (33.645 seconds); it contains punctuation and word differences, not merely a different special-token representation. The within-noise WER result does **not** imply token-identical decoding on every recording.
+
+Live finalisation latency means audio-time `Final` availability minus an edit-matched word's estimated end, not CPU inference latency. There are 4,427 matched tokens out of 4,685 reference tokens on clean, and 2,524 out of 3,086 on other. The calculation retains 35/32 negative estimates rather than clamping them. Latency intervals resample recordings 1,000 times with seed 1729. The 200-recording floors and the earlier 20-recording floors below have different populations and must not be compared as a regression test. Scoring the retained first-20 subset separately reproduces the earlier rounded floors: WER 1.70/8.33% and mean latency 3057/1617 ms.
+
+Speaker trials contain 10,000 same-speaker and 10,000 different-speaker pairs, 73 speakers and 1,460 distinct trial utterances. Extraction covered 1,490 utterances, including additional parity probes. Paired bootstrap resamples trials within same/different strata, conditional on this fixed population; minDCF uses prior 0.01, unit costs and normalization. These rows do not replace the unavailable VoxCeleb1-O evaluation. Model revisions are Moonshine `f8e9dfd8c562c257c151a907b7b7f2fe8ff8511a`, CAM++ English `032b8131a7ad812f87061955ca974c99060c5a03`, and ECAPA `0f99f2d0ebe89ac095bcc5903c4dd8f72b367286`.
+
+Environment: CPU-only x64, AMD Ryzen 9 7950X3D (16 physical / 32 logical CPUs; FMA, AVX2 and AVX-512 available), .NET SDK 10.0.403 / runtime 10.0.14, OneModel 1.2.0 and OneAudio 1.7.2. Language ID uses eight threads. Runs used a shared CPU queue; these are correctness measurements, not publishable speed rows.
+
+**Remaining release evidence:** full Whisper small/turbo and Qwen3-ASR-1.7B/Parakeet recognition; full int8 recognition; five-recording long-form comparisons; timing revalidation; full AMI test and all eight AliMeeting Eval diarization comparisons; and Nemotron ASR streaming revalidation. The fixed shortest-duration Earnings-22 selection is `4474955`, `4483046`, `4468919`, `4479524`, `4481221` (875.020, 1193.180, 1214.487, 1226.213, 1236.904 seconds). Selection alone is not a measured long-form row. Earlier misses below remain visible and are not superseded by unmeasured rows.
+
+### Reader mutation campaigns
+
+Each listed target completed a 600-second mutation budget (libFuzzer reported 601 seconds), with one fuzzer running at a time and four CPU cores reserved for publishing and mutation. SharpFuzz 2.2.0 instruments a disposable copy of the assembly containing the reader; libfuzzer-dotnet is release v2025.05.02.0904. Mutation input limits are 64 KiB, except SentencePiece (128 KiB) and Parakeet vocabulary (256 KiB). These bounded campaigns are not an exhaustive proof for all input sizes or dependency readers.
+
+| Target | Mutation budget, s | Executions | Coverage features | Crashes |
+|---|---|---|---|---|
+| Transcript JSON | 600 | 28,843,861 | 1,596 | 0 |
+| Model catalog | 600 | 24,003,517 | 865 | 0 |
+| WAV / G.711 entry | 600 | 21,043,276 | 398 | 0 |
+| General audio decode entry | 600 | 17,547,248 | 282 | 0 |
+| Checkpoint ZIP | 600 | 27,408,863 | 1,045 | 0 |
+| Checkpoint pickle index | 600 | 16,476,079 | 2,166 | 0 |
+| Safetensors | 600 | 32,004,710 | 507 | 0 |
+| SentencePiece | 600 | 27,466,894 | 1,081 | 0 |
+| Moonshine tokenizer / configuration | 600 | 19,052,083 | 580 | 0 |
+| Parakeet vocabulary / normalization | 600 | 2,599,800 | 251 | 0 |
+| RTTM (evaluation tool) | 600 | 27,514,840 | 236 | 0 |
+
+The checkpoint campaigns instrument the core assembly where the reader now resides, not the converter assembly. General audio decoding is exercised without the WAV-only prefilter; OneAudio itself is not instrumented. RTTM is an evaluation-tool reader, not a shipped core reader. No crash regression fixture was needed.
 
 ## Offline recognition
 

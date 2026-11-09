@@ -25,13 +25,18 @@ for target in "${targets[@]}"; do
   esac
   log="$work/logs/fuzz-$target.log"
   status="$work/logs/fuzz-$target.exit"
-  if [[ -f "$status" && "$(cat "$status")" = 0 ]] && grep -q 'stat::number_of_executed_units:' "$log"; then
+  if [[ -f "$status" && "$(cat "$status")" = 0 ]] && awk '/^Done [0-9]+ runs in [0-9]+ second/ && $5 >= 600 { complete=1 } END { exit !complete }' "$log"; then
     echo "$target: retained completed run"
     continue
   fi
   # Do not overwrite a crash or an interrupted run: its log and corpus are evidence.
   [[ ! -f "$log" ]] || { echo "Inspect previous $target log before retrying" >&2; exit 1; }
   if wq run --class heavy --max 15m --cores 4 --label "onespeech release fuzz $target" -- "${command[@]}" > "$log" 2>&1; then
+    if ! awk '/^Done [0-9]+ runs in [0-9]+ second/ && $5 >= 600 { complete=1 } END { exit !complete }' "$log"; then
+      echo 1 > "$status"
+      echo "$target: incomplete mutation budget; inspect $log" >&2
+      exit 1
+    fi
     echo 0 > "$status"
   else
     result=$?

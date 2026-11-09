@@ -17,6 +17,10 @@ All notable changes are documented here, following Keep a Changelog.
 
 ### Changed
 - Requires RecursiveAI.OneModel 1.2.0.
+- Faster CAM++ feature extraction with identical output.
+
+### Fixed
+- `Transcript.ToJson` and `FromJson` handle recordings up to 24 hours (documented limits, checked before allocating).
 - One language-tag rule for every entry point; unsupported languages are refused, and `Align` no longer returns untimed words when no aligner applies.
 - The role base classes implement `IDisposable`. Wrappers and sessions borrow, and never dispose, the models they use.
 - `CreateLiveSession` accepts any `VoiceActivityDetector`.

@@ -51,7 +51,7 @@ public sealed class ContractsTests
     public void ReaderBoundsBeforeMaterialization()
     {
         Assert.Throws<InvalidTranscriptJsonException>(() => Transcript.FromJson(new string(' ', 8 * 1024 * 1024 + 1)));
-        Assert.Throws<InvalidTranscriptJsonException>(() => Transcript.FromJson("{\"schemaVersion\":1,\"transcript\":{\"text\":\"" + new string('x', 65537) + "\"}}"));
+        Assert.Throws<InvalidTranscriptJsonException>(() => Transcript.FromJson("{\"schemaVersion\":1,\"transcript\":{\"text\":\"\",\"words\":[{\"text\":\"" + new string('x', 65537) + "\"}]}}"));
         Assert.Throws<InvalidTranscriptJsonException>(() => Transcript.FromJson(new string('[', 33) + new string(']', 33)));
         Assert.Throws<InvalidTranscriptJsonException>(() => Transcript.FromJson(new byte[] { 34, 255, 34 }));
         Assert.Throws<InvalidTranscriptJsonException>(() => Transcript.FromJson("\"\ud800\""));

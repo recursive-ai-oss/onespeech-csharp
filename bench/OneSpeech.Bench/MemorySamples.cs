@@ -24,11 +24,26 @@ internal sealed class MemorySamples : IDisposable
         Sample();
         timer = new Timer(_ => { lock (writer) Sample(); }, null, 5000, 5000);
     }
-    private void Sample()
+    private readonly Dictionary<string, long> phaseEnds = new(StringComparer.Ordinal);
+    internal void CaptureBoundary(string stage)
+    {
+        lock (writer)
+        {
+            Sample(stage);
+            phaseEnds[stage] = samples[^1].Bytes;
+        }
+    }
+    internal void WritePhaseEnds(Utf8JsonWriter json)
+    {
+        json.WriteStartObject("phaseEndWorkingSetBytes");
+        foreach (var entry in phaseEnds) json.WriteNumber(entry.Key, entry.Value);
+        json.WriteEndObject();
+    }
+    private void Sample(string? overridePhase = null)
     {
         process.Refresh(); long bytes = process.WorkingSet64;
         double seconds = clock.Elapsed.TotalSeconds;
-        string stage = phase();
+        string stage = overridePhase ?? phase();
         samples.Add((seconds, bytes, stage));
         Peak = Math.Max(Peak, bytes);
         if (seconds >= 30 && stage != "complete") { SteadyMin = Math.Min(SteadyMin, bytes); SteadyMax = Math.Max(SteadyMax, bytes); }

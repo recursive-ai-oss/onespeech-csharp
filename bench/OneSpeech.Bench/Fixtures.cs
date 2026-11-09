@@ -4,6 +4,32 @@ using OneSpeech.Audio;
 
 internal static class Fixtures
 {
+    internal static void Repeat(string input, int repetitions, string output)
+    {
+        if (repetitions is < 1 or > 24) throw new ArgumentOutOfRangeException(nameof(repetitions));
+        using var source = File.OpenRead(input);
+        byte[] header = new byte[44]; source.ReadExactly(header);
+        if (!header.AsSpan(0, 4).SequenceEqual("RIFF"u8) || !header.AsSpan(8, 8).SequenceEqual("WAVEfmt "u8) || !header.AsSpan(36, 4).SequenceEqual("data"u8) ||
+            System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(header.AsSpan(20)) != 1 ||
+            System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(header.AsSpan(22)) != 1 ||
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(24)) != 16000 ||
+            System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(header.AsSpan(34)) != 16)
+            throw new InvalidDataException("Expected a prepared mono 16 kHz PCM16 fixture.");
+        int bytes = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(40));
+        if (bytes < 0 || source.Length != 44L + bytes) throw new InvalidDataException("Invalid prepared fixture size.");
+        int total = checked(bytes * repetitions);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), checked(36 + total));
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(40), total);
+        using (var destination = new FileStream(output, FileMode.CreateNew, FileAccess.Write))
+        {
+            destination.Write(header);
+            for (int i = 0; i < repetitions; i++) { source.Position = 44; source.CopyTo(destination, 65536); }
+        }
+        using (var manifest = new StreamWriter(new FileStream(output + ".sha256", FileMode.CreateNew, FileAccess.Write)))
+            manifest.Write(Hash(output) + "  " + Path.GetFileName(output) + "\nsource " + Hash(input) + "\nrepetitions " + repetitions + "\nDeterministically repeated PCM16 audio; retain the source dataset licence and attribution.\n");
+        string notice = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(input))!, "LICENSE-NOTE");
+        if (File.Exists(notice)) File.Copy(notice, output + ".LICENSE-NOTE", overwrite: false);
+    }
     internal static string Hash(string file)
     {
         using var stream = File.OpenRead(file);

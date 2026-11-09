@@ -14,6 +14,11 @@ using OneSpeech.Embedders;
 using OneSpeech.Moonshine;
 using OneSpeech.Vad;
 
+if (args is ["--repeat-audio", var repeatInput, var repeats, var repeatOutput])
+{
+    Fixtures.Repeat(repeatInput, int.Parse(repeats, CultureInfo.InvariantCulture), repeatOutput);
+    return 0;
+}
 if (args is ["--memory-summary", var memoryInput, var summaryOutput])
 {
     MemorySamples.Summarize(memoryInput, summaryOutput);

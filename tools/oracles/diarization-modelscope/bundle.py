@@ -63,6 +63,7 @@ def main():
                 if not isinstance(turns, list):
                     raise ValueError("Public pipeline did not return a diarization turn list")
                 recording = wav.stem
+                (output.parent / (recording + ".turns.json")).write_text(json.dumps(turns, default=str))
                 target = output.parent / (recording + ".reference.rttm")
                 lines = []
                 for turn in turns:
@@ -70,7 +71,7 @@ def main():
                         raise ValueError("Unexpected diarization turn shape")
                     start, end, speaker = float(turn[0]), float(turn[1]), str(turn[2]).replace(" ", "_")
                     if end <= start or start < 0:
-                        raise ValueError("Invalid public-pipeline time interval")
+                        raise ValueError(f"Invalid public-pipeline time interval: start={start}, end={end}")
                     lines.append(f"SPEAKER {recording} 1 {start:.9f} {end-start:.9f} <NA> <NA> {speaker} <NA> <NA>\n")
                 target.write_text("".join(lines), encoding="utf-8")
                 outputs.append(str(target))

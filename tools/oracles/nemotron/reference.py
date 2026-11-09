@@ -46,6 +46,9 @@ def main():
     segments = processor.extract_speaker_dict(logits, inputs.attention_mask)[0]
     metadata = {"transformers": transformers.__version__, "torch": torch.__version__, "precision": "fp32", "attention": attention, "shape": list(logits.shape), "segments": segments, "samples": len(pcm), "rate": rate}
     (output / (audio_path.stem + ".json")).write_text(json.dumps(metadata))
+    with (output / (audio_path.stem + ".rttm")).open("w") as rttm:
+        for segment in segments:
+            rttm.write(f"SPEAKER {audio_path.stem} 1 {segment['Start']:.9f} {segment['End'] - segment['Start']:.9f} <NA> <NA> speaker_{segment['Speaker']} <NA> <NA>\n")
     if len(sys.argv) > 5:
         with torch.inference_mode():
             bare = model.model(input_features=inputs.input_features, attention_mask=inputs.attention_mask)

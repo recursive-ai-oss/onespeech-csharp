@@ -48,3 +48,17 @@ CC-BY-4.0, University of Edinburgh and the AMI Consortium,
 local evaluation only; retain corpus notices with the data, and do not
 redistribute them from this tool. Model and dataset acquisition pins are in
 `diarization-bundle.tsv` and the existing AMI data fetch/preparation tooling.
+
+## Full-recording bundle and malformed outputs
+
+`bundle.py MODEL_CACHE WORK OUTPUT_JSON AUDIO...` runs the pinned clustering
+bundle on CPU and records both raw public turn lists (`*.turns.json`) and RTTM.
+The strict serializer rejects nonpositive intervals. For example, the released
+pipeline returned `[2043.28, 2043.10, 1]` on AMI EN2002c: its end precedes its
+start, so it cannot be represented as a valid RTTM turn.
+
+`replay.py RAW_TURNS_JSON OUTPUT_RTTM RECORDING --omit-nonpositive` explicitly
+omits such intervals, prints their original endpoints and never repairs them.
+Any score using this projection must be labelled with the omission and retain
+both raw output and the replay report; it is not an unqualified reference run.
+Without the option, replay also rejects nonpositive intervals.

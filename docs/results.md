@@ -32,7 +32,7 @@ Speaker trials contain 10,000 same-speaker and 10,000 different-speaker pairs, 7
 
 Environment: CPU-only x64, AMD Ryzen 9 7950X3D (16 physical / 32 logical CPUs; FMA, AVX2 and AVX-512 available), .NET SDK 10.0.403 / runtime 10.0.14, OneModel 1.2.0 and OneAudio 1.7.2. Language ID uses eight threads. Runs used a shared CPU queue; these are correctness measurements, not publishable speed rows.
 
-**Remaining release evidence:** full Whisper small/turbo and Qwen3-ASR-1.7B/Parakeet recognition; full Whisper int8 recognition; five-recording long-form comparisons; timing revalidation; full AMI test and all eight AliMeeting Eval diarization comparisons; and Nemotron ASR streaming revalidation. The fixed shortest-duration Earnings-22 selection is `4474955`, `4483046`, `4468919`, `4479524`, `4481221` (875.020, 1193.180, 1214.487, 1226.213, 1236.904 seconds). Selection alone is not a measured long-form row. Earlier misses below remain visible and are not superseded by unmeasured rows.
+**Remaining release evidence:** full Whisper small/turbo and Qwen3-ASR-1.7B/Parakeet recognition; full Whisper int8 recognition; five-recording long-form comparisons; and timing revalidation. Full-set diarization and Nemotron streaming are reported in their separate section below. The fixed shortest-duration Earnings-22 selection is `4474955`, `4483046`, `4468919`, `4479524`, `4481221` (875.020, 1193.180, 1214.487, 1226.213, 1236.904 seconds). Selection alone is not a measured long-form row. Earlier misses below remain visible and are not superseded by unmeasured rows.
 
 ### Reader mutation campaigns
 
@@ -135,14 +135,274 @@ LibriSpeech test-clean + test-other, 20,000 balanced trials, 73 speakers, seed 1
 | ECAPA-TDNN | EER 1.10%; minDCF 0.0548 | 1.10%; 0.0548 | SpeechBrain 1.1.2 | [0,0] both | Within noise |
 | CAM++ Chinese | EER 2.87%; minDCF 0.1876 | 2.87%; 0.1876 | ModelScope 1.40.2 | [0,0] both | Information on English trials |
 
+## Authorized local segmentation
+
+The local segmentation-3.0 adapter uses the pinned publisher checkpoint with
+float32 OneModel 1.2.0. On the first five ordinal LibriSpeech test-clean clips
+(1089-134686-0000 through 0004), padded/truncated to 10 seconds, probability-space
+max absolute error against pyannote.audio 4.0.7 / CPU Torch 2.11.0 is 9.19e-6;
+the largest per-clip mean error is 2.64e-7. All 2,945 powerset frame decisions
+match. This probe row uses four threads on x64 (AMD Ryzen 9 7950X3D);
+it does not establish a bitwise or all-ISA guarantee. Raw log-probability errors and crafted low-variance cases are described in
+[the segmentation contract](gated-segmentation.md); this is not bitwise parity.
+
+The following are **floors for our segmentation-plus-CAM++ clustering policy**,
+not community-1 equivalence. Both sides use fp32, no collar, overlap scored, and
+the same scorer/truth. AMI v1.6.2 uses Mix-Headset audio; AliMeeting Eval uses
+far-field channel 1. Each row is one recording, without a bootstrap CI.
+Our side uses four CPU threads, independent 10 s chunks and the existing
+spectral/AHC defaults; CAM++ English on AMI and Chinese on AliMeeting.
+Community-1 is the publisher's complete pipeline (different embedder and PLDA/VBx),
+run offline through pyannote.audio 4.0.7, for information only. Its ES2004a
+reference uses four CPU threads; the remaining reference shards use eight to
+fit the per-recording run bound, with unchanged model/pipeline parameters.
+
+| Recording | Our DER / JER % | Community-1 DER / JER % | Status |
+|---|---|---|---|
+| AMI ES2004a | 20.62 / 25.99 | 18.76 / 22.74 | Floor; reference information |
+| AMI ES2004b | 13.40 / 15.83 | 12.61 / 14.28 | Floor; reference information |
+| AliMeeting R8001_M8004_MS801 | 26.46 / 30.41 | 22.02 / 24.55 | Floor; reference information |
+| AliMeeting R8003_M8001_MS801 | 20.40 / 24.11 | 17.38 / 19.14 | Floor; reference information |
+
+Community-1's native WeSpeaker/PLDA/VBx adapter is not implemented. Its published
+PLDA does not require fitting, but its exact transform/dataflow contract has not
+yet been established for an independent implementation. Its PLDA is never
+silently substituted for a CAM++ backend. The tier-1 default is unchanged.
+
+
+## Diarization and cache-aware streaming — full-set evaluation
+
+Float32 CPU evaluation on an AMD Ryzen 9 7950X3D (x64; AVX2/FMA/AVX512 available), .NET SDK 10.0.403/runtime 10.0.14, OneModel 1.2.0 and OneAudio 1.7.2. These are quality and audio-clock availability measurements, not throughput benchmarks.
+
+### Data and scoring
+
+- **AMI:** all 16 Full-corpus-ASR test meetings: EN2002a–d, ES2004a–d, IS1009a–d and TS3003a–d. Original Mix-Headset audio, 16 kHz mono, word annotations v1.6.2; positive silence gaps retained. CC-BY-4.0.
+- **AliMeeting:** all eight Eval far-field recordings, first input channel, 16 kHz mono, nonempty TextGrid intervals. CC-BY-SA-4.0, evaluation only.
+- DER has **no collar and scores overlap**. Dataset DER pools reference speaker-seconds; JER averages reference-speaker errors. Paired 95% intervals use 1,000 meeting resamples, seed 1729. Meetings within an AMI series share participants; these are meeting, not independent-speaker, resamples.
+- **default:** the unchanged file-helper policy, Silero VAD + CAM++ English for AMI/Chinese for AliMeeting + spectral/AHC clustering and cosine resegmentation. It does **not detect overlap**. Reference: released ModelScope 1.40.2 CAM++ bundle, pinned local auxiliaries, float32 CPU, four threads. No test-set fitting.
+- **nemotron:** Nemotron 3 Diarization, explicitly selected tier 2, compared with Transformers 5.22.2 at the same publisher pin and precision; four threads on both sides.
+- **pyannote:** the segmentation-3.0/CAM++ slot, four threads, a **floor**, not a community-1 reimplementation. The pyannote.audio 4.0.7 community-1 pipeline is information only: its embedding, stitching and PLDA/VBx backend differ. Authorized local snapshots, offline; eight CPU threads, or sixteen on five recordings that exceeded the bounded eight-thread reservation. Neither tier-2 path is a default.
+
+### Raw and qualified reference results
+
+The ModelScope public output for EN2002c contains one reversed interval, `[2043.28, 2043.10, speaker 1]`, among 513 returned turns. The raw output and strict error are preserved. A negative-duration interval has no valid RTTM representation; a numeric raw reference score is therefore unavailable. An explicit qualified projection omits **only this interval** and retains the other 512 turns. It never swaps endpoints or invents timing.
+
+| EN2002c reference treatment | Our DER / JER % | Reference DER / JER % | Interpretation |
+|---|---:|---:|---|
+| Raw public output, strict serialization | 32.8114 / 32.7066 | Unscorable: reversed interval | Unqualified full-AMI reference score/CI unavailable |
+| Explicitly qualified projection | 32.8114 / 32.7066 | 30.5655 / 32.7222 | Full-AMI comparison below is conditional on this one omission |
+
+All other ModelScope recordings were valid. Dataset-level tier-1 differences include zero in their paired intervals, but that does not hide substantial individual-meeting differences: for example EN2002b is +6.63 DER/+15.59 JER points. Every meeting is listed below. Nemotron is within paired noise on both complete sets. The pyannote slot remains below community-1 quality: AMI differences are +3.68 DER/+8.12 JER points and AliMeeting +4.65/+5.67 points, with positive paired intervals; those are disclosed information-baseline gaps, not equivalence passes.
+
+### Nemotron 3.5 ASR streaming 0.6B
+
+First 200 ordinal LibriSpeech test-clean/test-other utterances, float32 greedy English decoding. Reference: Transformers 5.22.2 CPU, two threads; OneSpeech four threads, actual published live-event policy. Known utterance boundaries isolate recognition from endpoint-detector differences. Normalizer **en/1**, 1,000 paired utterance resamples, seed 1729.
+
+All **800** native/reference utterance/chunk pairs have identical lexical token sequences. Both sides were freshly generated. Paired WER differences and their 95% intervals are **[0,0]** on every row.
+
+| Chunk ms | Split / utterances | WER ours = reference % | Each WER 95% CI % | Token-identical pairs |
+|---:|---|---:|---|---:|
+|80|test-clean / 200|2.888|[2.264, 3.589]|200/200|
+|80|test-other / 200|9.824|[8.331, 11.312]|200/200|
+|560|test-clean / 200|2.802|[2.223, 3.493]|200/200|
+|560|test-other / 200|8.295|[6.983, 9.672]|200/200|
+
+**Stable-word availability** closes a word at the next word boundary or EOF. Both engines use the same saved offline 80-ms RNN-T acoustic endpoints as a timing proxy, not forced-alignment truth. Signed negative delays are retained. Latency means are over matched words; unmatched counts are shown. This is audio-time availability, not CPU speed or a learned endpointing-policy comparison. Publication remains approximately **55–58 ms later** in OneSpeech, so latency parity is not claimed.
+
+| Chunk ms | Split | Ours mean / median ms | Reference mean / median ms | Mean gap ms | Matched / unmatched words |
+|---:|---|---|---|---:|---|
+|80|test-clean|258.541 / 240.000|200.100 / 179.000|+58.441|4576 / 64|
+|80|test-other|217.315 / 160.000|160.448 / 99.000|+56.867|2871 / 143|
+|560|test-clean|405.200 / 400.000|347.623 / 339.000|+57.577|4594 / 48|
+|560|test-other|348.760 / 320.000|293.566 / 259.000|+55.194|2895 / 123|
+
+Actual EOF Final availability relative to the last common offline word end is identical for both engines and chunk sizes: test-clean mean/median **33.875/0 ms**, test-other **12.925/0 ms**. Utterance EOF is known in this experiment. These descriptive latency statistics have no bootstrap interval.
+
+### Diarized transcript sanity check
+
+Whisper small through `Speech.Transcribe`, English, AMI ES2004a's first 300 seconds: en/1 WER **16.0584%** on 411 reference words. After optimal one-to-one word-count speaker mapping, **287/344 = 83.4302%** of all Word objects have the correct maximum-overlap reference speaker, or **287/321 = 89.4081%** among eligible timed/reference-covered words. There are **29 Unassigned**, zero untimed words and zero overlap flags. This speaker measure is temporal attribution, not lexical correctness.
+
+Timing provenance is 333 ForcedAligner, five CtcAligner and six Dtw words. The earlier all-word sanity figure was 84.3%; the current value is 83.43%, while WER remains 16.06%. The timing chain has changed since the earlier DTW-only measurement; no improvement claim is made.
+
+### Complete-set and per-meeting diarization rows
+
+All rates are percentages. Difference intervals and single-meeting differences are percentage points. The single-meeting 0.5-point diagnostic is descriptive; complete-set verdicts use paired meeting intervals. Pyannote/community-1 rows are information, not native-equivalence bars.
+
+### ami — complete-set comparisons
+
+| System | DER ours / reference % | DER difference [95% CI] pp | JER ours / reference % | JER difference [95% CI] pp | Interpretation |
+|---|---|---|---|---|---|
+| default (N=16) | 28.605698 / 26.996987 | +1.608711 [-0.645170, +3.608149] | 32.731323 / 31.691698 | +1.039624 [-2.895311, +5.636265] | within paired noise; qualified reference |
+| nemotron (N=16) | 25.956223 / 25.956130 | +0.000093 [-0.000632, +0.001013] | 28.229055 / 28.228935 | +0.000120 [-0.000768, +0.001258] | within paired noise |
+| pyannote (N=16) | 20.727578 / 17.049233 | +3.678345 [+2.154713, +5.615498] | 30.307162 / 22.187481 | +8.119681 [+4.497820, +12.028704] | floor; community-1 information only |
+
+### ami — every meeting
+
+| System | Recording | DER ours / reference % | JER ours / reference % | Delta DER / JER pp | Single-meeting diagnostic |
+|---|---|---|---|---|---|
+| default | EN2002a | 38.1571 / 37.9171 | 38.7891 / 39.5974 | +0.2400 / -0.8083 | outside 0.5 pp: JER |
+| default | EN2002b | 41.1616 / 34.5341 | 53.2373 / 37.6481 | +6.6275 / +15.5893 | outside 0.5 pp: DER, JER |
+| default | EN2002c | 32.8114 / 30.5655 | 32.7066 / 32.7222 | +2.2460 / -0.0156 | outside 0.5 pp: DER; one malformed oracle turn omitted |
+| default | EN2002d | 36.4656 / 43.8972 | 38.4239 / 54.0351 | -7.4316 / -15.6112 | outside 0.5 pp: DER, JER |
+| default | ES2004a | 28.2116 / 26.5359 | 29.6213 / 29.6337 | +1.6757 / -0.0125 | outside 0.5 pp: DER |
+| default | ES2004b | 20.9156 / 18.1098 | 19.7743 / 19.3180 | +2.8059 / +0.4564 | outside 0.5 pp: DER |
+| default | ES2004c | 19.2390 / 19.2674 | 19.7516 / 20.3014 | -0.0283 / -0.5498 | outside 0.5 pp: JER |
+| default | ES2004d | 29.8934 / 28.3500 | 30.8881 / 32.7533 | +1.5434 / -1.8652 | outside 0.5 pp: DER, JER |
+| default | IS1009a | 28.8166 / 27.4062 | 38.1760 / 41.7104 | +1.4104 / -3.5344 | outside 0.5 pp: DER, JER |
+| default | IS1009b | 16.3341 / 16.6866 | 17.3990 / 17.9862 | -0.3525 / -0.5871 | outside 0.5 pp: JER |
+| default | IS1009c | 15.4235 / 14.5912 | 14.2788 / 15.2765 | +0.8323 / -0.9978 | outside 0.5 pp: DER, JER |
+| default | IS1009d | 24.0613 / 24.9293 | 28.7483 / 31.4794 | -0.8680 / -2.7311 | outside 0.5 pp: DER, JER |
+| default | TS3003a | 30.9360 / 24.5841 | 65.1388 / 65.9223 | +6.3519 / -0.7835 | outside 0.5 pp: DER, JER |
+| default | TS3003b | 29.5800 / 19.3441 | 42.8439 / 17.2337 | +10.2358 / +25.6102 | outside 0.5 pp: DER, JER |
+| default | TS3003c | 24.2966 / 20.0232 | 21.6058 / 18.7358 | +4.2734 / +2.8700 | outside 0.5 pp: DER, JER |
+| default | TS3003d | 33.0900 / 31.1031 | 32.3121 / 32.9713 | +1.9869 / -0.6592 | outside 0.5 pp: DER, JER |
+| nemotron | EN2002a | 29.8965 / 29.8961 | 31.4741 / 31.4739 | +0.0004 / +0.0003 | within 0.5 pp |
+| nemotron | EN2002b | 30.1470 / 30.1465 | 30.7041 / 30.7037 | +0.0004 / +0.0004 | within 0.5 pp |
+| nemotron | EN2002c | 29.1778 / 29.1778 | 29.3575 / 29.3575 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | EN2002d | 33.2286 / 33.2286 | 34.7778 / 34.7778 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | ES2004a | 26.8965 / 26.9008 | 29.0843 / 29.0874 | -0.0043 / -0.0031 | within 0.5 pp |
+| nemotron | ES2004b | 21.6238 / 21.6238 | 21.5331 / 21.5331 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | ES2004c | 20.3478 / 20.3500 | 20.2420 / 20.2445 | -0.0022 / -0.0026 | within 0.5 pp |
+| nemotron | ES2004d | 22.4500 / 22.4500 | 23.5946 / 23.5946 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | IS1009a | 27.6462 / 27.6462 | 46.7131 / 46.7131 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | IS1009b | 14.9801 / 14.9801 | 15.5914 / 15.5914 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | IS1009c | 15.5322 / 15.5322 | 15.5646 / 15.5646 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | IS1009d | 19.7187 / 19.7187 | 22.7378 / 22.7378 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | TS3003a | 34.9082 / 34.9082 | 44.7680 / 44.7680 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | TS3003b | 25.8803 / 25.8742 | 25.7980 / 25.7907 | +0.0060 / +0.0073 | within 0.5 pp |
+| nemotron | TS3003c | 29.9417 / 29.9422 | 29.5242 / 29.5245 | -0.0005 / -0.0003 | within 0.5 pp |
+| nemotron | TS3003d | 31.4813 / 31.4813 | 30.4825 / 30.4825 | +0.0000 / +0.0000 | within 0.5 pp |
+| pyannote | EN2002a | 25.2994 / 21.9055 | 31.1313 / 26.5933 | +3.3940 / +4.5380 | information, not parity |
+| pyannote | EN2002b | 25.1858 / 20.7423 | 32.2769 / 26.1589 | +4.4435 / +6.1180 | information, not parity |
+| pyannote | EN2002c | 19.7641 / 17.5378 | 22.7784 / 19.9288 | +2.2263 / +2.8497 | information, not parity |
+| pyannote | EN2002d | 34.8360 / 23.1721 | 50.5422 / 27.7051 | +11.6639 / +22.8371 | information, not parity |
+| pyannote | ES2004a | 20.6223 / 18.7569 | 25.9899 / 22.7352 | +1.8654 / +3.2547 | information, not parity |
+| pyannote | ES2004b | 13.3961 / 12.6053 | 15.8318 / 14.2777 | +0.7908 / +1.5541 | information, not parity |
+| pyannote | ES2004c | 13.5521 / 12.3476 | 15.7594 / 13.6303 | +1.2045 / +2.1292 | information, not parity |
+| pyannote | ES2004d | 20.7726 / 18.6732 | 27.6010 / 24.3477 | +2.0994 / +3.2533 | information, not parity |
+| pyannote | IS1009a | 28.0381 / 19.6477 | 53.5455 / 33.2918 | +8.3903 / +20.2537 | information, not parity |
+| pyannote | IS1009b | 15.4046 / 15.1910 | 19.2789 / 15.9595 | +0.2136 / +3.3194 | information, not parity |
+| pyannote | IS1009c | 12.4533 / 10.0505 | 15.2045 / 11.7915 | +2.4028 / +3.4130 | information, not parity |
+| pyannote | IS1009d | 25.5250 / 16.4544 | 47.5072 / 25.4566 | +9.0705 / +22.0506 | information, not parity |
+| pyannote | TS3003a | 21.4821 / 17.1439 | 59.8290 / 39.2217 | +4.3382 / +20.6074 | information, not parity |
+| pyannote | TS3003b | 13.6168 / 11.9684 | 16.3609 / 13.8352 | +1.6484 / +2.5257 | information, not parity |
+| pyannote | TS3003c | 15.2336 / 13.3405 | 16.7263 / 13.5044 | +1.8931 / +3.2219 | information, not parity |
+| pyannote | TS3003d | 25.8165 / 21.0753 | 32.6690 / 25.9974 | +4.7412 / +6.6716 | information, not parity |
+
+### alimeeting — complete-set comparisons
+
+| System | DER ours / reference % | DER difference [95% CI] pp | JER ours / reference % | JER difference [95% CI] pp | Interpretation |
+|---|---|---|---|---|---|
+| default (N=8) | 35.487475 / 37.264385 | -1.776910 [-7.743750, +2.860047] | 39.678194 / 42.152640 | -2.474446 [-13.124693, +4.145233] | within paired noise |
+| nemotron (N=8) | 17.520012 / 17.522146 | -0.002135 [-0.005671, +0.000577] | 18.115182 / 18.116630 | -0.001449 [-0.004958, +0.000871] | within paired noise |
+| pyannote (N=8) | 25.079101 / 20.431073 | +4.648028 [+1.130799, +8.780060] | 31.380495 / 25.710263 | +5.670231 [+0.666037, +11.195585] | floor; community-1 information only |
+
+### alimeeting — every meeting
+
+| System | Recording | DER ours / reference % | JER ours / reference % | Delta DER / JER pp | Single-meeting diagnostic |
+|---|---|---|---|---|---|
+| default | R8001_M8004_MS801 | 41.5741 / 34.5196 | 41.1256 / 34.0168 | +7.0545 / +7.1088 | outside 0.5 pp: DER, JER |
+| default | R8003_M8001_MS801 | 26.7902 / 26.8887 | 28.9546 / 28.5758 | -0.0985 / +0.3788 | within 0.5 pp |
+| default | R8007_M8010_MS803 | 48.2493 / 64.5159 | 54.9748 / 83.9990 | -16.2667 / -29.0242 | outside 0.5 pp: DER, JER |
+| default | R8007_M8011_MS806 | 34.7856 / 33.3411 | 48.5413 / 42.2086 | +1.4445 / +6.3327 | outside 0.5 pp: DER, JER |
+| default | R8008_M8013_MS807 | 62.1732 / 60.0237 | 61.9760 / 61.6746 | +2.1495 / +0.3013 | outside 0.5 pp: DER |
+| default | R8009_M8018_MS809 | 16.9636 / 17.0693 | 17.4936 / 17.9012 | -0.1057 / -0.4077 | within 0.5 pp |
+| default | R8009_M8019_MS810 | 20.5389 / 20.8256 | 23.1732 / 22.2419 | -0.2868 / +0.9313 | outside 0.5 pp: JER |
+| default | R8009_M8020_MS810 | 15.6915 / 15.8842 | 15.1541 / 16.6524 | -0.1927 / -1.4983 | outside 0.5 pp: JER |
+| nemotron | R8001_M8004_MS801 | 18.6372 / 18.6372 | 18.0251 / 18.0251 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | R8003_M8001_MS801 | 18.3003 / 18.3003 | 18.5405 / 18.5405 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | R8007_M8010_MS803 | 21.8159 / 21.8159 | 24.4054 / 24.4054 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | R8007_M8011_MS806 | 13.1157 / 13.1136 | 14.3962 / 14.3934 | +0.0021 / +0.0027 | within 0.5 pp |
+| nemotron | R8008_M8013_MS807 | 18.2221 / 18.2221 | 18.6807 / 18.6807 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | R8009_M8018_MS809 | 16.7428 / 16.7428 | 16.7129 / 16.7129 | +0.0000 / +0.0000 | within 0.5 pp |
+| nemotron | R8009_M8019_MS810 | 16.3699 / 16.3793 | 16.6533 / 16.6632 | -0.0094 / -0.0099 | within 0.5 pp |
+| nemotron | R8009_M8020_MS810 | 14.3181 / 14.3313 | 14.3182 / 14.3319 | -0.0132 / -0.0136 | within 0.5 pp |
+| pyannote | R8001_M8004_MS801 | 26.4572 / 22.0170 | 30.4064 / 24.5484 | +4.4402 / +5.8580 | information, not parity |
+| pyannote | R8003_M8001_MS801 | 20.3952 / 17.3844 | 24.1139 / 19.1369 | +3.0107 / +4.9770 | information, not parity |
+| pyannote | R8007_M8010_MS803 | 37.6432 / 34.2414 | 47.6091 / 48.9949 | +3.4018 / -1.3858 | information, not parity |
+| pyannote | R8007_M8011_MS806 | 28.9305 / 20.1727 | 46.2390 / 28.1000 | +8.7578 / +18.1390 | information, not parity |
+| pyannote | R8008_M8013_MS807 | 25.1735 / 28.4585 | 29.8080 / 32.9240 | -3.2850 / -3.1161 | information, not parity |
+| pyannote | R8009_M8018_MS809 | 14.5736 / 11.9651 | 16.6198 / 13.0970 | +2.6085 / +3.5228 | information, not parity |
+| pyannote | R8009_M8019_MS810 | 26.5512 / 8.7164 | 24.3318 / 9.2037 | +17.8348 / +15.1281 | information, not parity |
+| pyannote | R8009_M8020_MS810 | 10.0264 / 7.8391 | 9.8560 / 8.1313 | +2.1874 / +1.7247 | information, not parity |
+
+## Speed
+
+Measured 2026-11-08 using the [structural harness](../bench/OneSpeech.Bench/README.md), measurement version 5, one repetition per row. These are our own CPU measurements, not comparisons with another implementation. All models use fp32 at the publisher revisions pinned in the catalog.
+
+- **x64:** AMD Ryzen 9 7950X3D, 16 physical / 32 logical CPUs, AVX2/AVX512F/FMA, Linux Mint 22.3.
+- **arm64:** Apple M2, 8 logical CPUs, 8 GiB RAM, AdvSimd, macOS 27.0.1.
+- Both use .NET SDK 10.0.403, runtime 10.0.14, OneModel 1.2.0 and OneAudio 1.7.2; no GPU. The process CPU-count limit equals the row's thread count. Silero retains its production one-thread setting.
+
+Each filtered row ran in an exclusive `bench` queue job bounded to 20 minutes. Models were loaded and warmed on a **different** ten-second clip before timing. Load time is separate; download, conversion and verification are excluded. End-to-end is encoded audio to Transcript using retained model instances and the production recognition, deferred alignment, clustering and merge algorithms. This is **not** cold `Speech.Transcribe` latency: that helper releases sessions between stages, while this warm-throughput harness retains them and can use more memory.
+
+Inputs are deterministic LibriSpeech test-clean concatenations of 60, 600 and 3600 seconds, without inserted silence; clustering uses the 1049.355-second AMI ES2004a Mix-Headset recording. These constructed inputs make no quality claim. `align` is omniASR-CTC forced alignment; `diarize` is Silero + CAM++ English clustering; `live` is Moonshine streaming-tiny with 100 ms chunks; `long` is the full file pipeline with Whisper tiny on 3600 seconds.
+
+The structural bar is end-to-end / summed graph wall time **≤1.15**. RTF is elapsed seconds / audio seconds: **≤1 means at least real time**. RSS is decimal GB, sampled every five seconds; “steady” discards the first 30 seconds but includes phase changes, so its range is not evidence of a constant-memory plateau. Short rows without steady samples fall back to the sampled peak. Live working B/chunk excludes graph-runtime allocations and immutable emitted payloads (500 measured chunks after 100 warm chunks); it is not total process allocation.
+
+| Machine | Row | Threads | Load s | E2E s | Graph s | Ratio | Peak / steady GB | RTF | B/chunk | Bench job |
+|---|---|---:|---:|---:|---:|---:|---|---:|---:|---|
+| x64 | turbo60 | 1 | 9.80 | 102.73 | 101.20 | 1.015 | 13.21 / 11.94–13.21 | 1.712 | — | 008051 |
+| x64 | turbo60 | 4 | 8.89 | 37.17 | 36.13 | 1.029 | 13.23 / 12.63–13.23 | 0.619 | — | 008053 |
+| x64 | turbo600 | 1 | 9.53 | 799.19 | 790.48 | 1.011 | 13.60 / 11.86–13.60 | 1.332 | — | 008054 |
+| x64 | turbo600 | 4 | 9.13 | 313.43 | 305.18 | 1.027 | 13.54 / 11.90–13.54 | 0.522 | — | 008061 |
+| x64 | small | 1 | 7.10 | 44.06 | 42.67 | 1.032 | 9.86 / 9.12–9.86 | 0.734 | — | 008029 |
+| x64 | small | 4 | 6.35 | 21.63 | 20.77 | 1.041 | 9.78 / 9.78–9.78 | 0.361 | — | 008040 |
+| x64 | align | 1 | 1.88 | 34.27 | 33.99 | 1.008 | 5.02 / 4.78–4.78 | 0.571 | — | 008042 |
+| x64 | align | 4 | 1.81 | 9.99 | 9.72 | 1.027 | 5.04 / 5.04–5.04 | 0.166 | — | 008044 |
+| x64 | diarize | 1 | 0.14 | 70.78 | 68.76 | 1.029 | 0.47 / 0.46–0.47 | 0.067 | — | 008045 |
+| x64 | diarize | 4 | 0.14 | 46.77 | 44.76 | 1.045 | 0.47 / 0.47–0.47 | 0.045 | — | 008048 |
+| x64 | live | 1 | 0.62 | 21.25 | 21.14 | 1.005 | 0.74 / 0.74–0.74 | 0.354 | 0 | 008050 |
+| x64 | long | 8 | 5.43 | 627.14 | 579.96 | 1.081 | 9.95 / 7.94–9.95 | 0.174 | — | 008063 |
+| arm64 | small | 1 | 33.94 | 84.13 | 82.43 | 1.021 | 2.77 / 1.32–2.77 | 1.402 | — | 002027 |
+| arm64 | small | 4 | 31.39 | 38.48 | 37.38 | 1.029 | 2.43 / 1.86–1.86 | 0.641 | — | 002029 |
+| arm64 | align | 1 | 1.00 | 54.76 | 54.58 | 1.003 | 3.70 / 2.78–3.29 | 0.913 | — | 002030 |
+| arm64 | align | 4 | 0.94 | 17.85 | 17.58 | 1.015 | 3.27 / 3.27–3.27 | 0.298 | — | 002031 |
+| arm64 | diarize | 1 | 0.10 | 91.42 | 88.66 | 1.031 | 0.46 / 0.44–0.46 | 0.087 | — | 002032 |
+| arm64 | diarize | 4 | 0.09 | 54.63 | 51.75 | 1.056 | 0.46 / 0.45–0.46 | 0.052 | — | 002033 |
+| arm64 | live | 1 | 0.39 | 29.29 | 29.17 | 1.004 | 0.76 / 0.75–0.76 | 0.488 | 0 | 002034 |
+| arm64 | long | 4 | 29.68 | 1144.50 | 1087.01 | 1.053 | 4.79 / 0.48–4.79 | 0.318 | — | 002035 |
+
+The load-average table below reports the one-minute component before / during / after each timed call. The during interval includes the workload itself. Queue startup CPU snapshots showed no other CPU-bound user workload; desktop and OS services remained active. Large initial load averages can reflect decaying earlier activity, not concurrent CPU utilization. Full 1/5/15-minute samples and queue logs were retained with the measurement records.
+
+| Machine | Row / threads | Load before | During min–max | Load after |
+|---|---|---:|---|---:|
+| x64 | turbo60 / 1 | 1.62 | 1.23–1.68 | 1.25 |
+| x64 | turbo60 / 4 | 1.70 | 1.70–3.10 | 3.10 |
+| x64 | turbo600 / 1 | 1.95 | 1.12–1.95 | 1.27 |
+| x64 | turbo600 / 4 | 1.59 | 1.54–3.92 | 3.37 |
+| x64 | small / 1 | 17.04 | 9.25–17.04 | 9.25 |
+| x64 | small / 4 | 6.97 | 5.65–6.97 | 5.65 |
+| x64 | align / 1 | 4.27 | 3.26–4.27 | 3.26 |
+| x64 | align / 4 | 2.86 | 2.79–2.95 | 2.79 |
+| x64 | diarize / 1 | 2.57 | 1.69–2.57 | 1.80 |
+| x64 | diarize / 4 | 1.75 | 1.75–2.87 | 2.59 |
+| x64 | live / 1 | 2.38 | 1.91–2.38 | 1.91 |
+| x64 | long / 8 | 2.73 | 2.73–7.20 | 4.94 |
+| arm64 | small / 1 | 2.08 | 2.07–2.55 | 2.55 |
+| arm64 | small / 4 | 2.51 | 2.28–3.30 | 3.30 |
+| arm64 | align / 1 | 3.01 | 2.19–3.01 | 2.19 |
+| arm64 | align / 4 | 2.42 | 2.42–3.08 | 3.08 |
+| arm64 | diarize / 1 | 3.15 | 2.33–3.22 | 2.33 |
+| arm64 | diarize / 4 | 2.33 | 2.33–3.27 | 3.27 |
+| arm64 | live / 1 | 3.27 | 2.82–3.27 | 2.92 |
+| arm64 | long / 4 | 2.53 | 2.49–6.38 | 4.67 |
+
+**Results:** every measured structural ratio passes (maximum 1.081 on x64, 1.056 on arm64). The tier-1 live default meets real time on one core on both machines, with 0 B/chunk of our working allocation. This does not imply that all file models run in real time on one core: turbo's measured RTF is 1.712 on 60 seconds and 1.332 on 600 seconds.
+
+**Working-set qualification:** the one-hour run is not literally flat on x64. After discarding the first minute of each phase, recognition's first/last fifth means are 8.001/8.013 GB and diarization's are 9.356/9.376 GB, but alignment rises from 8.837 to 9.772 GB (+10.6%, fitted slope +6.47 MB/s). The whole-run first/last fifth means are 8.003/9.365 GB. This row therefore does **not** establish a strict flat-RSS bar; it also cannot distinguish bounded buffer-pool residency from input-length growth. On arm64, the corresponding recognition means are 0.841/0.865 GB, alignment 4.352/2.026 GB, and diarization 0.610/0.525 GB. No tuning or forced collection was used to alter these rows. These observations should not be turned into a universal constant-memory guarantee.
+
+**Missing row:** Qwen3-ASR-1.7B was not measured. The approximately 62 GiB shared model/data tree plus its upstream and converted files would exceed the run's approximately 70 GiB storage budget. No Qwen speed claim or cross-model default re-selection is inferred from this omission. The one-hour memory rows use tiny; turbo is covered only through 600 seconds. No int8 speed row was measured here.
+
+
 ## Model choices and remaining evidence
 
-- **Files:** Whisper large-v3-turbo remains the default. Its test-other WER is 5.758% in the file-model comparison; Qwen3-ASR 1.7B is 4.131%, a turbo-minus-Qwen difference of +1.63 points (paired CI [1.02, 2.31]). Qwen 1.7B is available by name for accuracy. The fixed-slice CPU comparison favoured turbo's resource requirements; publishable benchmark rows are still pending.
+- **Files:** Whisper large-v3-turbo remains the default. Its test-other WER is 5.758% in the file-model comparison; Qwen3-ASR 1.7B is 4.131%, a turbo-minus-Qwen difference of +1.63 points (paired CI [1.02, 2.31]). Qwen 1.7B is available by name for accuracy. The fixed-slice CPU comparison favoured turbo's resource requirements; the completed structural measurements and their limits are reported in the Speed section.
 - **Live:** Moonshine streaming-tiny is the default. On 20-file clean/other streaming slices, its WER floor is 1.70/8.33%, with mean finalisation latency 3057/1617 ms. Streaming-small is 1.95/3.74%, 3073/1622 ms. Latency is relative to Whisper-tiny DTW word ends, not independent boundary truth. There is no vendor streaming-policy reference for these floors.
 - **Language identification:** Whisper and its reference each identified 15/15 FLEURS probes (five each English/French/German). This is information only, not multilingual coverage evidence.
 - **Publisher availability:** VoxCeleb1 and VoxConverse audio are no longer available from the publisher. Their intended rows are unavailable; no unofficial re-upload is substituted.
-- **Gated segmentation:** pyannote inference and comparison rows are pending authorized access. Catalog presence is not evidence of a functioning segmentation inference implementation.
+- **Gated segmentation:** authorized segmentation parity and complete-set slot measurements are reported above. The segmentation/CAM++ slot is not a community-1 reimplementation; the community-1 comparison remains information, with its quality gaps disclosed.
 - **Long-form:** full long-form rows are reserved for the 1.0 evaluation. Existing single-file observations do not establish equivalence. In particular, an Earnings-22 4474955 turbo temperature-zero comparison was 55.159% versus 58.386% reference WER: outside the 0.5-point bound, in our favour because the reference appended repeated tail text. Other decoding/pipeline settings produced different scores; they must not be combined into that row. Whole-recording Qwen reference runs exceeded the CPU run bounds.
-- **Quantization and speed:** int8 quality and publishable benchmark rows are pending the 1.0 evaluation. No int8 quality, structural-overhead or cross-platform throughput guarantee is made here.
+- **Quantization and speed:** full Moonshine int8 quality is reported above; full Whisper int8 comparisons are still in progress. The Speed section reports the measured structural-overhead and live-allocation rows, including the Nemotron allocation residual and unmeasured Qwen row; it does not establish a blanket throughput guarantee.
 
 These results do not yet demonstrate every release target. See [evaluation conventions](eval.md) for scoring and [word timing](word-timing.md) for failure semantics.

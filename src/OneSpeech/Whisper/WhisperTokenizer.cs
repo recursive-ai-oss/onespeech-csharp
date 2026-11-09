@@ -22,41 +22,50 @@ public sealed class WhisperTokenizer
     /// <exception cref="JsonException">JSON data is malformed.</exception>
     public WhisperTokenizer(string directory)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
-        int extra = 256;
-        for (int b = 0; b < 256; b++)
+        try
         {
-            char character = b is >= 33 and <= 126 or >= 161 and <= 172 or >= 174 and <= 255 ? (char)b : (char)extra++;
-            byteCharacters[b] = character;
-            characterBytes.Add(character, (byte)b);
-        }
-        using (var doc = LoadJson(Path.Combine(directory, "vocab.json")))
-            foreach (var entry in doc.RootElement.EnumerateObject()) Add(entry.Name, entry.Value.GetInt32(), entry.Name == "<|endoftext|>");
-        using (var doc = LoadJson(Path.Combine(directory, "added_tokens.json")))
-            foreach (var entry in doc.RootElement.EnumerateObject()) Add(entry.Name, entry.Value.GetInt32(), true);
-        int count = vocabulary.Values.Max() + 1;
-        pieces = new string[count]; bytes = new byte[count][];
-        foreach (var pair in vocabulary)
-        {
-            if (pieces[pair.Value] != null) throw new InvalidDataException("Duplicate vocabulary ID.");
-            pieces[pair.Value] = pair.Key;
-            if (!specialIds.Contains(pair.Value))
+            ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+            int extra = 256;
+            for (int b = 0; b < 256; b++)
             {
-                byte[] decoded = new byte[pair.Key.Length];
-                for (int i = 0; i < decoded.Length; i++)
-                    if (!characterBytes.TryGetValue(pair.Key[i], out decoded[i])) throw new InvalidDataException("Vocabulary is not byte-level BPE.");
-                bytes[pair.Value] = decoded;
+                char character = b is >= 33 and <= 126 or >= 161 and <= 172 or >= 174 and <= 255 ? (char)b : (char)extra++;
+                byteCharacters[b] = character;
+                characterBytes.Add(character, (byte)b);
             }
-            else bytes[pair.Value] = Encoding.UTF8.GetBytes(pair.Key);
+            using (var doc = LoadJson(Path.Combine(directory, "vocab.json")))
+                foreach (var entry in doc.RootElement.EnumerateObject()) Add(entry.Name, entry.Value.GetInt32(), entry.Name == "<|endoftext|>");
+            using (var doc = LoadJson(Path.Combine(directory, "added_tokens.json")))
+                foreach (var entry in doc.RootElement.EnumerateObject()) Add(entry.Name, entry.Value.GetInt32(), true);
+            foreach (char character in byteCharacters)
+                if (!vocabulary.ContainsKey(character.ToString())) throw new InvalidDataException("Vocabulary lacks a byte token.");
+            int count = vocabulary.Values.Max() + 1;
+            pieces = new string[count]; bytes = new byte[count][];
+            foreach (var pair in vocabulary)
+            {
+                if (pieces[pair.Value] != null) throw new InvalidDataException("Duplicate vocabulary ID.");
+                pieces[pair.Value] = pair.Key;
+                if (!specialIds.Contains(pair.Value))
+                {
+                    byte[] decoded = new byte[pair.Key.Length];
+                    for (int i = 0; i < decoded.Length; i++)
+                        if (!characterBytes.TryGetValue(pair.Key[i], out decoded[i])) throw new InvalidDataException("Vocabulary is not byte-level BPE.");
+                    bytes[pair.Value] = decoded;
+                }
+                else bytes[pair.Value] = Encoding.UTF8.GetBytes(pair.Key);
+            }
+            string mergePath = Path.Combine(directory, "merges.txt");
+            if (new FileInfo(mergePath).Length > 8 * 1024 * 1024) throw new InvalidDataException("Merge file too large.");
+            int rank = 0;
+            foreach (string line in File.ReadLines(mergePath, new UTF8Encoding(false, true)))
+            {
+                if (line.StartsWith("#version:", StringComparison.Ordinal) || line.Length == 0) continue;
+                string[] pair = line.Split(' ');
+                if (pair.Length != 2 || rank >= 60000 || !vocabulary.ContainsKey(pair[0]) || !vocabulary.ContainsKey(pair[1]) || !vocabulary.ContainsKey(pair[0] + pair[1]) || !ranks.TryAdd((pair[0], pair[1]), rank++)) throw new InvalidDataException("Invalid BPE merge list.");
+            }
         }
-        string mergePath = Path.Combine(directory, "merges.txt");
-        if (new FileInfo(mergePath).Length > 8 * 1024 * 1024) throw new InvalidDataException("Merge file too large.");
-        int rank = 0;
-        foreach (string line in File.ReadLines(mergePath, new UTF8Encoding(false, true)))
+        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException or FormatException or OverflowException or DecoderFallbackException)
         {
-            if (line.StartsWith("#version:", StringComparison.Ordinal) || line.Length == 0) continue;
-            string[] pair = line.Split(' ');
-            if (pair.Length != 2 || rank >= 60000 || !ranks.TryAdd((pair[0], pair[1]), rank++)) throw new InvalidDataException("Invalid BPE merge list.");
+            throw new InvalidDataException("Invalid Whisper tokenizer data.", ex);
         }
     }
 
@@ -68,7 +77,7 @@ public sealed class WhisperTokenizer
     }
     private void Add(string token, int id, bool isSpecial)
     {
-        if (id is < 0 or >= 60000 || token.Length > 65536 || vocabulary.Count >= 60000) throw new InvalidDataException("Vocabulary entry exceeds bounds.");
+        if (id is < 0 or >= 60000 || token.Length > 65536 || isSpecial && token.Length == 0 || vocabulary.Count >= 60000) throw new InvalidDataException("Vocabulary entry exceeds bounds.");
         if (vocabulary.TryGetValue(token, out int existing))
         {
             if (existing != id) throw new InvalidDataException("Inconsistent added token.");

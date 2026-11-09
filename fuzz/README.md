@@ -36,3 +36,15 @@ the RIFF prefilter and exercises the general encoded-audio entry point. Both use
 the same synthetic G.711 seeds. Only OneSpeech is instrumented, not its audio or
 model-runtime dependencies. RTTM is an evaluation-tool reader, not a core reader,
 and is included as a separate target.
+
+## Remaining model-file readers
+
+`bash fuzz/run-model-data-release.sh /absolute/scratch` runs the Whisper and Qwen
+byte-BPE loaders, their configurations, Whisper generation controls, Nemotron ASR
+processor configuration, and converter provenance. Each target has a separate
+600-second mutation budget and resume log. The [reader inventory](../docs/model-data-readers.md)
+lists the files and dependency boundaries. Companion files and seed vocabularies
+are deterministic synthetic data; graph weights are never loaded. Seeds are
+created before instrumentation, and instrumented code is first called inside the
+fuzzer callback (including static initializers). Publishing clears the disposable
+output first, so a retry cannot seed from an already instrumented assembly.

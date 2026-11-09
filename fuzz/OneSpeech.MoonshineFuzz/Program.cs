@@ -3,6 +3,8 @@ using System.Text.Json;
 using OneSpeech.Moonshine;
 using SharpFuzz;
 
+if (ModelDataTargets.Run(args)) return;
+
 if (args is ["--seed", var directory])
 {
     Directory.CreateDirectory(directory);

@@ -49,8 +49,15 @@ Each listed target completed a 600-second mutation budget (libFuzzer reported 60
 | Moonshine tokenizer / configuration | 600 | 19,052,083 | 580 | 0 |
 | Parakeet vocabulary / normalization | 600 | 2,599,800 | 251 | 0 |
 | RTTM (evaluation tool) | 600 | 27,514,840 | 236 | 0 |
+| Whisper byte-BPE files | 600 | 2,280,339 | 221 | 0 |
+| Qwen byte-BPE files | 600 | 1,455,773 | 265 | 0 |
+| Whisper configuration | 600 | 2,060,381 | 69 | 0 |
+| Qwen configuration | 600 | 3,929,405 | 85 | 0 |
+| Converter provenance (Whisper/Moonshine/Qwen) | 600 | 1,485,318 | 1,073 | 0 |
+| Nemotron ASR processor configuration | 600 | 2,166,332 | 174 | 0 |
+| Whisper generation configuration | 600 | 1,946,348 | 157 | 0 |
 
-The checkpoint campaigns instrument the core assembly where the reader now resides, not the converter assembly. General audio decoding is exercised without the WAV-only prefilter; OneAudio itself is not instrumented. RTTM is an evaluation-tool reader, not a shipped core reader. No crash regression fixture was needed.
+The checkpoint campaigns instrument the core assembly where the reader now resides, not the converter assembly. General audio decoding is exercised without the WAV-only prefilter; OneAudio itself is not instrumented. RTTM is an evaluation-tool reader, not a shipped core reader. No mutated-input crash was found. New hostile-input tests also cover malformed byte-BPE/configuration shapes, empty special tokens and invalid generation IDs/heads. The complete [reader inventory](model-data-readers.md) distinguishes owned readers from dependency parsers. One new harness startup failed because it touched an instrumented static initializer before fuzzer initialization; setup was corrected before the clean campaigns, with no input crash to minimize.
 
 ## Offline recognition
 

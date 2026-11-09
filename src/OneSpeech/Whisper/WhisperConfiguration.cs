@@ -13,17 +13,24 @@ internal sealed record WhisperConfiguration(int Width, int EncoderLayers, int De
 
     internal static WhisperConfiguration Load(string directory)
     {
-        using var doc = ReadJson(Path.Combine(directory, "config.json"));
-        var root = doc.RootElement;
-        if (root.TryGetProperty("activation_function", out var activation) && activation.GetString() != "gelu") throw new InvalidDataException("Whisper requires the exact erf GELU activation.");
-        int Get(string key, int max)
+        try
         {
-            int value = root.GetProperty(key).GetInt32();
-            if (value <= 0 || value > max) throw new InvalidDataException("Whisper configuration out of bounds: " + key);
-            return value;
+            using var doc = ReadJson(Path.Combine(directory, "config.json"));
+            var root = doc.RootElement;
+            if (root.TryGetProperty("activation_function", out var activation) && activation.GetString() != "gelu") throw new InvalidDataException("Whisper requires the exact erf GELU activation.");
+            int Get(string key, int max)
+            {
+                int value = root.GetProperty(key).GetInt32();
+                if (value <= 0 || value > max) throw new InvalidDataException("Whisper configuration out of bounds: " + key);
+                return value;
+            }
+            var config = new WhisperConfiguration(Get("d_model", 2048), Get("encoder_layers", 64), Get("decoder_layers", 64), Get("encoder_attention_heads", 32), Get("decoder_attention_heads", 32), Get("num_mel_bins", 128), Get("vocab_size", 60000), Get("encoder_ffn_dim", 8192), Get("decoder_ffn_dim", 8192));
+            if (config.MelBins is not (80 or 128) || config.Width % config.EncoderHeads != 0 || config.Width % config.DecoderHeads != 0) throw new InvalidDataException("Unsupported Whisper dimensions.");
+            return config;
         }
-        var config = new WhisperConfiguration(Get("d_model", 2048), Get("encoder_layers", 64), Get("decoder_layers", 64), Get("encoder_attention_heads", 32), Get("decoder_attention_heads", 32), Get("num_mel_bins", 128), Get("vocab_size", 60000), Get("encoder_ffn_dim", 8192), Get("decoder_ffn_dim", 8192));
-        if (config.MelBins is not (80 or 128) || config.Width % config.EncoderHeads != 0 || config.Width % config.DecoderHeads != 0) throw new InvalidDataException("Unsupported Whisper dimensions.");
-        return config;
+        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException or FormatException or OverflowException or System.Text.DecoderFallbackException)
+        {
+            throw new InvalidDataException("Invalid Whisper configuration data.", ex);
+        }
     }
 }

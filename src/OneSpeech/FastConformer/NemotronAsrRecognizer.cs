@@ -30,7 +30,7 @@ public sealed partial class NemotronAsrRecognizer : SpeechRecognizer, IDisposabl
     internal float[] Embeddings { get; }
     internal ParakeetVocabulary Vocabulary { get; }
     internal int ChunkFrames { get; }
-    private readonly Dictionary<string, int> prompts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> prompts;
     private bool disposed;
     internal const string Identifier = "nvidia/nemotron-3.5-asr-streaming-0.6b";
     internal const string Revision = "ea30d66debe3740a08b573244286791d423d6b3e";
@@ -44,27 +44,7 @@ public sealed partial class NemotronAsrRecognizer : SpeechRecognizer, IDisposabl
             throw new ModelIntegrityException("Resolve this checkpoint through ModelStore to retain its publisher hashes and complete OpenMDW notices.");
         Model = resolved.Info; ChunkFrames = options.ChunkMilliseconds / 80;
         Vocabulary = new(Path.Combine(resolved.Directory, "tokenizer.json"), 13087);
-        string config = Path.Combine(resolved.Directory, "processor_config.json");
-        if (new FileInfo(config).Length > 1048576) throw new ModelIntegrityException("Processor configuration exceeds 1 MiB.");
-        try
-        {
-            using var json = JsonDocument.Parse(File.ReadAllBytes(config), new JsonDocumentOptions { MaxDepth = 16 });
-            foreach (var item in json.RootElement.GetProperty("prompt_dictionary").EnumerateObject())
-            {
-                int id = item.Value.GetInt32(); if (id is < 0 or >= 128 || prompts.Count >= 256) throw new ModelIntegrityException("Invalid language prompt dictionary.");
-                prompts.Add(item.Name, id);
-            }
-            if (!prompts.TryGetValue("auto", out int auto) || auto != 101 || !prompts.TryGetValue("en-US", out int english) || english != 0) throw new ModelIntegrityException("Expected the pinned language prompt dictionary.");
-            foreach (string language in SupportedLanguages)
-            {
-                if (prompts.ContainsKey(language)) continue;
-                string? locale = SupportedLanguages.FirstOrDefault(candidate => candidate.StartsWith(language + "-", StringComparison.Ordinal) && prompts.ContainsKey(candidate));
-                if (locale is null) throw new ModelIntegrityException("Missing declared language prompt: " + language);
-                prompts.Add(language, prompts[locale]);
-            }
-        }
-        catch (Exception error) when (error is JsonException or KeyNotFoundException or FormatException or InvalidOperationException or ArgumentException)
-        { throw new ModelIntegrityException("Invalid Nemotron processor configuration.", error); }
+        prompts = ReadPrompts(Path.Combine(resolved.Directory, "processor_config.json"));
         using (var file = File.OpenRead(Path.Combine(resolved.Directory, "embedding.f32")))
         {
             if (file.Length != 13088L * 640 * 4) throw new ModelIntegrityException("Invalid Nemotron embedding size.");
@@ -85,6 +65,31 @@ public sealed partial class NemotronAsrRecognizer : SpeechRecognizer, IDisposabl
     public override ModelInfo Model { get; }
     /// <summary>Transcription-ready and broad-coverage base languages, native RNN-T frame timing, true streaming. Adaptation-only locales are not advertised.</summary>
     public override Capabilities Capabilities => new() { Languages = SupportedLanguages, Streaming = true, NativeTimestamps = true };
+    internal static Dictionary<string, int> ReadPrompts(string config)
+    {
+        if (new FileInfo(config).Length > 1048576) throw new ModelIntegrityException("Processor configuration exceeds 1 MiB.");
+        var prompts = new Dictionary<string, int>(StringComparer.Ordinal);
+        try
+        {
+            using var json = JsonDocument.Parse(File.ReadAllBytes(config), new JsonDocumentOptions { MaxDepth = 16 });
+            foreach (var item in json.RootElement.GetProperty("prompt_dictionary").EnumerateObject())
+            {
+                int id = item.Value.GetInt32(); if (id is < 0 or >= 128 || prompts.Count >= 256) throw new ModelIntegrityException("Invalid language prompt dictionary.");
+                prompts.Add(item.Name, id);
+            }
+            if (!prompts.TryGetValue("auto", out int auto) || auto != 101 || !prompts.TryGetValue("en-US", out int english) || english != 0) throw new ModelIntegrityException("Expected the pinned language prompt dictionary.");
+            foreach (string language in SupportedLanguages)
+            {
+                if (prompts.ContainsKey(language)) continue;
+                string? locale = SupportedLanguages.FirstOrDefault(candidate => candidate.StartsWith(language + "-", StringComparison.Ordinal) && prompts.ContainsKey(candidate));
+                if (locale is null) throw new ModelIntegrityException("Missing declared language prompt: " + language);
+                prompts.Add(language, prompts[locale]);
+            }
+        }
+        catch (Exception error) when (error is JsonException or KeyNotFoundException or FormatException or InvalidOperationException or ArgumentException)
+        { throw new ModelIntegrityException("Invalid Nemotron processor configuration.", error); }
+        return prompts;
+    }
     internal int PromptId(string? language)
     {
         ObjectDisposedException.ThrowIf(disposed, this);

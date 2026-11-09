@@ -18,7 +18,7 @@ def main():
     p.add_argument("snapshot", type=Path)
     p.add_argument("audio", type=Path)
     p.add_argument("output", type=Path)
-    p.add_argument("--threads", type=int, choices=(1, 2, 4, 8), default=4)
+    p.add_argument("--threads", type=int, choices=(1, 2, 4, 8, 16), default=4)
     a = p.parse_args()
     if a.output.exists():
         return

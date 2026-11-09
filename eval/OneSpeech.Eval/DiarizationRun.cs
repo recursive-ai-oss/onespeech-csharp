@@ -23,6 +23,8 @@ internal static class DiarizationRun
 
     internal static int Run(string[] args)
     {
+        if (args is ["file-default", var graphPath, var audioPath, var outputPath]) { DiarizationGate.Default(graphPath, audioPath, outputPath); return 0; }
+        if (args is ["paired", var dataRoot, var oursRoot, var referenceRoot, var reportPath]) { DiarizationGate.Score(dataRoot, oursRoot, referenceRoot, reportPath); return 0; }
         if (args.Length > 0 && args[0] == "activity") return ActivityAblation.Run(args[1..]);
         if (args is ["speech-excerpt" or "speech-excerpt-score", var rootPath, var meeting, var destination, var model]) { SpeechExcerpt.Run(rootPath, meeting, destination, model, args[0] == "speech-excerpt-score"); return 0; }
         if (args.Length == 2 && args[0] == "select") { Select(args[1]); return 0; }

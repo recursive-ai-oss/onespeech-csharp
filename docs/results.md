@@ -6,12 +6,14 @@ The release revalidation table distinguishes full-split measurements from the ea
 
 ## Release revalidation (2026-11-08, incomplete)
 
-These measurements use core source `dd63517` through the public recognizer, live-session and embedding APIs; this revalidation changes no inference code. Moonshine uses its default greedy decoding, 6.5 generated tokens per audio second, no biasing, and two CPU threads. The reference uses the pinned publisher weights, Transformers 5.22.2, float32, eager attention and deterministic generation. Speaker extraction uses eight threads on each side. No previously saved hypotheses or embeddings were substituted for the new inference runs.
+The inference measurements started from core source `dd63517` through the public recognizer, live-session and embedding APIs. Later reader hardening changes invalid-input handling, not valid-model inference. Moonshine uses its default greedy decoding, 6.5 generated tokens per audio second, no biasing, and two CPU threads. The reference uses the pinned publisher weights, Transformers 5.22.2, float32, eager attention and deterministic generation. Speaker extraction uses eight threads on each side. No previously saved hypotheses or embeddings were substituted for the new inference runs.
 
 | Model / task | Dataset | Metric | Ours [absolute 95% CI] | Reference / version | Paired difference CI | Verdict |
 |---|---|---|---|---|---|---|
 | Moonshine streaming-tiny, offline | Full LibriSpeech test-clean, 2,620 utterances | WER % | 4.811 [4.505, 5.138] | 4.811 / Transformers 5.22.2 | [0, 0] pp | Within noise |
 | Moonshine streaming-tiny, offline | Full LibriSpeech test-other, 2,939 utterances | WER % | 12.616 [12.089, 13.133] | 12.620 / Transformers 5.22.2 | [-0.012, 0] pp | Within noise |
+| Moonshine streaming-tiny mixed-int8, offline | Full LibriSpeech test-clean, 2,620 utterances | WER % | 4.771 [4.474, 5.090] | 4.811 / our fp32 | [-0.097, +0.011] pp | Within 0.5 pp of fp32 |
+| Moonshine streaming-tiny mixed-int8, offline | Full LibriSpeech test-other, 2,939 utterances | WER % | 12.641 [12.107, 13.176] | 12.616 / our fp32 | [-0.103, +0.152] pp | Within 0.5 pp of fp32 |
 | Moonshine streaming-tiny, live, 100 ms pushes | LibriSpeech test-clean, first 200 | WER % | 5.070 [4.016, 6.222] | No equivalent streaming-policy oracle | — | Floor |
 | Moonshine streaming-tiny, live, 100 ms pushes | LibriSpeech test-other, first 200 | WER % | 18.185 [16.110, 20.255] | No equivalent streaming-policy oracle | — | Floor |
 | Moonshine streaming-tiny, live, 100 ms pushes | LibriSpeech test-clean, first 200 | Mean finalisation latency, ms | 2254.6 [2000.6, 2559.8] | Whisper tiny DTW word-end estimates, openai-whisper 20250625 | — | Floor, not independent truth |
@@ -30,7 +32,7 @@ Speaker trials contain 10,000 same-speaker and 10,000 different-speaker pairs, 7
 
 Environment: CPU-only x64, AMD Ryzen 9 7950X3D (16 physical / 32 logical CPUs; FMA, AVX2 and AVX-512 available), .NET SDK 10.0.403 / runtime 10.0.14, OneModel 1.2.0 and OneAudio 1.7.2. Language ID uses eight threads. Runs used a shared CPU queue; these are correctness measurements, not publishable speed rows.
 
-**Remaining release evidence:** full Whisper small/turbo and Qwen3-ASR-1.7B/Parakeet recognition; full int8 recognition; five-recording long-form comparisons; timing revalidation; full AMI test and all eight AliMeeting Eval diarization comparisons; and Nemotron ASR streaming revalidation. The fixed shortest-duration Earnings-22 selection is `4474955`, `4483046`, `4468919`, `4479524`, `4481221` (875.020, 1193.180, 1214.487, 1226.213, 1236.904 seconds). Selection alone is not a measured long-form row. Earlier misses below remain visible and are not superseded by unmeasured rows.
+**Remaining release evidence:** full Whisper small/turbo and Qwen3-ASR-1.7B/Parakeet recognition; full Whisper int8 recognition; five-recording long-form comparisons; timing revalidation; full AMI test and all eight AliMeeting Eval diarization comparisons; and Nemotron ASR streaming revalidation. The fixed shortest-duration Earnings-22 selection is `4474955`, `4483046`, `4468919`, `4479524`, `4481221` (875.020, 1193.180, 1214.487, 1226.213, 1236.904 seconds). Selection alone is not a measured long-form row. Earlier misses below remain visible and are not superseded by unmeasured rows.
 
 ### Reader mutation campaigns
 

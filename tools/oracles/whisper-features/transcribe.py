@@ -22,8 +22,10 @@ def main():
     parser.add_argument("--words", action="store_true")
     parser.add_argument("--temperature-zero", action="store_true", help="Disable stochastic fallback without changing rejection thresholds.")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--threads", type=int, default=8)
     args = parser.parse_args()
-    torch.set_num_threads(8)
+    torch.set_num_threads(args.threads)
+    torch.set_num_interop_threads(1)
     model = whisper.load_model(args.model, device="cpu", download_root=str(args.weights)).float().eval()
     args.output.mkdir(parents=True, exist_ok=True)
     ids = args.manifest.read_text().splitlines()
@@ -37,7 +39,7 @@ def main():
         temperatures = (0,) if args.temperature_zero else (0, .2, .4, .6, .8, 1.)
         result = model.transcribe(audio, language="en", task="transcribe", fp16=False, verbose=None, temperature=temperatures, compression_ratio_threshold=2.4, logprob_threshold=-1., no_speech_threshold=.6, condition_on_previous_text=True, word_timestamps=args.words)
         # The public API returns JSON-compatible scalar data; ignore opaque/unused tensors.
-        value = {"text": result["text"], "segments": result["segments"], "language": result["language"], "oracle": "openai-whisper20250625", "precision": "fp32", "temperature": list(temperatures), "beam_size": None, "best_of": None, "compression_ratio_threshold": 2.4, "logprob_threshold": -1., "no_speech_threshold": .6, "condition_on_previous_text": True, "word_timestamps": args.words, "seed": args.seed}
+        value = {"text": result["text"], "segments": result["segments"], "language": result["language"], "oracle": "openai-whisper20250625", "precision": "fp32", "temperature": list(temperatures), "beam_size": None, "best_of": None, "compression_ratio_threshold": 2.4, "logprob_threshold": -1., "no_speech_threshold": .6, "condition_on_previous_text": True, "word_timestamps": args.words, "seed": args.seed, "threads": args.threads}
         output.with_suffix(".part").write_text(json.dumps(value, ensure_ascii=False) + "\n")
         output.with_suffix(".part").rename(output)
         if index < 50 and args.words:

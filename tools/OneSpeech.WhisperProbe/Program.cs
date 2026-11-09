@@ -118,14 +118,15 @@ if (args.Length == 5 && args[0] == "export")
     ExportHypotheses.Run(args[1], args[2], args[3], args[4]);
     return 0;
 }
-if (args.Length is >= 8 and <= 10 && args[0] is "recognize" or "recognize-text")
+if (args.Length is >= 8 and <= 11 && args[0] is "recognize" or "recognize-text")
 {
     string[] ids = File.ReadAllLines(args[3]);
     Directory.CreateDirectory(args[4]);
     int begin = int.Parse(args[5], CultureInfo.InvariantCulture), count = int.Parse(args[6], CultureInfo.InvariantCulture);
     bool words = args[7] == "words";
     uint seed = args.Length > 9 ? uint.Parse(args[9], CultureInfo.InvariantCulture) : 0;
-    var options = new WhisperOptions { Threads = 8, WordTimestamps = words, SamplingSeed = seed };
+    int threads = args.Length > 10 ? int.Parse(args[10], CultureInfo.InvariantCulture) : 8;
+    var options = new WhisperOptions { Threads = threads, WordTimestamps = words, SamplingSeed = seed };
     if (args.Length > 8 && args[8] == "zero") options = options with { Temperatures = [0] };
     using var recognizer = WhisperRecognizer.Load(args[1], options);
     for (int i = begin; i < Math.Min(ids.Length, begin + count); i++)
@@ -140,7 +141,7 @@ if (args.Length is >= 8 and <= 10 && args[0] is "recognize" or "recognize-text")
             using var stream = File.Create(path + ".part");
             using var json = new Utf8JsonWriter(stream);
             json.WriteStartObject(); json.WriteString("id", ids[i]); json.WriteString("text", transcript.Text);
-            json.WriteString("model", recognizer.Model.Id); json.WriteNumber("threads", 8); json.WriteBoolean("wordTimestamps", words);
+            json.WriteString("model", recognizer.Model.Id); json.WriteNumber("threads", threads); json.WriteBoolean("wordTimestamps", words);
             json.WriteBoolean("temperatureZero", args.Length > 8 && args[8] == "zero"); json.WriteNumber("seed", seed);
             if (words)
             {

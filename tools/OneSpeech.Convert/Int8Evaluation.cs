@@ -6,10 +6,10 @@ using OneSpeech.Whisper;
 
 internal static class Int8Evaluation
 {
-    internal static void Batch(string model, string split, string output, int begin, int count)
+    internal static void Batch(string model, string split, string output, int begin, int count, int threads = 8)
     {
         Directory.CreateDirectory(output);
-        using var recognizer = WhisperRecognizer.Load(model, new WhisperOptions { Threads = 8, Temperatures = [0], WordTimestamps = false });
+        using var recognizer = WhisperRecognizer.Load(model, new WhisperOptions { Threads = threads, Temperatures = [0], WordTimestamps = false });
         foreach (string file in Directory.EnumerateFiles(split, "*.flac", SearchOption.AllDirectories).OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Skip(begin).Take(count))
         {
             string id = Path.GetFileNameWithoutExtension(file), path = Path.Combine(output, id + ".json");

@@ -43,7 +43,7 @@ internal static class ParakeetTools
         Directory.CreateDirectory(output);
         var info = new OneSpeech.ModelInfo { Id = "nvidia/parakeet-tdt-0.6b-v3", Revision = "541d1f99c6b0c3cd0b11a95167540bb8edefd82b", Source = "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3", Tier = OneSpeech.ModelTier.Tier2, License = "CC-BY-4.0", Attribution = "NVIDIA, parakeet-tdt-0.6b-v3, CC-BY-4.0." };
         using var recognizer = OneSpeech.FastConformer.ParakeetRecognizer.Load(new(directory, info), threads: 4);
-        foreach (string path in Directory.EnumerateFiles(corpus, "*.flac", SearchOption.AllDirectories).OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Take(200).Skip(begin).Take(count))
+        foreach (string path in Directory.EnumerateFiles(corpus, "*.flac", SearchOption.AllDirectories).OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Skip(begin).Take(count))
         {
             string id = Path.GetFileNameWithoutExtension(path), target = Path.Combine(output, id + ".json");
             if (File.Exists(target)) continue;

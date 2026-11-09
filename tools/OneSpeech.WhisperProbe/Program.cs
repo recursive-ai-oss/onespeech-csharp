@@ -5,6 +5,17 @@ using OneSpeech.Audio;
 using OneSpeech.Whisper;
 using System.Text.Json;
 
+if (args.Length >= 2 && args[0] == "validate-model-data")
+{
+    foreach (string directory in args[1..])
+    {
+        var configuration = WhisperConfiguration.Load(directory);
+        var generation = WhisperGenerationConfiguration.Load(directory, configuration);
+        _ = new WhisperTokenizer(directory);
+        Console.WriteLine($"Validated model data: {WhisperCheckpoint.Provenance(WhisperCheckpoint.Read(directory)).Id}; languages={generation.Languages.Count}; heads={generation.AlignmentHeads.Length}");
+    }
+    return 0;
+}
 if (args.Length == 5 && args[0] == "forced-logits")
 {
     using var document = JsonDocument.Parse(File.ReadAllText(args[3]));
@@ -107,7 +118,7 @@ if (args.Length == 5 && args[0] == "export")
     ExportHypotheses.Run(args[1], args[2], args[3], args[4]);
     return 0;
 }
-if (args.Length is >= 8 and <= 10 && args[0] == "recognize")
+if (args.Length is >= 8 and <= 10 && args[0] is "recognize" or "recognize-text")
 {
     string[] ids = File.ReadAllLines(args[3]);
     Directory.CreateDirectory(args[4]);
@@ -123,7 +134,30 @@ if (args.Length is >= 8 and <= 10 && args[0] == "recognize")
         if (File.Exists(path)) continue;
         var audio = new AudioBuffer(ReadFloats(Path.Combine(args[2], ids[i] + ".pcm")), 16000);
         Transcript transcript = recognizer.Transcribe(audio, "en", CancellationToken.None);
-        File.WriteAllText(path + ".part", transcript.ToJson()); File.Move(path + ".part", path);
+        if (args[0] == "recognize-text")
+        {
+            // Evaluation records need text and optional word boundaries, not a full document.
+            using var stream = File.Create(path + ".part");
+            using var json = new Utf8JsonWriter(stream);
+            json.WriteStartObject(); json.WriteString("id", ids[i]); json.WriteString("text", transcript.Text);
+            json.WriteString("model", recognizer.Model.Id); json.WriteNumber("threads", 8); json.WriteBoolean("wordTimestamps", words);
+            json.WriteBoolean("temperatureZero", args.Length > 8 && args[8] == "zero"); json.WriteNumber("seed", seed);
+            if (words)
+            {
+                json.WriteStartArray("words");
+                foreach (var word in transcript.Words)
+                {
+                    json.WriteStartObject(); json.WriteString("text", word.Text);
+                    if (word.Start is { } start) json.WriteNumber("start", start.TotalSeconds); else json.WriteNull("start");
+                    if (word.End is { } end) json.WriteNumber("end", end.TotalSeconds); else json.WriteNull("end");
+                    json.WriteEndObject();
+                }
+                json.WriteEndArray();
+            }
+            json.WriteEndObject();
+        }
+        else File.WriteAllText(path + ".part", transcript.ToJson());
+        File.Move(path + ".part", path);
         if (i < 50 && words) File.WriteAllText(Path.Combine(args[4], ids[i] + ".language"), recognizer.DetectLanguage(audio, CancellationToken.None));
         Console.WriteLine(ids[i]);
     }

@@ -6,10 +6,13 @@ The release revalidation table distinguishes full-split measurements from the ea
 
 ## Release revalidation (2026-11-08, incomplete)
 
-The inference measurements started from core source `dd63517` through the public recognizer, live-session and embedding APIs. Later reader hardening changes invalid-input handling, not valid-model inference. Moonshine uses its default greedy decoding, 6.5 generated tokens per audio second, no biasing, and two CPU threads. The reference uses the pinned publisher weights, Transformers 5.22.2, float32, eager attention and deterministic generation. Speaker extraction uses eight threads on each side. No previously saved hypotheses or embeddings were substituted for the new inference runs.
+The inference measurements started from core source `dd63517` through the public recognizer, live-session and embedding APIs. Later reader hardening changes invalid-input handling, not valid-model inference. Moonshine uses its default greedy decoding, 6.5 generated tokens per audio second, no biasing, and two CPU threads. The reference uses the pinned publisher weights, Transformers 5.22.2, float32, eager attention and deterministic generation. Speaker extraction uses eight threads on each side. Whisper int8 rows use temperature-zero greedy decoding without word timestamps on both sides; the reference uses beam/best-of one, no VAD filter and previous-text conditioning. Native CPU reservations changed from eight to two threads during the resumable run; precision and decoding controls did not change. No previously saved hypotheses or embeddings were substituted for the new inference runs.
 
 | Model / task | Dataset | Metric | Ours [absolute 95% CI] | Reference / version | Paired difference CI | Verdict |
 |---|---|---|---|---|---|---|
+| Whisper large-v3-turbo fp32 | Full LibriSpeech test-clean, 2,620 utterances | WER % | 2.267 [2.093, 2.432] | 2.289 / openai-whisper 20250625 | [-0.136, +0.072] pp | Within noise |
+| Whisper large-v3-turbo mixed-int8 | Full LibriSpeech test-clean, 2,620 utterances | WER % | 2.291 [2.118, 2.461] | 2.355 / faster-whisper 1.2.1, CT2 4.8.5 int8 | [-0.367, +0.118] pp | Within noise |
+| Whisper large-v3-turbo mixed-int8 | Full LibriSpeech test-other, 2,939 utterances | WER % | 4.479 [4.227, 4.734] | 4.503 / faster-whisper 1.2.1, CT2 4.8.5 int8 | [-0.514, +0.264] pp | Within noise |
 | Moonshine streaming-tiny, offline | Full LibriSpeech test-clean, 2,620 utterances | WER % | 4.811 [4.505, 5.138] | 4.811 / Transformers 5.22.2 | [0, 0] pp | Within noise |
 | Moonshine streaming-tiny, offline | Full LibriSpeech test-other, 2,939 utterances | WER % | 12.616 [12.089, 13.133] | 12.620 / Transformers 5.22.2 | [-0.012, 0] pp | Within noise |
 | Moonshine streaming-tiny mixed-int8, offline | Full LibriSpeech test-clean, 2,620 utterances | WER % | 4.771 [4.474, 5.090] | 4.811 / our fp32 | [-0.097, +0.011] pp | Within 0.5 pp of fp32 |

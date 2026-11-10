@@ -41,7 +41,13 @@ internal static class ParakeetTools
     internal static void Batch(string directory, string corpus, string output, int begin, int count)
     {
         Directory.CreateDirectory(output);
-        var info = new OneSpeech.ModelInfo { Id = "nvidia/parakeet-tdt-0.6b-v3", Revision = "541d1f99c6b0c3cd0b11a95167540bb8edefd82b", Source = "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3", Tier = OneSpeech.ModelTier.Tier2, License = "CC-BY-4.0", Attribution = "NVIDIA, parakeet-tdt-0.6b-v3, CC-BY-4.0." };
+        var entry = OneSpeech.Catalog.ModelCatalog.Default.Get("nvidia/parakeet-tdt-0.6b-v3");
+        var info = new OneSpeech.ModelInfo
+        {
+            Id = entry.Id, Revision = entry.Revision, Source = entry.Source, Tier = entry.Tier,
+            License = entry.License, Attribution = entry.Attribution, Gated = entry.Gated,
+            Files = [.. entry.Files.Concat(entry.ConvertedFiles).Select(file => new OneSpeech.ModelFileInfo { Name = file.Name, Sha256 = file.Sha256 })]
+        };
         using var recognizer = OneSpeech.FastConformer.ParakeetRecognizer.Load(new(directory, info), threads: 4);
         foreach (string path in Directory.EnumerateFiles(corpus, "*.flac", SearchOption.AllDirectories).OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Skip(begin).Take(count))
         {

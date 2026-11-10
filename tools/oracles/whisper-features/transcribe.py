@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--temperature-zero", action="store_true", help="Disable stochastic fallback without changing rejection thresholds.")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--threads", type=int, default=8)
+    parser.add_argument("--corpus", type=Path, help="Decode original mono 16kHz FLAC instead of retaining duplicate PCM files.")
     args = parser.parse_args()
     torch.set_num_threads(args.threads)
     torch.set_num_interop_threads(1)
@@ -34,7 +35,14 @@ def main():
         output = args.output / (key + ".json")
         if output.exists():
             continue
-        audio = np.fromfile(args.inputs / (key + ".pcm"), dtype="<f4")
+        if args.corpus:
+            import soundfile as sf
+            speaker, chapter, _ = key.split("-")
+            audio, rate = sf.read(args.corpus / speaker / chapter / (key + ".flac"), dtype="float32")
+            if rate != 16000 or audio.ndim != 1:
+                raise ValueError("Expected original mono16kHz LibriSpeech")
+        else:
+            audio = np.fromfile(args.inputs / (key + ".pcm"), dtype="<f4")
         torch.manual_seed(args.seed)
         temperatures = (0,) if args.temperature_zero else (0, .2, .4, .6, .8, 1.)
         result = model.transcribe(audio, language="en", task="transcribe", fp16=False, verbose=None, temperature=temperatures, compression_ratio_threshold=2.4, logprob_threshold=-1., no_speech_threshold=.6, condition_on_previous_text=True, word_timestamps=args.words)

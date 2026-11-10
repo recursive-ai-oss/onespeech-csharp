@@ -5,6 +5,17 @@ using OneSpeech.Audio;
 using OneSpeech.Whisper;
 using System.Text.Json;
 
+if (args.Length == 3 && args[0] == "pcm-to-wav")
+{
+    // Wraps raw little-endian float32 mono 16 kHz samples in a float WAV so file-path entry points see exactly the oracle's input samples.
+    byte[] pcm = File.ReadAllBytes(args[1]);
+    using var wav = File.Create(args[2]);
+    using var writer = new BinaryWriter(wav);
+    writer.Write("RIFF"u8); writer.Write(36 + pcm.Length); writer.Write("WAVE"u8);
+    writer.Write("fmt "u8); writer.Write(16); writer.Write((short)3); writer.Write((short)1); writer.Write(16000); writer.Write(16000 * 4); writer.Write((short)4); writer.Write((short)32);
+    writer.Write("data"u8); writer.Write(pcm.Length); writer.Write(pcm);
+    return 0;
+}
 if (args.Length >= 2 && args[0] == "validate-model-data")
 {
     foreach (string directory in args[1..])

@@ -31,6 +31,8 @@ if (args is ["qwen-memory-slice", var sliceDirectory, var sliceCorpus, var slice
 if (args is ["comparison-summary", var summaryRoot]) { Summary.Write(summaryRoot); return 0; }
 if (args is ["comparison-clips", var clipInput, var clipOutput]) return FileComparison.PrepareClips(clipInput, clipOutput);
 if (args is ["comparison-earnings", var earningsRoot, var earningsManifest]) return FileComparison.PrepareEarnings(earningsRoot, earningsManifest);
+if (args is ["comparison-map-manifest", var mapPath, var idsPath, var wavDirectory, var mapManifest]) return FileComparison.PrepareFromMap(mapPath, idsPath, wavDirectory, mapManifest);
+if (args is ["long-text", var longManifest, var longOutput, var longModel, var longMode, var longThreads, var longBegin, var longCount]) return FileComparison.LongText(longManifest, longOutput, longModel, longMode, int.Parse(longThreads, CultureInfo.InvariantCulture), int.Parse(longBegin, CultureInfo.InvariantCulture), int.Parse(longCount, CultureInfo.InvariantCulture));
 if (args is ["comparison-manifest", var corpus, var manifest]) return FileComparison.Prepare(corpus, manifest);
 if (args.Length == 6 && args[0] is "comparison" or "comparison-greedy" or "comparison-speed") return FileComparison.Run(args);
 

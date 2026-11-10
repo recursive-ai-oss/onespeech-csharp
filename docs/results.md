@@ -13,6 +13,8 @@ The inference measurements started from core source `dd63517` through the public
 | Whisper large-v3-turbo fp32 | Full LibriSpeech test-clean, 2,620 utterances | WER % | 2.267 [2.093, 2.432] | 2.289 / openai-whisper 20250625 | [-0.136, +0.072] pp | Within noise |
 | Whisper large-v3-turbo mixed-int8 | Full LibriSpeech test-clean, 2,620 utterances | WER % | 2.291 [2.118, 2.461] | 2.355 / faster-whisper 1.2.1, CT2 4.8.5 int8 | [-0.367, +0.118] pp | Within noise |
 | Whisper large-v3-turbo mixed-int8 | Full LibriSpeech test-other, 2,939 utterances | WER % | 4.479 [4.227, 4.734] | 4.503 / faster-whisper 1.2.1, CT2 4.8.5 int8 | [-0.514, +0.264] pp | Within noise |
+| Whisper small mixed-int8 | Full LibriSpeech test-clean, 2,620 utterances | WER % | 3.731 [3.517, 3.965] | 3.927 / faster-whisper 1.2.1, CT2 4.8.5 int8 | [-0.645, +0.074] pp | Within noise |
+| Whisper small mixed-int8 | Full LibriSpeech test-other, 2,939 utterances | WER % | 8.038 [7.658, 8.449] | 8.007 / faster-whisper 1.2.1, CT2 4.8.5 int8 | [-0.145, +0.185] pp | Within noise |
 | Moonshine streaming-tiny, offline | Full LibriSpeech test-clean, 2,620 utterances | WER % | 4.811 [4.505, 5.138] | 4.811 / Transformers 5.22.2 | [0, 0] pp | Within noise |
 | Moonshine streaming-tiny, offline | Full LibriSpeech test-other, 2,939 utterances | WER % | 12.616 [12.089, 13.133] | 12.620 / Transformers 5.22.2 | [-0.012, 0] pp | Within noise |
 | Moonshine streaming-tiny mixed-int8, offline | Full LibriSpeech test-clean, 2,620 utterances | WER % | 4.771 [4.474, 5.090] | 4.811 / our fp32 | [-0.097, +0.011] pp | Within 0.5 pp of fp32 |
@@ -35,7 +37,7 @@ Speaker trials contain 10,000 same-speaker and 10,000 different-speaker pairs, 7
 
 Environment: CPU-only x64, AMD Ryzen 9 7950X3D (16 physical / 32 logical CPUs; FMA, AVX2 and AVX-512 available), .NET SDK 10.0.403 / runtime 10.0.14, OneModel 1.2.0 and OneAudio 1.7.2. Language ID uses eight threads. Runs used a shared CPU queue; these are correctness measurements, not publishable speed rows.
 
-**Remaining release evidence:** full Whisper small/turbo and Qwen3-ASR-1.7B/Parakeet recognition; full Whisper int8 recognition; five-recording long-form comparisons; and timing revalidation. Full-set diarization and Nemotron streaming are reported in their separate section below. The fixed shortest-duration Earnings-22 selection is `4474955`, `4483046`, `4468919`, `4479524`, `4481221` (875.020, 1193.180, 1214.487, 1226.213, 1236.904 seconds). Selection alone is not a measured long-form row. Earlier misses below remain visible and are not superseded by unmeasured rows.
+**Remaining release evidence in this table:** the turbo test-other fp32 reference and both small fp32 references are still running. Full Whisper int8 and Moonshine rows are complete. Parakeet full-set, Qwen first-500 CPU-limited slices, five-recording long-form comparisons and timing revalidation are in the additional ASR section below. Full-set diarization and Nemotron streaming are reported in their separate section below. The fixed shortest-duration Earnings-22 selection is `4474955`, `4483046`, `4468919`, `4479524`, `4481221` (875.020, 1193.180, 1214.487, 1226.213, 1236.904 seconds). Its measured long-form rows and both temperature policies are reported below. Earlier misses below remain visible and are not superseded by unmeasured rows.
 
 ### Reader mutation campaigns
 
@@ -172,6 +174,53 @@ PLDA does not require fitting, but its exact transform/dataflow contract has not
 yet been established for an independent implementation. Its PLDA is never
 silently substituted for a CAM++ backend. The tier-1 default is unchanged.
 
+
+## Additional ASR, long-form and timing results
+
+All WER rows: fp32, `en/1` normalizer, paired utterance (or file) bootstrap, 1000 resamples, seed 1729, scored by `onespeech-eval score`. "Delta" is ours minus reference; CIs are of the paired difference. Machine: AMD Ryzen 9 7950X3D (16C/32T, AVX2/FMA/AVX-512), shared worker at load 22-25, CPU only. .NET SDK 10.0.403, OneModel 1.2.0, OneAudio 1.7.2. Jobs ran as queue shards of 4-6 cores; no timing claim is made from them.
+
+| Row | Data | Ours (95% CI) | Reference (pin) | Delta [CI] | Verdict |
+|---|---|---|---|---|---|
+| Parakeet-TDT-0.6B-v3 (tier 2), greedy TDT | LibriSpeech test-clean, all 2620 | 2.088% [1.931, 2.241] | 2.088% (NeMo 3.0.0, fp32) | 0.000 [0, 0] | within noise |
+| same | test-other, all 2939 | 3.791% [3.575, 4.027] | 3.791% | 0.000 [0, 0] | within noise |
+| Qwen3-ASR-1.7B | test-clean, first 500 sorted IDs | 1.326% [1.026, 1.677] | 1.260% (qwen-asr 0.0.6 on Transformers 4.57.6, fp32) | +0.066 [0, +0.175] | within noise |
+| same | test-other, first 500 sorted IDs | 5.815% [5.077, 6.624] | 5.815% | 0.000 [0, 0] | within noise |
+| Whisper large-v3-turbo long-form, temperature 0 on both sides | Earnings-22, 5 files (4474955, 4483046, 4468919, 4479524, 4481221) | 13.427% [9.701, 17.827] | 85.101% [49.0, 125.3] (openai-whisper 20250625 `transcribe()`) | -71.674 [-115.1, -33.6] | better than the reference pipeline; see below |
+| same, default fallback temperatures, both sides (information) | same 5 files | 13.427% [9.701, 17.827] | 19.524% [17.243, 21.736] | -6.097 [-10.047, -2.409] | better than the reference pipeline |
+
+Parakeet: all 99,653 (clean) and 97,717 (other) reference tokens are identical to NeMo's, and so are all emission frames (2620/2620 and 2939/2939 utterances). The raw text strings differ in 6 and 5 utterances only by spacing; the normalized scores are identical.
+
+Qwen3-ASR-1.7B: the first 500 sorted IDs per split, not the full splits. The CPU reference costs about 115 utterances per hour on a shared host, so the full 5559 utterances did not fit. Raw text differs in 2 of 500 (clean) and 1 of 500 (other) utterances.
+
+Long-form, per file (ours; reference at temperature 0; reference with default fallback), WER %:
+
+| File | Ours | Reference T=0 | Reference default |
+|---|---:|---:|---:|
+| 4474955 | 8.473 | 58.386 | 21.960 |
+| 4483046 | 21.119 | 58.837 | 20.711 |
+| 4468919 | 13.790 | 37.137 | 22.137 |
+| 4479524 | 10.070 | 140.140 | 15.944 |
+| 4481221 | 10.869 | 136.665 | 16.805 |
+
+Why the reference rows are large: at temperature 0, `transcribe()` with its default previous-text conditioning falls into repetition loops on these long recordings (reference output for 4479524 has 4000 words against 2122 reference words; for 4474955 one segment text repeats 346 times, for 4481221 1013 times). Our pipeline chunks at speech boundaries and does not condition across chunks, so it does not loop. Ours is identical with and without fallback on this set. These rows are better than the reference pipeline, not an equality or within-noise claim; the comparison is against the reference's own pipeline. The 4483046 default-fallback row is the one where the reference is better than ours-at-T=0 in per-file terms (20.711 vs 21.119, paired, no CI at n=1).
+
+### Timing revalidation on current code
+
+Mean absolute boundary error (ms) and share within 50/100 ms, pooled over timed words, against MFA 3.4.3 (English v3.0.0, speaker adaptation off) alignments of the same LibriSpeech slices (test-clean first 200, test-other first 100). Floors are the values recorded earlier; no row regressed.
+
+| Method | Slice | Matched/timed | Start mean | End mean | Start within 50/100 % | End within 50/100 % | Recorded floor |
+|---|---|---:|---:|---:|---|---|---|
+| Timing order via `Speech.Transcribe` (turbo + Qwen3-ForcedAligner) | clean 200 | 4563/4563 | 26.17 | 26.95 | 91.41 / 98.79 | 90.88 / 98.53 | 26.2 / 27.0 |
+| same | other 100 | 1499/1499 | 27.72 | 26.98 | 90.59 / 98.13 | 90.46 / 98.33 | none |
+| omniASR-CTC via `Speech.Align` | clean 200 | 4634/4634 | 52.70 | 50.94 | 53.28 / 91.11 | 60.25 / 88.82 | 52.70 / 50.94 (identical) |
+| same | other 100 | 1571/1562 | 49.69 | 53.37 | 57.11 / 92.25 | 59.73 / 86.81 | 49.69 / 53.37 (identical) |
+| Whisper small DTW (ours) | clean 200 | 4540/4540 | 94.24 | 79.28 | 49.07 / 71.15 | 46.34 / 69.25 | identical |
+| same | other 100 | 1470/1470 | 104.07 | 75.49 | 49.80 / 72.86 | 47.89 / 71.77 | identical |
+| openai-whisper DTW (information, unchanged archived run) | clean / other | 4531 / 1469 | 92.87 / 103.89 | 77.98 / 75.80 | | | |
+
+Qwen3-ForcedAligner vs the toolkit, clean 200 (4634 words): start/end mean 28.73/18.90 ms; start within 50/100 ms 90.80/94.37 %, end 98.07/98.10 %; 67 words untimed by ours, 0 by the toolkit. Identical to the recorded row (post-processing parity remains a documented gap).
+
+Numbers are word-pooled and cover the matched words of each method's own transcript, so the turbo row (its own recognized words) and the CTC row (reference text) have different word sets, as in the earlier floors.
 
 ## Diarization and cache-aware streaming — full-set evaluation
 
@@ -406,6 +455,6 @@ The load-average table below reports the one-minute component before / during / 
 - **Publisher availability:** VoxCeleb1 and VoxConverse audio are no longer available from the publisher. Their intended rows are unavailable; no unofficial re-upload is substituted.
 - **Gated segmentation:** authorized segmentation parity and complete-set slot measurements are reported above. The segmentation/CAM++ slot is not a community-1 reimplementation; the community-1 comparison remains information, with its quality gaps disclosed.
 - **Long-form:** full long-form rows are reserved for the 1.0 evaluation. Existing single-file observations do not establish equivalence. In particular, an Earnings-22 4474955 turbo temperature-zero comparison was 55.159% versus 58.386% reference WER: outside the 0.5-point bound, in our favour because the reference appended repeated tail text. Other decoding/pipeline settings produced different scores; they must not be combined into that row. Whole-recording Qwen reference runs exceeded the CPU run bounds.
-- **Quantization and speed:** full Moonshine int8 quality is reported above; full Whisper int8 comparisons are still in progress. The Speed section reports the measured structural-overhead and live-allocation rows, including the Nemotron allocation residual and unmeasured Qwen row; it does not establish a blanket throughput guarantee.
+- **Quantization and speed:** full Moonshine int8 quality is reported above; full Whisper int8 comparisons are complete and within paired noise. The Speed section reports the measured structural-overhead and live-allocation rows, including the Nemotron allocation residual and unmeasured Qwen row; it does not establish a blanket throughput guarantee.
 
 These results do not yet demonstrate every release target. See [evaluation conventions](eval.md) for scoring and [word timing](word-timing.md) for failure semantics.

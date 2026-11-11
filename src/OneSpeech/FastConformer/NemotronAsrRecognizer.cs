@@ -9,7 +9,7 @@ using RecursiveAI.OneModel.Graph;
 
 namespace OneSpeech.FastConformer;
 
-/// <summary>Nemotron 3.5 ASR fp32 CPU options. No translation or phrase biasing is supported.</summary>
+/// <summary>Nemotron 3.5 ASR fp32 CPU options. Translation is not supported; phrase biasing is requested with <see cref="SpeechRecognizer.WithPhrases"/>.</summary>
 public sealed record NemotronAsrOptions
 {
     /// <summary>Chunk duration in milliseconds: 80, 320 (default), 560, or 1120. Offline inference uses the same attention context.</summary>
@@ -63,8 +63,8 @@ public sealed partial class NemotronAsrRecognizer : SpeechRecognizer, IDisposabl
     }
     /// <inheritdoc />
     public override ModelInfo Model { get; }
-    /// <summary>Transcription-ready and broad-coverage base languages, native RNN-T frame timing, true streaming. Adaptation-only locales are not advertised.</summary>
-    public override Capabilities Capabilities => new() { Languages = SupportedLanguages, Streaming = true, NativeTimestamps = true };
+    /// <summary>Transcription-ready and broad-coverage base languages, native RNN-T frame timing, true streaming, contextual shallow fusion. Adaptation-only locales are not advertised.</summary>
+    public override Capabilities Capabilities => new() { Languages = SupportedLanguages, Streaming = true, NativeTimestamps = true, Biasing = true };
     internal static Dictionary<string, int> ReadPrompts(string config)
     {
         if (new FileInfo(config).Length > 1048576) throw new ModelIntegrityException("Processor configuration exceeds 1 MiB.");
@@ -98,21 +98,43 @@ public sealed partial class NemotronAsrRecognizer : SpeechRecognizer, IDisposabl
         return id;
     }
     /// <inheritdoc />
-    public override LiveSession CreateLiveSession(VoiceActivityDetector detector, string? language = null)
+    public override LiveSession CreateLiveSession(VoiceActivityDetector detector, string? language = null) => CreateLive(detector, language, null);
+    private Live.UtteranceLiveSession CreateLive(VoiceActivityDetector detector, string? language, PhraseTrie? phrases)
     {
         language = LanguageTag.Require(language, Capabilities, Model.Id);
         ArgumentNullException.ThrowIfNull(detector); int id = PromptId(language);
-        return new Live.UtteranceLiveSession(this, detector, new NemotronAsrState(this, id, CancellationToken.None), language);
+        return new Live.UtteranceLiveSession(this, detector, new NemotronAsrState(this, id, CancellationToken.None, phrases: phrases), language);
+    }
+    /// <summary>Returns a borrowed wrapper whose offline, streaming and live decoding add a phrase bonus to token scores before each RNN-T choice
+    /// (shallow fusion over a <see cref="PhraseTrie"/>, Le et al. 2021 section 3). Null weights select a log bonus of 1 per token; explicit weights are in (0,20].
+    /// Phrases use the pinned BPE tokenizer; control characters and text it cannot represent are refused. Blank gets no bonus, so a bonus can only
+    /// raise a token above blank where the model already puts real mass on it. Limits and ownership follow the role.</summary>
+    public override SpeechRecognizer WithPhrases(IEnumerable<Phrase> phrases, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var copy = PhraseRequests.Copy(phrases, cancellationToken);
+        if (copy.IsEmpty) return this;
+        var trie = new PhraseTrie(copy.Select(p => new TokenPhrase(Vocabulary.EncodePhrase(p.Text, cancellationToken), p.Weight ?? 1)));
+        trie.ValidateVocabulary(13088, 13087);
+        return new BiasedRecognizer(this, (audio, language, ct) => TranscribeCore(audio, language, trie, ct),
+            (audio, language, ct) => StreamCore(audio, language, trie, ct), (detector, language) => CreateLive(detector, language, trie));
     }
     /// <summary>Transcribes mono 16 kHz finite PCM. Inputs over 30 s use bounded VAD chunks. Shorter than one mel hop returns empty. Language null selects the auto prompt. Throws ArgumentException for invalid PCM, CapabilityNotSupportedException, ObjectDisposedException or OperationCanceledException.</summary>
-    public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
+    public override Transcript Transcribe(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default) => TranscribeCore(audio, language, null, cancellationToken);
+    private Transcript TranscribeCore(AudioBuffer audio, string? language, PhraseTrie? phrases, CancellationToken cancellationToken)
     {
         language = LanguageTag.Require(language, Capabilities, Model.Id);
         ArgumentNullException.ThrowIfNull(audio); int id = PromptId(language); cancellationToken.ThrowIfCancellationRequested();
         if (audio.SampleRate != 16000 || audio.Channels != 1) throw new ArgumentException("Nemotron requires mono 16000 Hz PCM.");
         foreach (float value in audio.Samples.Span) if (!float.IsFinite(value)) throw new ArgumentException("PCM must be finite.");
-        if (audio.FrameCount > 480000) { using var vad = new SileroVad(cancellationToken: cancellationToken); return new Pipeline.VadTranscriptionPipeline(this, vad).Transcribe(audio, language, cancellationToken); }
-        using var state = new NemotronAsrState(this, id, cancellationToken, padFinalChunk: false); state.Push(audio.Samples.Span, true, cancellationToken);
+        if (audio.FrameCount > 480000)
+        {
+            // Long input is cut into VAD chunks that call back into this recognizer; a biased request must keep its phrases for every chunk.
+            using var vad = new SileroVad(cancellationToken: cancellationToken);
+            SpeechRecognizer chunked = phrases is null ? this : new BiasedRecognizer(this, (a, l, ct) => TranscribeCore(a, l, phrases, ct));
+            return new Pipeline.VadTranscriptionPipeline(chunked, vad).Transcribe(audio, language, cancellationToken);
+        }
+        using var state = new NemotronAsrState(this, id, cancellationToken, padFinalChunk: false, phrases: phrases); state.Push(audio.Samples.Span, true, cancellationToken);
         var segment = Snapshot(state.Tokens, TimeSpan.Zero, audio.Duration, language ?? state.DetectedLanguage, cancellationToken);
         return new Transcript { Text = segment.Text, Duration = audio.Duration, Language = segment.Language, Words = segment.Words, Segments = [segment], Models = [Model] };
     }
@@ -125,13 +147,14 @@ public sealed partial class NemotronAsrRecognizer : SpeechRecognizer, IDisposabl
                 : w with { Start = w.Start + start, End = w.End + start > end ? end : w.End + start, Language = language })] };
     }
     /// <inheritdoc />
-    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default)
+    public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default) => StreamCore(audio, language, null, cancellationToken);
+    private IEnumerable<Segment> StreamCore(AudioBuffer audio, string? language, PhraseTrie? phrases, CancellationToken cancellationToken)
     {
         language = LanguageTag.Require(language, Capabilities, Model.Id);
         ArgumentNullException.ThrowIfNull(audio); _ = PromptId(language); cancellationToken.ThrowIfCancellationRequested();
         if (audio.SampleRate != 16000 || audio.Channels != 1) throw new ArgumentException("Nemotron requires mono 16000 Hz PCM.");
         using var vad = new SileroVad(cancellationToken: cancellationToken);
-        using var session = CreateLiveSession(vad, language);
+        using var session = CreateLive(vad, language, phrases);
         for (int offset = 0; offset < audio.FrameCount; offset += 1600)
             foreach (var update in session.Push(new AudioBuffer(audio.Samples.Slice(offset, Math.Min(1600, audio.FrameCount - offset)), audio.SampleRate, audio.Channels), cancellationToken))
                 if (update is FinalEvent final) yield return final.Segment;

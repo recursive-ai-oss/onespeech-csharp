@@ -58,7 +58,9 @@ public sealed class WhisperModelTests
         var clip = OneAudio.Audio.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures/1089-134686-0001.flac"), new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 }, TestContext.Current.CancellationToken);
         using var recognizer = WhisperRecognizer.Load(directory, cancellationToken: TestContext.Current.CancellationToken);
         var transcript = recognizer.Transcribe(new AudioBuffer(clip.Samples, 16000), "en", TestContext.Current.CancellationToken);
-        Assert.Equal(" Stuffed into you, his belly, cowtled him.", transcript.Text);
+        Assert.Equal("Stuffed into you, his belly, cowtled him.", transcript.Text);
+        Assert.All(transcript.Words, word => Assert.Equal(word.Text.Trim(), word.Text));
+        Assert.All(transcript.Segments, s => Assert.Equal(s.Text.Trim(), s.Text));
         Assert.NotEmpty(transcript.Words);
         Assert.All(transcript.Words, word => { Assert.Equal(TimingMethod.Dtw, word.TimingMethod); Assert.NotNull(word.Start); Assert.NotNull(word.End); Assert.True(word.Start <= word.End); Assert.InRange(word.Confidence!.Value, 0, 1); });
         Assert.Equal("en", transcript.Language);

@@ -179,7 +179,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         }
         return new Transcript
         {
-            Text = string.Join(" ", text), Language = language, Duration = duration,
+            Text = TextSpacing.Join(text), Language = language, Duration = duration,
             Words = words.ToImmutable(), Segments = segments.ToImmutable(), Turns = turns.ToImmutable(), Models = [.. models]
         };
     }
@@ -190,7 +190,7 @@ public sealed class VadTranscriptionPipeline : TranscriptionPipeline
         var segments = recognizer.TranscribeStream(audio, language, cancellationToken).ToImmutableArray();
         var transcript = new Transcript
         {
-            Text = string.Join(' ', segments.Select(s => s.Text)), Segments = segments,
+            Text = TextSpacing.Join(segments.Select(s => s.Text)), Segments = segments,
             Words = segments.SelectMany(s => s.Words).ToImmutableArray(),
             Language = language ?? segments.Select(s => s.Language).FirstOrDefault(l => l is not null),
             Duration = TimeSpan.FromTicks((long)audio.Samples.Length * 625), Models = [recognizer.Model]

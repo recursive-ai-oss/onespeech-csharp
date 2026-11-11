@@ -57,7 +57,7 @@ unbiased recognizer. The original recognizer is never modified.
 Whisper conditions each window with ordinary prompt tokens. Qwen3-ASR appends
 phrases to its existing system context. These prompt methods refuse explicit
 numeric weights rather than pretending to apply a score bonus. Parakeet TDT
-uses token-level shallow fusion; `new Phrase("Acme", 0.5)` supplies a natural-log
+and Nemotron 3.5 ASR (offline, streaming and live) use token-level shallow fusion; `new Phrase("Acme", 0.5)` supplies a natural-log
 bonus per token (null defaults to 1). Custom CTC/transducer graphs use the same
 fusion after the caller supplies `TokenVocabulary.WithPhraseEncoder` for their
 exact tokenizer. CTC biasing uses prefix beam search, even if the unbiased
@@ -81,7 +81,7 @@ for prompt budgets, weights, decoder semantics and the repeatable evaluation.
 | `RecursiveAI.OneSpeech.Models.MoonshineTiny`, `.MoonshineBase`, `.MoonshineStreamingTiny` | Optional offline-at-restore Moonshine weights |
 | `RecursiveAI.OneSpeech.Cli` | The `onespeech` dotnet tool |
 
-Models not supplied by a package download on first use; CPU runtime graphs are built and verified in the per-user cache. An offline model package covers only that model, not every role used by `Transcribe`. See [cache, pre-fetch and offline use](docs/models.md) and [CLI and model packages](docs/cli-and-model-packages.md).
+Models that no referenced package supplies are downloaded on first use; CPU runtime graphs are built and verified in the per-user cache. An offline model package covers only that model, not every role used by `Transcribe`. See [cache, pre-fetch and offline use](docs/models.md) and [CLI and model packages](docs/cli-and-model-packages.md).
 
 ## Models by role
 
@@ -96,7 +96,7 @@ Models not supplied by a package download on first use; CPU runtime graphs are b
 | Diarization | Silero + CAM++ + spectral/AHC clustering | 1 / MIT + Apache-2.0 | Default; no overlap detection |
 | Diarization | Nemotron 3 Diarization | 2 / OpenMDW-1.1 | Explicit overlap-aware upgrade |
 | Segmentation | pyannote segmentation-3.0 / community-1 | 2 / MIT gated / CC-BY-4.0 gated | Local segmentation-3.0 + our overlap-aware clustering; `CommunityDiarizer` runs the full community-1 pipeline from a local snapshot |
-| Speaker embeddings | CAM++ English/Chinese; ECAPA-TDNN | 1 / Apache-2.0 | CAM++ English default; Chinese for Chinese speech |
+| Speaker embeddings | CAM++ English/Chinese; ECAPA-TDNN; ERes2NetV2 Chinese | 1 / Apache-2.0 | CAM++ English default; Chinese for Chinese speech |
 
 Tier 1 is ungated MIT/Apache-2.0/BSD and may be redistributed and selected by default. Tier 2 loads only from pinned publisher files, never from our mirror or model packages, never by default. Local conversion stays in your cache. Licence, revision, file digests and attribution travel in `ModelInfo`. Only the listed licence-cleared Moonshine checkpoints are supported; Community License checkpoints are excluded. See [gated models](docs/tier-2-models.md) and [third-party notices](THIRD-PARTY-NOTICES.md).
 

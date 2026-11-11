@@ -76,14 +76,22 @@ public sealed partial class WhisperRecognizer : SpeechRecognizer, IDisposable
     private Transcript TranscribeCore(AudioBuffer audio, string? language, int[] prompt, CancellationToken cancellationToken)
     {
         language = LanguageTag.Require(language, Capabilities, Model.Id);
-        var segments = TranscribeStreamCore(audio, language, prompt, cancellationToken).ToImmutableArray();
-        return new Transcript { Text = string.Concat(segments.Select(s => s.Text)), Segments = segments, Words = segments.SelectMany(s => s.Words).ToImmutableArray(), Duration = audio.Duration, Language = language ?? segments.FirstOrDefault()?.Language, Models = [Model] };
+        var raw = TranscribeStreamRaw(audio, language, prompt, cancellationToken).ToImmutableArray();
+        // The tokenizer's own spacing joins segments correctly for every script; only the outer edges are trimmed.
+        string text = string.Concat(raw.Select(s => s.Text)).Trim();
+        var segments = raw.Select(TextSpacing.Clean).ToImmutableArray();
+        return new Transcript { Text = text, Segments = segments, Words = segments.SelectMany(s => s.Words).ToImmutableArray(), Duration = audio.Duration, Language = language ?? segments.FirstOrDefault()?.Language, Models = [Model] };
     }
 
     /// <inheritdoc/>
     public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language = null, CancellationToken cancellationToken = default) => TranscribeStreamCore(audio, language, [], cancellationToken);
 
     private IEnumerable<Segment> TranscribeStreamCore(AudioBuffer audio, string? language, int[] prompt, CancellationToken cancellationToken)
+    {
+        foreach (var segment in TranscribeStreamRaw(audio, language, prompt, cancellationToken)) yield return TextSpacing.Clean(segment);
+    }
+
+    private IEnumerable<Segment> TranscribeStreamRaw(AudioBuffer audio, string? language, int[] prompt, CancellationToken cancellationToken)
     {
         language = LanguageTag.Require(language, Capabilities, Model.Id);
         ValidateAudio(audio);

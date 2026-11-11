@@ -38,7 +38,7 @@ public static class TranscriptCaptions
             foreach (var word in segment.Words)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                int separatorLength = group.Count > 0 && group[^1].Text.Length > 0 && word.Text.Length > 0 && !char.IsWhiteSpace(group[^1].Text[^1]) && !char.IsWhiteSpace(word.Text[0]) ? 1 : 0;
+                int separatorLength = group.Count > 0 && OneSpeech.TextSpacing.NeedsSpace(group[^1].Text, word.Text) ? 1 : 0;
                 if (group.Count > 0 && (Speaker(group[0]) != Speaker(word) || length + separatorLength + word.Text.Length > 84 ||
                     (group[0].Start is {} first && word.End is {} end && end - first > TimeSpan.FromSeconds(6))))
                 {
@@ -67,7 +67,7 @@ public static class TranscriptCaptions
         int lineLength = 0;
         foreach (var word in words)
         {
-            bool separator = text.Length > 0 && word.Text.Length > 0 && !char.IsWhiteSpace(text[^1]) && !char.IsWhiteSpace(word.Text[0]);
+            bool separator = text.Length > 0 && OneSpeech.TextSpacing.NeedsSpace(text.ToString(Math.Max(0, text.Length - 2), Math.Min(2, text.Length)), word.Text);
             if (lineLength > 0 && lineLength + word.Text.Length + (separator ? 1 : 0) > 42)
             { text.Append('\n'); lineLength = 0; separator = false; }
             if (separator) { text.Append(' '); lineLength++; }

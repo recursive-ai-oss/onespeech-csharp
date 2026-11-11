@@ -25,7 +25,9 @@ changing the reference's supported settings. Language tags cover the publisher's
 transcription-ready and broad-coverage locales and their base-language aliases;
 adaptation-only locales are not advertised. Null language selects the automatic
 prompt and preserves its emitted language tag. Automatic live prompting resets
-for every utterance. Translation and phrase biasing are not supported.
+for every utterance. Translation is not supported. Phrase biasing
+(`WithPhrases`) is shallow fusion over the same trie Parakeet uses, see
+[contextual biasing](contextual-biasing.md).
 
 ## Features, padding and cache state
 
@@ -59,6 +61,15 @@ covered final frame is clipped to the real horizon; words wholly beyond it remai
 untimed (`TimingMethod.None`), not assigned invented boundary times.
 
 ## Live events and bounds
+
+The live session decodes a chunk as soon as the audio it depends on has arrived.
+Mel frame `f` needs `160 f + 200` samples (the 400-sample Hann window is centered
+on the frame), the first chunk holds `8c - 7` mel frames and later chunks `8c`
+(`c` is the attention chunk in 80 ms units), so chunk `j` is complete at
+`1280 c (j + 1) - 1080` samples. The recognizer reports that point and the
+session decodes there, instead of at a fixed cadence that would add up to one
+more chunk of waiting. The caller's push size still bounds what is achievable:
+tokens cannot be published before the push that carries their audio.
 
 The predictor/joint network accepts at most ten nonblank symbols per encoder
 frame and keeps its recurrent state across chunks. RNN-T repeats are preserved;

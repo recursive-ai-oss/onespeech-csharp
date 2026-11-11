@@ -262,16 +262,18 @@ All **800** native/reference utterance/chunk pairs have identical lexical token 
 |560|test-clean / 200|2.802|[2.223, 3.493]|200/200|
 |560|test-other / 200|8.295|[6.983, 9.672]|200/200|
 
-**Stable-word availability** closes a word at the next word boundary or EOF. Both engines use the same saved offline 80-ms RNN-T acoustic endpoints as a timing proxy, not forced-alignment truth. Signed negative delays are retained. Latency means are over matched words; unmatched counts are shown. This is audio-time availability, not CPU speed or a learned endpointing-policy comparison. Publication remains approximately **55–58 ms later** in OneSpeech, so latency parity is not claimed.
+**Stable-word availability** closes a word at the next word boundary or EOF. Both engines use the same saved offline 80-ms RNN-T acoustic endpoints as a timing proxy, not forced-alignment truth, and both are measured on the same audio-time clock: availability is the audio time of the last sample handed to the recognizer when the token was emitted. The reference hands over audio in its own documented units (one attention chunk, with its fixed context), OneSpeech is pushed 160 samples (10 ms) at a time and decodes a chunk as soon as the audio it needs has arrived. Signed negative delays are retained. Latency means are over matched words (all words match: both engines emit identical tokens). This is audio-time availability, not CPU speed or a learned endpointing-policy comparison.
 
-| Chunk ms | Split | Ours mean / median ms | Reference mean / median ms | Mean gap ms | Matched / unmatched words |
-|---:|---|---|---|---:|---|
-|80|test-clean|258.541 / 240.000|200.100 / 179.000|+58.441|4576 / 64|
-|80|test-other|217.315 / 160.000|160.448 / 99.000|+56.867|2871 / 143|
-|560|test-clean|405.200 / 400.000|347.623 / 339.000|+57.577|4594 / 48|
-|560|test-other|348.760 / 320.000|293.566 / 259.000|+55.194|2895 / 123|
+The 1.0 table showed OneSpeech about 55-58 ms behind. The gap was a definition and scheduling effect inside OneSpeech, not model behaviour: the live session decoded only on a fixed grid of one chunk, while a chunk is complete a fixed 1080 samples (67.5 ms) before the grid point (a mel frame needs 200 samples of lookahead). Every chunk therefore waited for the next grid tick, whatever the push size (a run with 10 ms pushes reproduced the 1.0 timestamps exactly). The session now decodes at the point the recognizer reports; tokens and WER are unchanged.
 
-Actual EOF Final availability relative to the last common offline word end is identical for both engines and chunk sizes: test-clean mean/median **33.875/0 ms**, test-other **12.925/0 ms**. Utterance EOF is known in this experiment. These descriptive latency statistics have no bootstrap interval.
+| Chunk ms | Split | Reference mean / median ms | Ours mean / median ms | Mean gap ms | 1.0 behaviour mean / median ms | Token-identical utterances (WER identical) |
+|---:|---|---|---|---:|---|---|
+|80|test-clean|116.828 / 19|117.784 / 20|+0.956|175.131 / 80|200/200 (11,642 tokens)|
+|80|test-other|75.701 / 19|76.630 / 20|+0.929|132.255 / 80|200/200 (7,264)|
+|560|test-clean|406.908 / 339|407.854 / 340|+0.946|464.451 / 400|200/200 (11,673)|
+|560|test-other|350.381 / 339|351.289 / 340|+0.908|405.493 / 400|200/200 (7,319)|
+
+Matched words 4,635 / 2,991 / 4,637 / 3,010 in table order, none unmatched. Absolute means come from the current latency tool on both sides, so they differ from the 1.0 table's absolute figures; the 1.0 gap reproduces at +58.3 / +56.6 / +57.5 / +55.1 ms. Token-identical utterances give paired WER differences of exactly zero (the WER rows above stand: 2.888 / 9.824 % at 80 ms, 2.802 / 8.295 % at 560 ms). A caller that pushes in blocks equal to the attention chunk starting at sample 0 still publishes on that block grid, because tokens cannot appear before the push that carries their audio. EOF Final availability (relative to the last common offline word end) is identical for both engines: 80 ms mean 145.975 / 91.850 ms and 560 ms mean 242.150 / 175.100 ms (clean / other).
 
 ### Diarized transcript sanity check
 
@@ -457,7 +459,7 @@ The load-average table below reports the one-minute component before / during / 
 - **Language identification:** Whisper and its reference each identified 15/15 FLEURS probes (five each English/French/German). This is information only, not multilingual coverage evidence.
 - **Publisher availability:** VoxCeleb1 and VoxConverse audio are no longer available from the publisher. Their intended rows are unavailable; no unofficial re-upload is substituted.
 - **Gated segmentation:** authorized segmentation parity and complete-set slot measurements are reported above. The segmentation/CAM++ slot is not a community-1 reimplementation; the community-1 comparison remains information, with its quality gaps disclosed.
-- **Long-form:** full long-form rows are reserved for the 1.0 evaluation. Existing single-file observations do not establish equivalence. In particular, an Earnings-22 4474955 turbo temperature-zero comparison was 55.159% versus 58.386% reference WER: outside the 0.5-point bound, in our favour because the reference appended repeated tail text. Other decoding/pipeline settings produced different scores; they must not be combined into that row. Whole-recording Qwen reference runs exceeded the CPU run bounds.
+- **Long-form:** the five-file Earnings-22 rows and per-file scores are in the quality table above; ours is better than the reference pipeline at both temperature settings. Whole-recording Qwen reference runs exceeded the CPU run bounds, so Qwen has no long-form reference row.
 - **Quantization and speed:** full Moonshine int8 quality is reported above; full Whisper fp32 and int8 comparisons are complete and within paired noise. The Speed section reports the measured structural-overhead and live-allocation rows, including the Nemotron allocation residual and unmeasured Qwen row; it does not establish a blanket throughput guarantee.
 
 These results do not yet demonstrate every release target. See [evaluation conventions](eval.md) for scoring and [word timing](word-timing.md) for failure semantics.

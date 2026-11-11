@@ -12,7 +12,7 @@ internal static class NemotronAsrEvaluation
         var e = OneSpeech.Catalog.ModelCatalog.Default.Get(NemotronAsrRecognizer.Identifier);
         return new() { Id = e.Id, Revision = e.Revision, Source = e.Source, Tier = e.Tier, License = e.License, Attribution = e.Attribution, Files = [.. e.Files.Concat(e.ConvertedFiles).Select(f => new ModelFileInfo { Name = f.Name, Sha256 = f.Sha256 })] };
     }
-    internal static void Batch(string directory, string corpus, string output, int chunkMilliseconds, int begin, int count, bool publishedEvents = false)
+    internal static void Batch(string directory, string corpus, string output, int chunkMilliseconds, int begin, int count, bool publishedEvents = false, int pushSamples = 0)
     {
         Directory.CreateDirectory(output);
         var info = Info();
@@ -30,7 +30,7 @@ internal static class NemotronAsrEvaluation
                 // not differences between endpoint detectors. Use the real event publication policy.
                 using var session = new UtteranceLiveSession(recognizer, (_, _) => 1, recording, "en");
                 List<string> finals = [];
-                int block = chunkMilliseconds * 16;
+                int block = pushSamples > 0 ? pushSamples : chunkMilliseconds * 16;
                 for (int offset = 0; offset < clip.Samples.Length; offset += block)
                 {
                     int length = Math.Min(block, clip.Samples.Length - offset); recording.AvailableAt = (offset + length) / 16000d;
@@ -71,6 +71,7 @@ internal static class NemotronAsrEvaluation
         internal double AvailableAt { get; set; }
         private int copied;
         public int PartialCadenceSamples => state.PartialCadenceSamples;
+        public int? NextOutputSamples => state.NextOutputSamples;
         public Segment Decode(ReadOnlyMemory<float> audio, string? language, bool final, TimeSpan start, TimeSpan end, CancellationToken cancellationToken)
         {
             var segment = state.Decode(audio, language, final, start, end, cancellationToken); var tokens = state.Tokens;

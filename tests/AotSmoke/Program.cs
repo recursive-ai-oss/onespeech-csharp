@@ -68,6 +68,17 @@ if (args is ["--camp" or "--camp-zh", var campGraph, var campAudio])
     Console.WriteLine("CAM++ real graph NativeAOT extraction passed.");
 }
 
+if (args is ["--eres", var eresGraph, var eresAudio])
+{
+    var clip = OneAudio.Audio.Load(eresAudio, new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
+    var entry = OneSpeech.Catalog.ModelCatalog.Default.Get("iic/speech_eres2netv2_sv_zh-cn_16k-common");
+    var model = new ModelInfo { Id = entry.Id, Source = entry.Source, Revision = entry.Revision, License = entry.License, Tier = entry.Tier, Attribution = entry.Attribution };
+    using var eres = new OneSpeech.Embedders.ERes2NetV2Embedder(eresGraph, model);
+    float[] vector = new float[eres.Dimension];
+    eres.Embed(new AudioBuffer(clip.Samples, 16000), vector, CancellationToken.None);
+    Console.WriteLine("ERes2NetV2 real graph NativeAOT extraction passed.");
+}
+
 Console.WriteLine("Transcript JSON NativeAOT round-trip passed.");
 var features = new OneSpeech.Audio.WhisperLogMelSpectrogram(128).Extract(new AudioBuffer(new float[400], 16000), padToWindow: false);
 if (features.Length != 256 || features.Any(value => value != -1.5f)) throw new InvalidOperationException("Whisper feature smoke failed.");

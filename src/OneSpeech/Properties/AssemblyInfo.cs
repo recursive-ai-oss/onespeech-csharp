@@ -14,3 +14,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("OneSpeech.ParakeetFuzz")]
 
 [assembly: InternalsVisibleTo("OneSpeech.Bench")]
+[assembly: InternalsVisibleTo("OneSpeech.Media")]

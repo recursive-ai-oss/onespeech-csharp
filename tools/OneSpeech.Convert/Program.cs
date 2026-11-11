@@ -9,6 +9,7 @@ if (args is ["int8-candidate", var candidateInput, var candidateOutput]) { Int8C
 if (args is ["release-export", var reRoot, var reOurs, var reReference, var rePrefix, var reCount]) { MoonshineBatch.Export(reRoot, reOurs, reReference, rePrefix, int.Parse(reCount, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
 if (args is ["int8-convert", var int8Input, var int8Output]) { Int8Conversion.Run(int8Input, int8Output); return 0; }
 if (args is ["speaker-calibrate", var calibrationTrials, var calibrationEmbeddings]) { SpeakerCalibration.Run(calibrationTrials, calibrationEmbeddings); return 0; }
+if (args is ["nemotron-asr-live-batch", var lpDir, var lpCorpus, var lpOut, var lpChunk, var lpBegin, var lpCount, var lpPush]) { NemotronAsrEvaluation.Batch(lpDir, lpCorpus, lpOut, int.Parse(lpChunk, System.Globalization.CultureInfo.InvariantCulture), int.Parse(lpBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(lpCount, System.Globalization.CultureInfo.InvariantCulture), publishedEvents: true, pushSamples: int.Parse(lpPush, System.Globalization.CultureInfo.InvariantCulture)); return 0; }
 if (args is ["nemotron-asr-live-batch", var lbDir, var lbCorpus, var lbOut, var lbChunk, var lbBegin, var lbCount]) { NemotronAsrEvaluation.Batch(lbDir, lbCorpus, lbOut, int.Parse(lbChunk, System.Globalization.CultureInfo.InvariantCulture), int.Parse(lbBegin, System.Globalization.CultureInfo.InvariantCulture), int.Parse(lbCount, System.Globalization.CultureInfo.InvariantCulture), publishedEvents: true); return 0; }
 if (args is ["nemotron-asr-latency-truth", var ltDir, var ltBase, var ltHyp, var ltTruth]) { NemotronAsrLatency.Run(ltDir, ltBase, ltHyp, ltTruth); return 0; }
 if (args is ["nemotron-asr-latency", var nlDir, var nlBase, var nlHyp]) { NemotronAsrLatency.Run(nlDir, nlBase, nlHyp); return 0; }
@@ -376,6 +377,11 @@ if (args is ["speaker-ids", var idsTrials, var idsClean, var idsOutput, var idsP
     SpeakerBatch.PrepareIds(idsTrials, idsClean, idsOutput, idsParity);
     return 0;
 }
+if (args is ["speaker-extract-eres", var eresGraph, var eresData, var eresIds, var eresDestination, var eresStart, var eresCount])
+{
+    SpeakerBatch.Extract(eresGraph, eresData, eresIds, eresDestination, int.Parse(eresStart, System.Globalization.CultureInfo.InvariantCulture), int.Parse(eresCount, System.Globalization.CultureInfo.InvariantCulture), 192, eres: true);
+    return 0;
+}
 if (args is ["speaker-extract-camp", var extractGraph, var extractData, var extractIds, var extractOutput, var extractStart, var extractCount, var extractDimension])
 {
     SpeakerBatch.Extract(extractGraph, extractData, extractIds, extractOutput, int.Parse(extractStart, System.Globalization.CultureInfo.InvariantCulture), int.Parse(extractCount, System.Globalization.CultureInfo.InvariantCulture), int.Parse(extractDimension, System.Globalization.CultureInfo.InvariantCulture));
@@ -405,6 +411,12 @@ if (args is ["speaker-convert-camp", var campCheckpoint, var campOutput])
 {
     using var campInput = File.OpenRead(campCheckpoint);
     new CampPlusConverter(TensorCheckpoint.Read(campInput)).Save(campOutput);
+    return 0;
+}
+if (args is ["speaker-convert-eres", var eresCheckpoint, var eresOutput])
+{
+    using var eresInput = File.OpenRead(eresCheckpoint);
+    new ERes2NetV2Converter(TensorCheckpoint.Read(eresInput)).Save(eresOutput);
     return 0;
 }
 if (args is ["speaker-fetch", var root])

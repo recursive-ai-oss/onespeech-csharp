@@ -237,6 +237,36 @@ on the shared 20,000-trial English slice, with paired difference intervals [0,0]
 costs and conditional trial bootstrap apply. This is an implementation comparison and not a
 language-appropriate accuracy bar or a new-speaker population confidence interval.
 
+## ERes2NetV2 Chinese common checkpoint
+
+`ERes2NetV2Embedder` (192 dimensions, 200 ms through 60 s of mono 16 kHz audio) runs
+`iic/speech_eres2netv2_sv_zh-cn_16k-common` revision `1cf80d41fb3435bd3d8df185b5c423333b2db42a`
+(Apache-2.0, tier 1). It uses the CAM++ 80-bin filterbank and follows Chen et al. (2024, arXiv
+2406.02167) §2: a 3x3 stem, four stages of 3/4/6/3 bottleneck-like blocks (1x1 reduce, two 3x3 splits,
+1x1 expand), attentional feature fusion between the splits in stages 3 and 4 and between the
+down-sampled stage 3 and stage 4, statistics pooling over time and one linear layer. The paper leaves
+several details open; they were settled by comparing stage outputs of the released checkpoint:
+the stride sits in each block's first 1x1 convolution and its shortcut; the fusion is
+`x*(1+a) + y*(1-a)` with `a = tanh(att)`; the in-block fusion is followed by ReLU and the stage 3/4
+fusion is not; a block's activation after the residual sum is capped at 20; pooling takes the mean and
+unbiased standard deviation over time of the channel-by-frequency map.
+
+On the 50 fixed IDs, embedding cosine against ModelScope 1.40.2 (CPU, fp32) has minimum
+0.9999977 and mean 0.99999995 (over all 1,490 trial utterances: minimum 0.9999977, none below
+0.9999); the target is >=0.999. Features are the CAM++ features (max abs error 0.000597, mean
+0.00000623). The converted graph is 71,723,456 bytes, SHA-256
+`ea17d67d75abcaa3d180a6f8b81559c58cbd701a6235a38f27a9f2aa2fca4a7a`, reproduced by a second
+conversion; as with the other checkpoints its release URI is reserved and the model store converts the
+verified publisher file locally. It is available by name and is not a default.
+
+**Information only** (Chinese-trained model, English trials): on the shared 20,000-trial slice both
+ours and the reference score 1.33% EER and 0.0658 normalized minDCF, paired difference intervals
+[0, 0] (same prior, costs and conditional bootstrap as above).
+
+The released pipeline fails to start from the published `configuration.json`, which omits three
+architecture keys it requires; the oracle runs from a local copy of the pinned files with
+`embed_dim`, `baseWidth` and `scale`/`expansion` added (`tools/oracles/speaker-modelscope/eres_config_loop.py`).
+
 ## Convenience identification operating points
 
 The file helpers use raw cosine without AS-norm or a fitted affine map. Threshold fitting uses

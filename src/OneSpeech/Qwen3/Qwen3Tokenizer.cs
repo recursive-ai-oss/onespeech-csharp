@@ -24,73 +24,80 @@ public sealed class Qwen3Tokenizer
     /// <exception cref="JsonException">JSON data is malformed.</exception>
     public Qwen3Tokenizer(string directory)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
-        int extra = 256;
-        for (int b = 0; b < 256; b++)
+        try
         {
-            char character = b is >= 33 and <= 126 or >= 161 and <= 172 or >= 174 and <= 255 ? (char)b : (char)extra++;
-            byteCharacters[b] = character;
-            characterBytes.Add(character, (byte)b);
+            ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+            int extra = 256;
+            for (int b = 0; b < 256; b++)
+            {
+                char character = b is >= 33 and <= 126 or >= 161 and <= 172 or >= 174 and <= 255 ? (char)b : (char)extra++;
+                byteCharacters[b] = character;
+                characterBytes.Add(character, (byte)b);
+            }
+            using (var doc = LoadJson(Path.Combine(directory, "vocab.json")))
+                foreach (var entry in doc.RootElement.EnumerateObject()) Add(entry.Name, entry.Value.GetInt32(), entry.Name == "<|endoftext|>");
+            using (var doc = LoadJson(Path.Combine(directory, "tokenizer_config.json")))
+            {
+                if (doc.RootElement.GetProperty("tokenizer_class").GetString() != "Qwen2Tokenizer")
+                    throw new InvalidDataException("Expected Qwen2Tokenizer model data.");
+                foreach (var entry in doc.RootElement.GetProperty("added_tokens_decoder").EnumerateObject())
+                {
+                    var value = entry.Value;
+                    if (!int.TryParse(entry.Name, NumberStyles.None, CultureInfo.InvariantCulture, out int id) ||
+                        value.GetProperty("lstrip").GetBoolean() ||
+                        value.GetProperty("rstrip").GetBoolean() || value.GetProperty("single_word").GetBoolean() ||
+                        value.GetProperty("normalized").GetBoolean())
+                        throw new InvalidDataException("Unsupported added-token behavior.");
+                    Add(value.GetProperty("content").GetString() ?? throw new InvalidDataException("Missing token content."), id, value.GetProperty("special").GetBoolean(), true);
+                }
+                omittedIds.UnionWith(specialIds);
+                if (doc.RootElement.TryGetProperty("additional_special_tokens", out var named))
+                {
+                    // Observed in the toolkit's pinned Transformers 4.57.6: omission uses the named
+                    // special-token list, not every added-token special flag (blank tokens survive).
+                    omittedIds.Clear();
+                    foreach (var token in named.EnumerateArray()) Omit(token);
+                    foreach (string name in new[] { "bos_token", "eos_token", "pad_token", "unk_token" })
+                        if (doc.RootElement.TryGetProperty(name, out var token) && token.ValueKind != JsonValueKind.Null) Omit(token);
+                }
+                void Omit(JsonElement token)
+                {
+                    string text = token.GetString() ?? throw new InvalidDataException("Missing named special token.");
+                    if (!vocabulary.TryGetValue(text, out int id)) throw new InvalidDataException("Named special token is absent from vocabulary.");
+                    omittedIds.Add(id);
+                }
+            }
+            if (vocabulary.Count == 0) throw new InvalidDataException("Empty vocabulary.");
+            int count = vocabulary.Values.Max() + 1;
+            pieces = new string[count]; bytes = new byte[count][];
+            foreach (var pair in vocabulary)
+            {
+                if (pieces[pair.Value] != null) throw new InvalidDataException("Duplicate vocabulary ID.");
+                pieces[pair.Value] = pair.Key;
+                if (!addedIds.Contains(pair.Value))
+                {
+                    byte[] decoded = new byte[pair.Key.Length];
+                    for (int i = 0; i < decoded.Length; i++)
+                        if (!characterBytes.TryGetValue(pair.Key[i], out decoded[i])) throw new InvalidDataException("Vocabulary is not byte-level BPE.");
+                    bytes[pair.Value] = decoded;
+                }
+                else bytes[pair.Value] = Encoding.UTF8.GetBytes(pair.Key);
+            }
+            foreach (char character in byteCharacters)
+                if (!vocabulary.ContainsKey(character.ToString())) throw new InvalidDataException("Vocabulary lacks a byte token.");
+            string mergePath = Path.Combine(directory, "merges.txt");
+            if (new FileInfo(mergePath).Length > 16 * 1024 * 1024) throw new InvalidDataException("Merge file too large.");
+            int rank = 0;
+            foreach (string line in File.ReadLines(mergePath, new UTF8Encoding(false, true)))
+            {
+                if (line.StartsWith("#version:", StringComparison.Ordinal) || line.Length == 0) continue;
+                string[] pair = line.Split(' ');
+                if (pair.Length != 2 || rank >= 200000 || !vocabulary.ContainsKey(pair[0]) || !vocabulary.ContainsKey(pair[1]) || !vocabulary.ContainsKey(pair[0] + pair[1]) || !ranks.TryAdd((pair[0], pair[1]), rank++)) throw new InvalidDataException("Invalid BPE merge list.");
+            }
         }
-        using (var doc = LoadJson(Path.Combine(directory, "vocab.json")))
-            foreach (var entry in doc.RootElement.EnumerateObject()) Add(entry.Name, entry.Value.GetInt32(), entry.Name == "<|endoftext|>");
-        using (var doc = LoadJson(Path.Combine(directory, "tokenizer_config.json")))
+        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException or FormatException or OverflowException or DecoderFallbackException)
         {
-            if (doc.RootElement.GetProperty("tokenizer_class").GetString() != "Qwen2Tokenizer")
-                throw new InvalidDataException("Expected Qwen2Tokenizer model data.");
-            foreach (var entry in doc.RootElement.GetProperty("added_tokens_decoder").EnumerateObject())
-            {
-                var value = entry.Value;
-                if (!int.TryParse(entry.Name, NumberStyles.None, CultureInfo.InvariantCulture, out int id) ||
-                    value.GetProperty("lstrip").GetBoolean() ||
-                    value.GetProperty("rstrip").GetBoolean() || value.GetProperty("single_word").GetBoolean() ||
-                    value.GetProperty("normalized").GetBoolean())
-                    throw new InvalidDataException("Unsupported added-token behavior.");
-                Add(value.GetProperty("content").GetString() ?? throw new InvalidDataException("Missing token content."), id, value.GetProperty("special").GetBoolean(), true);
-            }
-            omittedIds.UnionWith(specialIds);
-            if (doc.RootElement.TryGetProperty("additional_special_tokens", out var named))
-            {
-                // Observed in the toolkit's pinned Transformers 4.57.6: omission uses the named
-                // special-token list, not every added-token special flag (blank tokens survive).
-                omittedIds.Clear();
-                foreach (var token in named.EnumerateArray()) Omit(token);
-                foreach (string name in new[] { "bos_token", "eos_token", "pad_token", "unk_token" })
-                    if (doc.RootElement.TryGetProperty(name, out var token) && token.ValueKind != JsonValueKind.Null) Omit(token);
-            }
-            void Omit(JsonElement token)
-            {
-                string text = token.GetString() ?? throw new InvalidDataException("Missing named special token.");
-                if (!vocabulary.TryGetValue(text, out int id)) throw new InvalidDataException("Named special token is absent from vocabulary.");
-                omittedIds.Add(id);
-            }
-        }
-        if (vocabulary.Count == 0) throw new InvalidDataException("Empty vocabulary.");
-        int count = vocabulary.Values.Max() + 1;
-        pieces = new string[count]; bytes = new byte[count][];
-        foreach (var pair in vocabulary)
-        {
-            if (pieces[pair.Value] != null) throw new InvalidDataException("Duplicate vocabulary ID.");
-            pieces[pair.Value] = pair.Key;
-            if (!addedIds.Contains(pair.Value))
-            {
-                byte[] decoded = new byte[pair.Key.Length];
-                for (int i = 0; i < decoded.Length; i++)
-                    if (!characterBytes.TryGetValue(pair.Key[i], out decoded[i])) throw new InvalidDataException("Vocabulary is not byte-level BPE.");
-                bytes[pair.Value] = decoded;
-            }
-            else bytes[pair.Value] = Encoding.UTF8.GetBytes(pair.Key);
-        }
-        foreach (char character in byteCharacters)
-            if (!vocabulary.ContainsKey(character.ToString())) throw new InvalidDataException("Vocabulary lacks a byte token.");
-        string mergePath = Path.Combine(directory, "merges.txt");
-        if (new FileInfo(mergePath).Length > 16 * 1024 * 1024) throw new InvalidDataException("Merge file too large.");
-        int rank = 0;
-        foreach (string line in File.ReadLines(mergePath, new UTF8Encoding(false, true)))
-        {
-            if (line.StartsWith("#version:", StringComparison.Ordinal) || line.Length == 0) continue;
-            string[] pair = line.Split(' ');
-            if (pair.Length != 2 || rank >= 200000 || !vocabulary.ContainsKey(pair[0]) || !vocabulary.ContainsKey(pair[1]) || !vocabulary.ContainsKey(pair[0] + pair[1]) || !ranks.TryAdd((pair[0], pair[1]), rank++)) throw new InvalidDataException("Invalid BPE merge list.");
+            throw new InvalidDataException("Invalid Qwen tokenizer data.", ex);
         }
     }
 

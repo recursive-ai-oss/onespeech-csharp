@@ -133,7 +133,7 @@ internal static class QwenTools
         foreach (string file in Directory.EnumerateFiles(Path.Combine(root, split), "*.trans.txt", SearchOption.AllDirectories))
             foreach (string line in File.ReadLines(file)) { int space = line.IndexOf(' '); references.Add(line[..space], line[(space + 1)..]); }
         var paths = Directory.EnumerateFiles(Path.Combine(root, split), "*.flac", SearchOption.AllDirectories)
-            .OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Take(200).Skip(begin).Take(count);
+            .OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Skip(begin).Take(count);
         foreach (string path in paths)
         {
             string id = Path.GetFileNameWithoutExtension(path), target = Path.Combine(output, id + ".json");
@@ -204,7 +204,7 @@ internal static class QwenTools
         Metadata(output, model, precision.ToString(), begin, loadBefore, loadDuring, "running");
         using var recognizer = OneSpeech.Qwen3.Qwen3Recognizer.Load(model, new OneSpeech.Qwen3.Qwen3Options { Threads = 4, Precision = precision });
         var paths = Directory.EnumerateFiles(Path.Combine(root, split), "*.flac", SearchOption.AllDirectories)
-            .OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Take(200).Skip(begin).Take(count);
+            .OrderBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal).Skip(begin).Take(count);
         foreach (string path in paths)
         {
             string id = Path.GetFileNameWithoutExtension(path), target = Path.Combine(output, id + ".json");

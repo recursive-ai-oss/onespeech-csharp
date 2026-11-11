@@ -17,7 +17,7 @@ internal static class ExportHypotheses
             using var native = JsonDocument.Parse(File.ReadAllText(Path.Combine(oursDirectory, entry.Name + ".json")));
             using var oracle = JsonDocument.Parse(File.ReadAllText(Path.Combine(referenceDirectory, entry.Name + ".json")));
             Write(targets, entry.Name, entry.Text, []);
-            var transcript = native.RootElement.GetProperty("transcript");
+            var transcript = native.RootElement.TryGetProperty("transcript", out var document) ? document : native.RootElement;
             var nativeWords = transcript.TryGetProperty("words", out var words) ? words.EnumerateArray().Select(w => new Word(w.GetProperty("text").GetString()!, Number(w.GetProperty("start")), Number(w.GetProperty("end")))).ToArray() : [];
             var referenceWords = oracle.RootElement.GetProperty("segments").EnumerateArray().Where(s => s.TryGetProperty("words", out _)).SelectMany(s => s.GetProperty("words").EnumerateArray()).Select(w => new Word(w.GetProperty("word").GetString()!, Number(w.GetProperty("start")), Number(w.GetProperty("end")))).ToArray();
             Write(ours, entry.Name, transcript.GetProperty("text").GetString()!, nativeWords);

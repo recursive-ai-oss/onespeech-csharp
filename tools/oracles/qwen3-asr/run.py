@@ -27,7 +27,7 @@ def main():
     from qwen_asr import Qwen3ASRModel, Qwen3ForcedAligner
     torch.set_num_threads(4)
     args.output.mkdir(parents=True, exist_ok=True)
-    files = sorted((args.root / args.split).rglob("*.flac"), key=lambda path: path.stem)[:200]
+    files = sorted((args.root / args.split).rglob("*.flac"), key=lambda path: path.stem)
     references = {}
     for path in (args.root / args.split).rglob("*.trans.txt"):
         for line in path.read_text().splitlines():

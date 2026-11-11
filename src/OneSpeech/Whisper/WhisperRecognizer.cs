@@ -26,20 +26,18 @@ public sealed partial class WhisperRecognizer : SpeechRecognizer, IDisposable
         this.options = options;
         options.Validate();
         tokenizer = new WhisperTokenizer(directory);
-        features = new WhisperLogMelSpectrogram(WhisperConfiguration.Load(directory).MelBins);
-        using var generation = WhisperConfiguration.ReadJson(Path.Combine(directory, "generation_config.json"));
-        var g = generation.RootElement;
-        start = g.GetProperty("decoder_start_token_id").GetInt32();
-        end = g.GetProperty("eos_token_id").GetInt32();
-        transcribe = g.GetProperty("task_to_id").GetProperty("transcribe").GetInt32();
-        translate = g.GetProperty("task_to_id").GetProperty("translate").GetInt32();
+        var configuration = WhisperConfiguration.Load(directory);
+        features = new WhisperLogMelSpectrogram(configuration.MelBins);
+        var generation = WhisperGenerationConfiguration.Load(directory, configuration);
+        start = generation.Start; end = generation.End;
+        transcribe = generation.Transcribe; translate = generation.Translate;
         previous = tokenizer.GetToken("<|startofprev|>");
         noSpeech = tokenizer.TryGetToken("<|nospeech|>", out int noSpeechId) ? noSpeechId : tokenizer.GetToken("<|nocaptions|>");
-        noTimestamps = g.GetProperty("no_timestamps_token_id").GetInt32();
+        noTimestamps = generation.NoTimestamps;
         timestampBegin = noTimestamps + 1;
-        foreach (var entry in g.GetProperty("lang_to_id").EnumerateObject()) languages.Add(entry.Name[2..^2], entry.Value.GetInt32());
-        suppress = g.GetProperty("suppress_tokens").EnumerateArray().Select(v => v.GetInt32()).ToArray();
-        alignmentHeads = g.TryGetProperty("alignment_heads", out var heads) ? heads.EnumerateArray().Select(v => (v[0].GetInt32(), v[1].GetInt32())).ToArray() : [];
+        foreach (var entry in generation.Languages) languages.Add(entry.Key, entry.Value);
+        suppress = generation.Suppress;
+        alignmentHeads = generation.AlignmentHeads;
         string[] source = WhisperCheckpoint.Read(directory);
         Model = WhisperCheckpoint.Provenance(source);
         Capabilities = new Capabilities { Languages = languages.Keys.ToImmutableArray(), Translation = !source[0].EndsWith("turbo", StringComparison.Ordinal), NativeTimestamps = false, Streaming = false, Biasing = true };
@@ -48,7 +46,8 @@ public sealed partial class WhisperRecognizer : SpeechRecognizer, IDisposable
     }
 
     /// <summary>Loads local encoder/decoder OneModel graphs plus config, generation config, vocab, merges, added tokens and upstream provenance. Does not access the network.</summary>
-    /// <exception cref="IOException">A required file is missing, malformed or unreadable.</exception>
+    /// <exception cref="IOException">A required file is missing or unreadable.</exception>
+    /// <exception cref="InvalidDataException">Model configuration or tokenizer data is inconsistent or outside its bounds.</exception>
     /// <exception cref="ArgumentException">Options are invalid.</exception>
     /// <exception cref="CapabilityNotSupportedException">The checkpoint cannot serve the requested translation task.</exception>
     /// <exception cref="OperationCanceledException">Cancellation is requested while loading.</exception>

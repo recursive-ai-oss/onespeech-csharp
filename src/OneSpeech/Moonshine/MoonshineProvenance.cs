@@ -9,7 +9,10 @@ internal static class MoonshineProvenance
         long length = provenance.Length;
         if (length > 1024) throw new ModelIntegrityException("Moonshine provenance exceeds 1 KiB.");
         var bytes = new byte[(int)length]; provenance.ReadExactly(bytes);
-        using var reader = new StringReader(new System.Text.UTF8Encoding(false, true).GetString(bytes));
+        string text;
+        try { text = new System.Text.UTF8Encoding(false, true).GetString(bytes); }
+        catch (System.Text.DecoderFallbackException ex) { throw new ModelIntegrityException("Moonshine provenance is not UTF-8.", ex); }
+        using var reader = new StringReader(text);
         string? id = reader.ReadLine(), revision = reader.ReadLine(), sha = reader.ReadLine();
         if (id is null || reader.ReadLine() is not null) throw new ModelIntegrityException("Expected three-line Moonshine provenance.");
         var pin = Get(id);

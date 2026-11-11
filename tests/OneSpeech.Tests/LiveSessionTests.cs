@@ -181,6 +181,37 @@ public sealed class LiveSessionTests
         result.AddRange(session.Complete(TestContext.Current.CancellationToken));
         return result;
     }
+    [Fact]
+    public void IncrementalRecognizerIsDecodedAtItsOwnReadinessNotOnTheCadenceGrid()
+    {
+        // A chunk of 1280 samples whose last mel frame needs 200 samples of lookahead is ready at 200, 1480, 2760...
+        var incremental = new ReadyRecognizer();
+        using var session = new UtteranceLiveSession(new FakeRecognizer(), (_, _) => 1f, incremental, "en");
+        var events = new List<LiveEvent>();
+        for (int i = 0; i < 10; i++) events.AddRange(session.Push(new AudioBuffer(new float[160 * 8], 16000), TestContext.Current.CancellationToken));
+        Assert.NotEmpty(incremental.Decodes);
+        int ready = 0;  // the first decode waits for the minimum speech length
+        foreach (int length in incremental.Decodes)
+        {
+            // Decoded at the first 1280-sample push that reaches the readiness point, never one grid step later.
+            Assert.True(length >= ready && (ready == 0 || length - 1280 < ready), $"decoded at {length}, ready at {ready}");
+            ready = 1280 * ((length + 1080) / 1280 + 1) - 1080;
+        }
+    }
+    private sealed class ReadyRecognizer : IIncrementalUtteranceRecognizer
+    {
+        internal List<int> Decodes { get; } = [];
+        private int samples;
+        public int PartialCadenceSamples => 1280;
+        public int? NextOutputSamples => 1280 * ((samples + 1080) / 1280 + 1) - 1080;
+        public Segment Decode(ReadOnlyMemory<float> audio, string? language, bool final, TimeSpan start, TimeSpan end, CancellationToken cancellationToken)
+        {
+            samples = audio.Length; Decodes.Add(audio.Length);
+            return new Segment { Text = "x", Start = start, End = end };
+        }
+        public void Reset() => samples = 0;
+        public void Dispose() { }
+    }
     private sealed class FakeRecognizer : SpeechRecognizer
     {
         internal List<int> FrameCounts { get; } = [];

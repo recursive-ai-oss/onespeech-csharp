@@ -4,6 +4,12 @@ All notable changes are documented here, following Keep a Changelog.
 
 ## [Unreleased]
 
+### Added
+- Nemotron 3.5 ASR streaming supports `WithPhrases`: token-level shallow fusion over the same phrase trie as Parakeet, offline, through `TranscribeStream` and in live sessions. `Capabilities.Biasing` is now `true` for this model.
+
+### Changed
+- Nemotron live sessions decode a chunk as soon as the audio it needs has arrived, instead of on the next fixed 80 ms-grid tick, so a Final word is published up to one grid step earlier. Recognized text is unchanged.
+
 ## [1.0.0] - 2026-11-10
 
 First release. Measured results and limits: [docs/results.md](docs/results.md).

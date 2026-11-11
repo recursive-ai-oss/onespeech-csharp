@@ -82,6 +82,13 @@ can be smaller. No phrases or embeddings are persisted.
   normalization and Metaspace word boundaries. Text containing control-token
   syntax or characters that encode as unknown is refused, rather than biasing
   the shared unknown ID. Ordinary token weights feed the phrase trie.
+- **Nemotron 3.5 ASR:** the same token-level shallow fusion as Parakeet, applied
+  to the greedy RNN-T choice with the tokenizer's own BPE ranks. It works offline,
+  through `TranscribeStream` and in live sessions: the phrase state is part of
+  the per-utterance decoder state and restarts with each utterance. The bonus is
+  added to non-blank token scores only, so it can lift a token the model already
+  considers plausible but cannot create speech from silence. Language and
+  special tokens receive no bonus.
 - **Custom graphs:** `TokenVocabulary.WithPhraseEncoder` attaches the caller's
   exact encoding callback to a copy of the vocabulary. No segmentation or
   normalization is guessed from piece lengths. Nonblank ordinary IDs are the

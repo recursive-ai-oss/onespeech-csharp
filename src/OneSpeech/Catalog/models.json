@@ -2718,7 +2718,8 @@
           "et-EE"
         ],
         "nativeTimestamps": true,
-        "streaming": true
+        "streaming": true,
+        "biasing": true
       }
     },
     {

@@ -82,6 +82,13 @@ can be smaller. No phrases or embeddings are persisted.
   normalization and Metaspace word boundaries. Text containing control-token
   syntax or characters that encode as unknown is refused, rather than biasing
   the shared unknown ID. Ordinary token weights feed the phrase trie.
+- **Nemotron 3.5 ASR:** the same token-level shallow fusion as Parakeet, applied
+  to the greedy RNN-T choice with the tokenizer's own BPE ranks. It works offline,
+  through `TranscribeStream` and in live sessions: the phrase state is part of
+  the per-utterance decoder state and restarts with each utterance. The bonus is
+  added to non-blank token scores only, so it can lift a token the model already
+  considers plausible but cannot create speech from silence. Language and
+  special tokens receive no bonus.
 - **Custom graphs:** `TokenVocabulary.WithPhraseEncoder` attaches the caller's
   exact encoding callback to a copy of the vocabulary. No segmentation or
   normalization is guessed from piece lengths. Nonblank ordinary IDs are the
@@ -114,7 +121,7 @@ terms present anywhere in the normalized control reference. This reference-deriv
 list is a controlled diagnostic, not an estimate of how users choose phrases.
 
 From the repository root, run `prepare CORPUS STATE`, then each
-`run FAMILY MODEL STATE CASE MODE` for families `whisper`, `qwen`, `parakeet`,
+`run FAMILY MODEL STATE CASE MODE` for families `whisper`, `qwen`, `parakeet`, `nemotron` (VAD-chunked, 320 ms chunks) and `nemotron-live` (the recognizer's own live session, finals kept),
 cases `0`, `1`, and modes `baseline`, `phrases`, `control`. `score STATE` writes
 `scores.jsonl`. Model directories are existing publisher-verified converted caches,
 never modified. Shard by (family, case, mode); atomic transcripts allow bounded
@@ -159,3 +166,23 @@ native fixed-prompt retention policy and the reference's initial-prompt option
 are not claimed to produce identical decoding. Keep the per-file results and
 false alarms alongside term recall; do not treat reference reproduction of a
 failure as evidence that the hint is safe.
+
+### Nemotron 3.5 ASR streaming
+
+Same two recordings, default weight 1, four threads, 320 ms attention chunks, fp32 greedy RNN-T, English hint.
+There is no reference implementation for this fusion, so these are floors. Pooled over the two files (4,434 reference words, 30 listed-phrase occurrences);
+per-file rows are in `scores.jsonl` as always.
+
+| Path | Mode | Errors | WER % | Listed phrases recalled |
+|---|---|---:|---:|---:|
+| VAD-chunked | baseline | 1,066 | 24.04 | 24 / 30 |
+| VAD-chunked | phrases | 1,116 | 25.17 | 24 / 30 |
+| VAD-chunked | absent-phrase control | 1,141 | 25.73 | 24 / 30 (0 false alarms) |
+| Live session | baseline | 1,345 | 30.33 | 19 / 30 |
+| Live session | phrases | 1,400 | 31.57 | 18 / 30 |
+| Live session | absent-phrase control | 1,399 | 31.55 | 19 / 30 (0 false alarms) |
+
+Fusion did not raise recall here and cost 1.1-1.2 points of WER on the pair; the control with phrases that never occur costs as much or more, so the loss comes from
+the fusion mechanism (a partial phrase match makes every other non-blank token pay back the credit), not from the particular words. Treat Nemotron biasing as opt-in,
+check WER on your own audio; lower per-phrase weights (`new Phrase("Acme", 0.5)`) were not evaluated here. Without phrases the decoder is untouched: the 200-utterance LibriSpeech
+streaming rows are token-identical to the reference.

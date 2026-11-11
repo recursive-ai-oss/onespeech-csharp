@@ -57,7 +57,7 @@ unbiased recognizer. The original recognizer is never modified.
 Whisper conditions each window with ordinary prompt tokens. Qwen3-ASR appends
 phrases to its existing system context. These prompt methods refuse explicit
 numeric weights rather than pretending to apply a score bonus. Parakeet TDT
-uses token-level shallow fusion; `new Phrase("Acme", 0.5)` supplies a natural-log
+and Nemotron 3.5 ASR (offline, streaming and live) use token-level shallow fusion; `new Phrase("Acme", 0.5)` supplies a natural-log
 bonus per token (null defaults to 1). Custom CTC/transducer graphs use the same
 fusion after the caller supplies `TokenVocabulary.WithPhraseEncoder` for their
 exact tokenizer. CTC biasing uses prefix beam search, even if the unbiased

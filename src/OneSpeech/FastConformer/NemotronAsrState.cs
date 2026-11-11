@@ -21,14 +21,15 @@ internal sealed class NemotronAsrState : IIncrementalUtteranceRecognizer
     private readonly bool automaticPrompt;
     private readonly float[] zeros = new float[160];
     private CancellationToken cancellation;
-    private int samples, frames, promptId;
+    private readonly PhraseTrie? phrases;
+    private int samples, frames, promptId, phraseState;
     private bool initialized;
     internal string? DetectedLanguage { get; private set; }
     private static readonly string[] PromptInputs = ["prompt_input"], PromptOutputs = ["conditioned"], PredictorInputs = ["predictor_state"], PredictorOutputs = ["next_predictor_state"], JointInputs = ["joint_input"], JointOutputs = ["logits"];
 
-    internal NemotronAsrState(NemotronAsrRecognizer owner, int promptId, CancellationToken ct, bool padFinalChunk = true)
+    internal NemotronAsrState(NemotronAsrRecognizer owner, int promptId, CancellationToken ct, bool padFinalChunk = true, PhraseTrie? phrases = null)
     {
-        this.owner = owner; this.promptId = promptId; this.padFinalChunk = padFinalChunk; automaticPrompt = promptId == 101;
+        this.owner = owner; this.phrases = phrases; this.promptId = promptId; this.padFinalChunk = padFinalChunk; automaticPrompt = promptId == 101;
         int chunk = owner.ChunkFrames;
         promptInput = Tensor.Zeros(DType.F32, Shape.Create(1, 1152, chunk)); promptOutput = Tensor.Zeros(DType.F32, Shape.Create(1, 1024, chunk));
         predictorInput = Tensor.Zeros(DType.F32, Shape.Create(1, 3200)); predictorOutput = Tensor.Zeros(DType.F32, Shape.Create(1, 3200));
@@ -76,7 +77,19 @@ internal sealed class NemotronAsrState : IIncrementalUtteranceRecognizer
                 owner.Joint.Run(JointInputs, jointInputs, JointOutputs, jointOutputs);
                 var scores = logits.Data<float>(); int best = 0;
                 for (int i = 1; i < scores.Length; i++) if (scores[i] > scores[best]) best = i;
+                if (phrases is not null)
+                {
+                    // Shallow fusion: the phrase bonus is added to token log-scores before the choice; blank gets none.
+                    // Same rule as ContextualTransducerSearch (Le et al. 2021 §3.1), kept token-for-token identical.
+                    double top = double.NegativeInfinity;
+                    for (int i = 0; i < scores.Length; i++)
+                    {
+                        double score = scores[i] + (i == 13087 ? 0 : phrases.Advance(phraseState, i, out _));
+                        if (score > top) { top = score; best = i; }
+                    }
+                }
                 if (best == 13087) break;
+                if (phrases is not null) { phrases.Advance(phraseState, best, out int next); phraseState = next; }
                 if (tokens.Count >= 40000) throw new CapabilityNotSupportedException("Nemotron utterances are limited to 40000 tokens; split the audio.");
                 double sum = 0; for (int i = 0; i < scores.Length; i++) sum += Math.Exp(scores[i] - scores[best]);
                 DetectedLanguage ??= owner.Vocabulary.Language(best);
@@ -88,6 +101,9 @@ internal sealed class NemotronAsrState : IIncrementalUtteranceRecognizer
         }
     }
     public int PartialCadenceSamples => owner.ChunkFrames * 1280;
+    // The encoder emits a chunk as soon as its last mel frame exists. Mel frame f needs 160 f + 200 samples (400-sample
+    // Hann support), the first chunk holds 8c - 7 frames and later chunks 8c, so chunk j completes at 1280 c (j + 1) - 1080.
+    public int? NextOutputSamples { get { int grid = owner.ChunkFrames * 1280; return grid * ((samples + 1080) / grid + 1) - 1080; } }
     internal int TokenCount => tokens.Count;
     internal ImmutableArray<FrameToken> Tokens => [.. tokens];
     internal void Push(ReadOnlySpan<float> audio, bool final, CancellationToken ct)
@@ -126,7 +142,7 @@ internal sealed class NemotronAsrState : IIncrementalUtteranceRecognizer
     }
     public void Reset()
     {
-        encoder.Reset(); mel.Reset(); tokens.Clear(); samples = frames = 0; initialized = false; DetectedLanguage = null;
+        encoder.Reset(); mel.Reset(); tokens.Clear(); samples = frames = phraseState = 0; initialized = false; DetectedLanguage = null;
         predictorInput.MutableData<float>().Clear(); predictorOutput.MutableData<float>().Clear();
     }
     public void Dispose()

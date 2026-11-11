@@ -105,10 +105,11 @@ if (args is ["run", var family, var modelDirectory, var root, var caseId, var mo
         "whisper" => WhisperRecognizer.Load(modelDirectory, new WhisperOptions { Threads = 4, Temperatures = [0], WordTimestamps = false }, ct),
         "qwen" => Qwen3Recognizer.Load(modelDirectory, new Qwen3Options { Threads = 4 }, ct),
         "parakeet" => ParakeetRecognizer.Load(new(modelDirectory, ParakeetInfo()), threads: 4, cancellationToken: ct),
-        _ => throw new ArgumentException("Expected whisper, qwen or parakeet.")
+        "nemotron" or "nemotron-live" => NemotronAsrRecognizer.Load(new(modelDirectory, NemotronInfo()), new NemotronAsrOptions { ChunkMilliseconds = 320, Threads = 4 }, ct),
+        _ => throw new ArgumentException("Expected whisper, qwen, parakeet, nemotron or nemotron-live.")
     };
     using var owner = (IDisposable)recognizer;
-    string expectedId = family switch { "whisper" => "openai/whisper-small", "qwen" => "Qwen/Qwen3-ASR-0.6B", _ => "nvidia/parakeet-tdt-0.6b-v3" };
+    string expectedId = family switch { "whisper" => "openai/whisper-small", "qwen" => "Qwen/Qwen3-ASR-0.6B", "parakeet" => "nvidia/parakeet-tdt-0.6b-v3", _ => "nvidia/nemotron-3.5-asr-streaming-0.6b" };
     if (recognizer.Model.Id != expectedId) throw new ArgumentException("This fixed diagnostic requires " + expectedId);
     if (mode != "baseline")
     {
@@ -116,8 +117,15 @@ if (args is ["run", var family, var modelDirectory, var root, var caseId, var mo
         recognizer = recognizer.WithPhrases(File.ReadAllLines(Path.Combine(folder, mode + ".txt")).Select(t => new Phrase(t)), ct);
     }
     using var detector = new OneSpeech.Vad.SileroVad(cancellationToken: ct);
-    var pipeline = new OneSpeech.Pipeline.VadTranscriptionPipeline(recognizer, detector, progress: load);
-    var result = pipeline.Transcribe(Path.Combine(folder, "audio.wav"), "en", ct);
+    Transcript result;
+    if (family == "nemotron-live")
+    {
+        // Streaming path: the recognizer's own live session (true partials); only finals are kept.
+        var clip = OneAudio.Audio.Load(Path.Combine(folder, "audio.wav"), new OneAudio.LoadOptions { SampleRate = 16000, Channels = 1 });
+        var segments = recognizer.TranscribeStream(new AudioBuffer(clip.Samples, 16000), "en", ct).ToArray();
+        result = new Transcript { Text = string.Join(' ', segments.Select(x => x.Text)), Duration = TimeSpan.FromSeconds(clip.Samples.Length / 16000d), Segments = [.. segments], Words = [.. segments.SelectMany(x => x.Words)], Models = [recognizer.Model] };
+    }
+    else result = new OneSpeech.Pipeline.VadTranscriptionPipeline(recognizer, detector, progress: load).Transcribe(Path.Combine(folder, "audio.wav"), "en", ct);
     load.Sample("after");
     File.WriteAllText(output + ".partial", result.ToJson()); File.Move(output + ".partial", output);
     Console.WriteLine("Completed: " + output); return;
@@ -127,7 +135,7 @@ if (args is ["score", var rootDirectory])
     using var file = File.Create(Path.Combine(rootDirectory, "scores.jsonl")); using var writer = new StreamWriter(file);
     var counts = new Dictionary<(string Family, string Mode, string Metric), List<ErrorCounts>>();
     foreach (string folder in Directory.GetDirectories(Path.Combine(rootDirectory, "cases")).Order(StringComparer.Ordinal))
-        foreach (string scoreFamily in new[] { "whisper", "qwen", "parakeet", "reference-whisper" })
+        foreach (string scoreFamily in new[] { "whisper", "qwen", "parakeet", "nemotron", "nemotron-live", "reference-whisper" })
             foreach (string scoreMode in new[] { "baseline", "phrases", "control" })
             {
                 string path = Path.Combine(folder, scoreFamily + "-" + scoreMode + ".json"); if (!File.Exists(path)) continue;
@@ -158,7 +166,7 @@ if (args is ["score", var rootDirectory])
                 writer.WriteLine(System.Text.Encoding.UTF8.GetString(buffer.ToArray()));
             }
     using var bootstrapFile = File.Create(Path.Combine(rootDirectory, "bootstrap.jsonl")); using var bootstrapWriter = new StreamWriter(bootstrapFile);
-    foreach (string name in new[] { "whisper", "qwen", "parakeet", "reference-whisper" })
+    foreach (string name in new[] { "whisper", "qwen", "parakeet", "nemotron", "nemotron-live", "reference-whisper" })
         foreach (string comparison in new[] { "phrases", "control" })
             foreach (string metric in new[] { "wer", "phraseMissRate" })
             {
@@ -192,6 +200,12 @@ static List<(string Word, bool SentenceStart)> ReadRows(string corpus, string id
         rows.Add((columns[0], start)); start = columns[4].IndexOfAny(['.', '!', '?']) >= 0;
     }
     return rows;
+}
+static ModelInfo NemotronInfo()
+{
+    var entry = ModelCatalog.Default.Get("nvidia/nemotron-3.5-asr-streaming-0.6b");
+    return new() { Id = entry.Id, Revision = entry.Revision, Source = entry.Source, Tier = entry.Tier, License = entry.License, Attribution = entry.Attribution,
+        Files = entry.Files.Concat(entry.ConvertedFiles).Select(file => new ModelFileInfo { Name = file.Name, Sha256 = file.Sha256 }).ToImmutableArray() };
 }
 static ModelInfo ParakeetInfo()
 {

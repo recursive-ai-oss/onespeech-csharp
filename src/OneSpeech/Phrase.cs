@@ -40,7 +40,8 @@ internal static class PhraseRequests
 
 // Borrows model ownership; context is immutable per wrapper. The model's concurrency restrictions still apply.
 internal sealed class BiasedRecognizer(SpeechRecognizer source, Func<AudioBuffer, string?, CancellationToken, Transcript> transcribe,
-    Func<AudioBuffer, string?, CancellationToken, IEnumerable<Segment>>? stream = null) : SpeechRecognizer
+    Func<AudioBuffer, string?, CancellationToken, IEnumerable<Segment>>? stream = null,
+    Func<VoiceActivityDetector, string?, LiveSession>? live = null) : SpeechRecognizer
 {
     // The wrapper borrows the source; only the original recognizer owns its model resources.
     protected override void Dispose(bool disposing) => base.Dispose(disposing);
@@ -65,4 +66,5 @@ internal sealed class BiasedRecognizer(SpeechRecognizer source, Func<AudioBuffer
         foreach (var segment in new VadTranscriptionPipeline(this, vad).TranscribeStream(audio, language, cancellationToken)) yield return segment;
     }
     public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken = default) => source.DetectLanguage(audio, cancellationToken);
+    public override LiveSession CreateLiveSession(VoiceActivityDetector detector, string? language = null) => live is null ? base.CreateLiveSession(detector, language) : live(detector, language);
 }

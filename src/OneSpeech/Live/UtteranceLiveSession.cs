@@ -81,7 +81,8 @@ public sealed class UtteranceLiveSession : LiveSession
 
     private void Partial(CancellationToken cancellationToken)
     {
-        if (incremental is null || speechStart < 0 || silenceStart >= 0 || position - speechStart <= options.MinimumSpeech.TotalSeconds * 16000 || position - lastPartial < incremental.PartialCadenceSamples) return;
+        if (incremental is null || speechStart < 0 || silenceStart >= 0 || position - speechStart <= options.MinimumSpeech.TotalSeconds * 16000) return;
+        if (incremental.NextOutputSamples is int ready ? position - paddedStart < ready : position - lastPartial < incremental.PartialCadenceSamples) return;
         var result = Decode(position, false, cancellationToken);
         PublishPartial(result);
         lastPartial = position;

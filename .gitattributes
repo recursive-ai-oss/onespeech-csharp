@@ -1,0 +1,13 @@
+# Check out text with LF on every platform, so string literals, embedded
+# resources and test expectations are byte-identical across operating systems.
+* text=auto eol=lf
+
+*.png  binary
+*.flac binary
+*.wav  binary
+*.mp3  binary
+*.m4a  binary
+*.amr  binary
+*.onnx binary
+*.bin  binary
+*.nupkg binary

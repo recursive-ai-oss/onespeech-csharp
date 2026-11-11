@@ -417,6 +417,31 @@ if (args is ["pyannote-diarize", var pyannoteSnapshot, var pyannoteModelCache, v
     await PyannoteDiarizationProbe.Run(pyannoteSnapshot, pyannoteModelCache, pyannoteEmbedder, pyannoteAudio, pyannoteRttm);
     return 0;
 }
+if (args is ["community-compare", var ccSnapshot, var ccCache, var ccAudio, var ccDir])
+{
+    CommunityCompare.Run(ccSnapshot, ccCache, ccAudio, ccDir);
+    return 0;
+}
+if (args is ["community-diarize", var cdSnapshot, var cdCache, var cdAudio, var cdRttm, var cdThreads])
+{
+    CommunityDiarizationProbe.Run(cdSnapshot, cdCache, cdAudio, cdRttm, int.Parse(cdThreads, System.Globalization.CultureInfo.InvariantCulture));
+    return 0;
+}
+if (args is ["community-cluster", var clSnapshot, var clDir])
+{
+    CommunityCluster.Run(clSnapshot, clDir);
+    return 0;
+}
+if (args is ["community-analysis", var caDir])
+{
+    CommunityAnalysis.Run(caDir);
+    return 0;
+}
+if (args is ["wespeaker-probe", var wsCheckpoint, var wsCache, var wsProbes])
+{
+    WeSpeakerProbe.Run(wsCheckpoint, wsCache, wsProbes);
+    return 0;
+}
 if (args is ["pyannote-probe", var pyannoteCheckpoint, var pyannoteCache, var pyannoteProbes])
 {
     PyannoteProbe.Run(pyannoteCheckpoint, pyannoteCache, pyannoteProbes);

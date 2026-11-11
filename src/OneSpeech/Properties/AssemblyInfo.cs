@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("OneSpeech.WhisperProbe")]
 
 [assembly: InternalsVisibleTo("OneSpeech.CheckpointFuzz")]
+[assembly: InternalsVisibleTo("OneSpeech.NpzFuzz")]
 
 [assembly: InternalsVisibleTo("onespeech-eval")]
 [assembly: InternalsVisibleTo("OneSpeech.MoonshineFuzz")]

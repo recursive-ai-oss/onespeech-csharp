@@ -11,6 +11,7 @@ using OneSpeech.Audio;
 using OneSpeech.Catalog;
 using OneSpeech.Diarization;
 using OneSpeech.Embedders;
+using OneSpeech.FastConformer;
 using OneSpeech.Moonshine;
 using OneSpeech.Vad;
 
@@ -53,7 +54,7 @@ if (args is ["--pull", var model])
 }
 if (args.Length != 8 || args[0] != "--filter" || args[2] != "--threads" || args[4] != "--data" || args[6] != "--out")
 {
-    Console.Error.WriteLine("Usage: --filter all|turbo60|turbo600|long|small|qwen|live|diarize|align --threads N --data DIR --out DIR\nPreparation: --prepare-data LIBRISPEECH_DIR AMI_WAV DIR; --pull MODEL_ID");
+    Console.Error.WriteLine("Usage: --filter all|turbo60|turbo600|long|small|qwen|live|nemotron|diarize|eres2netv2|align --threads N --data DIR --out DIR\nPreparation: --prepare-data LIBRISPEECH_DIR AMI_WAV DIR; --pull MODEL_ID");
     return 2;
 }
 if (!GraphTiming.IsCompiled) throw new InvalidOperationException("Build with -p:OneSpeechGraphTiming=true. Ordinary builds deliberately contain no timing calls.");
@@ -62,17 +63,17 @@ if (threads is < 1 or > 256) throw new ArgumentOutOfRangeException(nameof(args),
 GraphTiming.ThreadCount = threads;
 string data = Path.GetFullPath(args[5]), output = Path.GetFullPath(args[7]);
 Directory.CreateDirectory(output);
-string[] names = ["turbo60", "turbo600", "long", "small", "qwen", "live", "diarize", "align"];
+string[] names = ["turbo60", "turbo600", "long", "small", "qwen", "live", "nemotron", "diarize", "eres2netv2", "align"];
 if (args[1] != "all" && !names.Contains(args[1], StringComparer.Ordinal)) throw new ArgumentException("Unknown filter.");
 foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
 {
-    string file = Path.Combine(data, name switch { "turbo600" => "clip600.wav", "long" => "long.wav", "diarize" => "ami.wav", _ => "clip60.wav" });
+    string file = Path.Combine(data, name switch { "turbo600" => "clip600.wav", "long" => "long.wav", "diarize" or "eres2netv2" => "ami.wav", _ => "clip60.wav" });
     double duration = Fixtures.Duration(file);
-    string id = name switch { "long" => "openai/whisper-tiny", "small" => "openai/whisper-small", "qwen" => "Qwen/Qwen3-ASR-1.7B", "live" => "moonshine-ai/moonshine-streaming-tiny", "align" => "facebook/omniASR-CTC-300M", "diarize" => "iic/speech_campplus_sv_en_voxceleb_16k", _ => "openai/whisper-large-v3-turbo" };
+    string id = name switch { "long" => "openai/whisper-tiny", "small" => "openai/whisper-small", "qwen" => "Qwen/Qwen3-ASR-1.7B", "live" => "moonshine-ai/moonshine-streaming-tiny", "nemotron" => "nvidia/nemotron-3.5-asr-streaming-0.6b", "eres2netv2" => "iic/speech_eres2netv2_sv_zh-cn_16k-common", "align" => "facebook/omniASR-CTC-300M", "diarize" => "iic/speech_campplus_sv_en_voxceleb_16k", _ => "openai/whisper-large-v3-turbo" };
     var load = Stopwatch.StartNew();
     // Pull before either pass: network/conversion are never throughput measurements.
     var resolved = await ModelStore.Default.PullAsync(id);
-    using var workload = name == "live" ? null : await LoadedWorkload.LoadAsync(name, id, threads);
+    using var workload = name is "live" or "nemotron" ? null : await LoadedWorkload.LoadAsync(name, id, threads);
     load.Stop();
     double modelLoadSeconds = workload?.LoadSeconds ?? 0;
     double prepareSeconds = load.Elapsed.TotalSeconds - modelLoadSeconds;
@@ -80,7 +81,7 @@ foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
     if (workload is not null) _ = workload.Run(Path.Combine(data, "warm.wav"), File.ReadAllText(Path.Combine(data, "warm-align.txt")), Fixtures.Duration(Path.Combine(data, "warm.wav")));
     warmClock.Stop();
     double warmupSeconds = warmClock.Elapsed.TotalSeconds;
-    var sampler = new MemorySamples(Path.Combine(output, $"{name}-{threads}.memory.csv"), () => workload?.Phase ?? "live");
+    var sampler = new MemorySamples(Path.Combine(output, $"{name}-{threads}.memory.csv"), () => workload?.Phase ?? name);
     string beforeLoad = Machine.Load();
     GraphTiming.Reset();
     long allocated = GC.GetTotalAllocatedBytes(precise: true);
@@ -88,10 +89,11 @@ foreach (string name in names.Where(n => args[1] == "all" || args[1] == n))
     long ourLiveBytes = 0, liveChunks = 0, nonemittingBytes = 0, nonemittingChunks = 0;
     double setupSeconds = 0;
     Transcript? document = null;
-    if (name == "live")
+    if (name is "live" or "nemotron")
     {
         long setup = Stopwatch.GetTimestamp();
-        using var recognizer = MoonshineRecognizer.Load(resolved.Directory);
+        // Nemotron is tier 2: 320 ms chunks (its default), one thread, loaded from the pulled publisher checkpoint.
+        using SpeechRecognizer recognizer = name == "nemotron" ? NemotronAsrRecognizer.Load(resolved, new NemotronAsrOptions { Threads = threads }) : MoonshineRecognizer.Load(resolved.Directory);
         using var vad = new SileroVad();
         modelLoadSeconds = Stopwatch.GetElapsedTime(setup).TotalSeconds;
         var audio = Fixtures.ReadMono(file);

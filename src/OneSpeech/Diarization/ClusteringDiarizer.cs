@@ -9,6 +9,7 @@ public sealed class ClusteringDiarizer : BlockDiarizer
     private readonly SpeakerEmbedder embedder;
     private readonly VoiceActivityDetector detector;
     private readonly ClusteringOptions options;
+    private readonly int minimumSamples;
     private readonly EmbeddingResegmenter? resegmenter;
 
     internal Func<ReadOnlyMemory<float>, CancellationToken, SpeakerMatch>? IdentifyCluster { get; init; }
@@ -23,6 +24,7 @@ public sealed class ClusteringDiarizer : BlockDiarizer
         if (embedder.SampleRate != 16000 || embedder.Dimension < 1 || embedder.Dimension > 4096)
             throw new CapabilityNotSupportedException("Clustering requires a 16 kHz speaker embedder with dimension 1–4096.");
         this.embedder = embedder; this.detector = detector;
+        minimumSamples = Math.Max((int)Math.Round(this.options.MinimumSegmentSeconds * 16000), embedder.MinimumInputSamples);
         // Unconstrained smoothing can remove a label. Preserve caller count hints without
         // inventing a replacement label; explicit custom backends retain strict validation.
         this.resegmenter = resegmenter ?? (this.options.Resegment && this.options.NumSpeakers is null && this.options.MinSpeakers == 1
@@ -76,7 +78,8 @@ public sealed class ClusteringDiarizer : BlockDiarizer
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     int length = Math.Min(windowLength, region.End - start);
-                    if (length < (int)Math.Round(options.MinimumSegmentSeconds * 16000)) break;
+                    // The embedder may need more audio than the Landini cutoff; too-short segments are skipped the same way.
+                    if (length < minimumSamples) break;
                     if (windows.Count == options.MaxWindows) throw new CapabilityNotSupportedException("Diarization exceeded MaxWindows. Increase ClusteringOptions.MaxWindows within its documented bound or split the input explicitly.");
                     var vector = new float[embedder.Dimension];
                     embedder.Embed(new AudioBuffer(mono.Slice(start, length), 16000), vector, cancellationToken);

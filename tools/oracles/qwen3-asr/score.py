@@ -46,7 +46,7 @@ def timing_summary(report):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=("wer", "timing", "long"))
+    parser.add_argument("mode", choices=("wer", "full", "timing", "long"))
     parser.add_argument("state", type=Path)
     parser.add_argument("root", type=Path, nargs="?")
     parser.add_argument("--whisper", type=Path)
@@ -74,6 +74,24 @@ def main():
                 print("Reference unavailable: native-only information, not a paired row.")
             score(state, "long" + (suffix or "-0.6b"), truth,
                   [dict(id="4474955", text=ours["text"])], reference)
+    elif args.mode == "full":
+        # Every utterance of both splits. Rows: <state>/rows/{ours,ref}-<model>-test-<split>/<id>.json
+        # (ours from the CPU graphs, ref from the qwen-asr toolkit). Incomplete sides are reported, never scored.
+        for split in ("clean", "other"):
+            truth = []
+            for path in (args.root / ("test-" + split)).rglob("*.trans.txt"):
+                for line in path.read_text().splitlines():
+                    key, text = line.split(" ", 1)
+                    truth.append(dict(id=key, text=text))
+            truth = sorted(truth, key=lambda row: row["id"])
+            for model in ("0.6b", "1.7b"):
+                name = f"{model}-fp32-{split}-full"
+                ours = read_rows(state / "rows" / f"ours-{model}-test-{split}")
+                reference = read_rows(state / "rows" / f"ref-{model}-test-{split}")
+                if len(ours) != len(truth) or len(reference) != len(truth):
+                    print(f"Incomplete {name}: {len(ours)}/{len(truth)} native; {len(reference)}/{len(truth)} reference")
+                    continue
+                score(state, name, truth, ours, reference)
     elif args.mode == "wer":
         for split in ("clean", "other"):
             truth = []

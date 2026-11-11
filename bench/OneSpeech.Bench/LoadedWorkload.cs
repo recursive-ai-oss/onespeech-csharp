@@ -35,25 +35,31 @@ internal sealed class LoadedWorkload : IDisposable
             var assets = new Dictionary<string, ResolvedModel>(StringComparer.Ordinal);
             var clock = Stopwatch.StartNew();
             await Pull(id);
-            if (row is not ("align" or "diarize"))
+            if (row is not ("align" or "diarize" or "eres2netv2"))
             {
                 await Pull("Qwen/Qwen3-ForcedAligner-0.6B");
                 await Pull("facebook/omniASR-CTC-300M");
             }
-            if (row != "align") await Pull("iic/speech_campplus_sv_en_voxceleb_16k");
+            if (row is not ("align" or "eres2netv2")) await Pull("iic/speech_campplus_sv_en_voxceleb_16k");
             result.PrepareSeconds = clock.Elapsed.TotalSeconds;
             clock.Restart();
             if (row == "align") result.aligner = Omni();
             else
             {
-                var model = assets["iic/speech_campplus_sv_en_voxceleb_16k"];
-                var embedder = result.Own(new CampPlusEmbedder(Path.Combine(model.Directory, "campplus-en-fp32.onemodel"), model.Info, threads: threads));
+                // The eres2netv2 row swaps the embedder only; everything else is the diarize row.
+                SpeakerEmbedder embedder;
+                if (row == "eres2netv2") embedder = result.Own(ERes2NetV2Embedder.Load(assets[id], threads));
+                else
+                {
+                    var model = assets["iic/speech_campplus_sv_en_voxceleb_16k"];
+                    embedder = result.Own(new CampPlusEmbedder(Path.Combine(model.Directory, "campplus-en-fp32.onemodel"), model.Info, threads: threads));
+                }
                 var activity = result.Own(new SileroVad(SileroVadOptions.Diarization));
                 result.diarizer = new ClusteringDiarizer(embedder, activity)
                 {
                     IdentifyCluster = (vector, token) => SpeakerServices.Match(embedder.Model.Id, vector, token)
                 };
-                if (row != "diarize")
+                if (row is not ("diarize" or "eres2netv2"))
                 {
                     result.recognizer = id.StartsWith("Qwen/", StringComparison.Ordinal)
                         ? result.Own(Qwen3Recognizer.Load(assets[id].Directory))
@@ -90,7 +96,7 @@ internal sealed class LoadedWorkload : IDisposable
             return result;
         }
         Transcript transcript;
-        if (row == "diarize") transcript = new Transcript { Text = "", Duration = TimeSpan.FromSeconds(durationSeconds) };
+        if (row is "diarize" or "eres2netv2") transcript = new Transcript { Text = "", Duration = TimeSpan.FromSeconds(durationSeconds) };
         else
         {
             phase = "recognition";

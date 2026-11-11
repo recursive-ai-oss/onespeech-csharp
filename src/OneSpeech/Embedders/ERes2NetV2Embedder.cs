@@ -34,6 +34,9 @@ public sealed partial class ERes2NetV2Embedder : SpeakerEmbedder
     /// <inheritdoc />
     public override int SampleRate => 16000;
 
+    // Two pooled frames after 8x down-sampling (see Embed).
+    internal override int MinimumInputSamples => 3200;
+
     /// <summary>Extracts an unnormalized speaker vector from mono 16,000 Hz PCM, 200 ms through 60 s.
     /// Destination must have exactly Dimension elements. Checks cancellation each feature frame and before
     /// graph inference. Rejects nonfinite audio or a nonfinite/zero model result. Never persists inputs/results.</summary>
@@ -44,7 +47,7 @@ public sealed partial class ERes2NetV2Embedder : SpeakerEmbedder
             ObjectDisposedException.ThrowIf(disposed, this);
             if (audio.SampleRate != SampleRate || audio.Channels != 1) throw new ArgumentException("ERes2NetV2 requires mono 16000 Hz PCM.", nameof(audio));
             if (destination.Length != Dimension) throw new ArgumentException("Embedding destination has the wrong dimension.", nameof(destination));
-            if (audio.Samples.Length < 3200) throw new ArgumentException("ERes2NetV2 pooling needs at least two frames after 8x down-sampling, so at least 200 ms of audio.", nameof(audio));
+            if (audio.Samples.Length < MinimumInputSamples) throw new ArgumentException("ERes2NetV2 pooling needs at least two frames after 8x down-sampling, so at least 200 ms of audio.", nameof(audio));
             cancellationToken.ThrowIfCancellationRequested();
             GraphTiming.BeginCost(1);
             float[] values = features.Compute(audio.Samples.Span, cancellationToken);

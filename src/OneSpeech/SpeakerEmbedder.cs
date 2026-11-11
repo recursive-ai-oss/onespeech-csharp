@@ -14,6 +14,9 @@ public abstract class SpeakerEmbedder : IDisposable
     /// Throws ArgumentException for unsupported input or storage, OperationCanceledException on cancellation,
     /// and ObjectDisposedException after disposal. No audio or embedding is persisted.</summary>
     public abstract void Embed(AudioBuffer audio, Span<float> destination, CancellationToken cancellationToken);
+    /// <summary>Shortest input, in samples at <see cref="SampleRate"/>, that <see cref="Embed"/> accepts. Callers that cut audio into
+    /// segments (the clustering diarizer) skip anything shorter. Internal so the public surface is unchanged; embedders without a floor keep 1.</summary>
+    internal virtual int MinimumInputSamples => 1;
     /// <summary>Releases owned model resources. Repeated calls are harmless.</summary>
     public abstract void Dispose();
 }

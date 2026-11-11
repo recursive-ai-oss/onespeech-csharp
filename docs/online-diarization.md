@@ -20,6 +20,8 @@ Unassigned instead of being forced into an existing speaker. Centroids use
 bounded-weight updates (weight increases to 100, then update weight is 1/101).
 No speaker count is inferred from future speech.
 
+Consecutive 1.5 s windows of one utterance that land on the same speaker are merged into one turn before anything is emitted. Turns are never merged across utterances: the earlier turn is already emitted and emitted events do not change.
+
 `SpeakerTurnEvent`s precede the utterance's `FinalEvent`. The final also carries `SpeakerTurns`, an immutable snapshot of the same labelled
 activity, so a recognizer such as Moonshine can expose speaker labels on finals
 even when it supplies no word timing. This is not a claim that an untimed word

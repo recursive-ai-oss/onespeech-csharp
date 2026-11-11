@@ -26,7 +26,7 @@ internal sealed class DeferredTiming
             if (plan.Start != audio.Start || plan.Duration != audio.Audio.Duration)
                 throw new InvalidDataException("Timing replay changed a speech chunk boundary.");
             var localWords = words.AsSpan(plan.Offset, plan.Count).ToArray().Select(w => w with { Start = w.Start - plan.Start, End = w.End - plan.Start }).ToImmutableArray();
-            var local = new Transcript { Text = string.Join(' ', localWords.Select(w => w.Text)), Words = localWords, Language = plan.Language, Duration = plan.Duration };
+            var local = new Transcript { Text = TextSpacing.Join(localWords.Select(w => w.Text)), Words = localWords, Language = plan.Language, Duration = plan.Duration };
             var timed = VadTranscriptionPipeline.ApplyTiming(audio.Audio, local, plan.Language, [aligner], cancellationToken);
             for (int i = 0; i < plan.Count; i++) words[plan.Offset + i] = timed.Words[i] with { Start = timed.Words[i].Start + plan.Start, End = timed.Words[i].End + plan.Start };
             foreach (var model in timed.Models)

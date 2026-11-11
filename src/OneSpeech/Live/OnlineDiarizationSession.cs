@@ -87,7 +87,11 @@ public sealed class OnlineDiarizationSession : LiveSession
                 model.Embed(new AudioBuffer(window.AsMemory(0, length), 16000), embedding, cancellationToken);
                 label = clustering.Assign(embedding);
             }
-            turns.Add(new Turn { Start = TimeSpan.FromSeconds(at / 16000d), End = TimeSpan.FromSeconds((at + length) / 16000d), Speaker = label, Text = "" });
+            // Windows of one utterance that land on the same speaker are one turn; merging happens here,
+            // before anything is emitted, so emitted events stay immutable.
+            var turnEnd = TimeSpan.FromSeconds((at + length) / 16000d);
+            if (turns.Count > 0 && turns[^1].Speaker == label) turns[^1] = turns[^1] with { End = turnEnd };
+            else turns.Add(new Turn { Start = TimeSpan.FromSeconds(at / 16000d), End = turnEnd, Speaker = label, Text = "" });
             at += length;
         }
         var words = ImmutableArray.CreateBuilder<Word>(segment.Words.Length);

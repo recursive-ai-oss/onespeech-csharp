@@ -32,7 +32,7 @@ internal static class CommandLine
           --language <tag>       Transcribe/align; en or zh embedder for speaker commands
           --format text|json|srt|vtt  Transcript output (default text)
           --output <file>        Write UTF-8 output instead of stdout
-          --threshold <cosine>   Identify threshold in [-1,1] (default 0.3; not calibrated)
+          --threshold <cosine>   Identify threshold in [-1,1] (default: development-fitted point, 0.493 en / 0.723 zh)
           --help                Show this help
           --version             Show version
         Enrollments and embeddings are in-memory only and never persisted. Identify

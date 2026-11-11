@@ -1189,6 +1189,37 @@
       }
     },
     {
+      "id": "iic/speech_eres2netv2_sv_zh-cn_16k-common",
+      "family": "speaker-eres2netv2",
+      "source": "https://modelscope.cn/models/iic/speech_eres2netv2_sv_zh-cn_16k-common",
+      "revision": "1cf80d41fb3435bd3d8df185b5c423333b2db42a",
+      "files": [
+        {
+          "name": "pretrained_eres2netv2.ckpt",
+          "size": 71768231,
+          "sha256": "0eb4057106b2573dd7b132cf0c36273ab29afd192c1610f80baa9c556dbb963c",
+          "upstreamUrl": "https://modelscope.cn/api/v1/models/iic/speech_eres2netv2_sv_zh-cn_16k-common/repo?Revision=1cf80d41fb3435bd3d8df185b5c423333b2db42a&FilePath=pretrained_eres2netv2.ckpt",
+          "mirrorUrl": null
+        }
+      ],
+      "convertedFiles": [
+        {
+          "name": "eres2netv2-fp32.onemodel",
+          "size": 71723456,
+          "sha256": "ea17d67d75abcaa3d180a6f8b81559c58cbd701a6235a38f27a9f2aa2fca4a7a",
+          "upstreamUrl": "https://github.com/recursive-ai-oss/onespeech-csharp/releases/download/models-v1/eres2netv2-ea17d67d75abcaa3.onemodel",
+          "mirrorUrl": null
+        }
+      ],
+      "tier": "Tier1",
+      "license": "Apache-2.0",
+      "attribution": "ERes2NetV2 — Yafeng Chen, Siqi Zheng, Hui Wang, Luyao Cheng, Qian Chen, Shiliang Zhang and Junjie Li. Published by 3D-Speaker/ModelScope iic under Apache-2.0. Publisher-stated training data: a large Chinese speaker dataset with approximately 200,000 speakers. OneSpeech runs the released weights without training or fine-tuning; retain the Apache-2.0 licence and upstream notices.",
+      "gated": false,
+      "capabilities": {
+        "languages": []
+      }
+    },
+    {
       "id": "facebook/omniASR-CTC-300M",
       "family": "omniasr-ctc",
       "source": "https://huggingface.co/facebook/omniASR-CTC-300M",

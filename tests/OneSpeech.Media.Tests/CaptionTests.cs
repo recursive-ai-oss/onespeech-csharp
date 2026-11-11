@@ -97,3 +97,26 @@ public sealed class CaptionTests
         Assert.Throws<ArgumentException>(() => bad.ToTranscript(TestContext.Current.CancellationToken));
     }
 }
+
+public sealed class CaptionSpacingTests
+{
+    private static Transcript Make(string language, params string[] words)
+    {
+        var list = words.Select((w, i) => new Word { Text = w, Start = TimeSpan.FromSeconds(i), End = TimeSpan.FromSeconds(i + .9) }).ToArray();
+        return new() { Text = "", Language = language, Words = [.. list], Segments = [new() { Text = "", Start = list[0].Start, End = list[^1].End, Words = [.. list] }] };
+    }
+
+    [Fact]
+    public void UnspacedWordsGetOneSpaceInCues()
+    {
+        var doc = SubtitleFormats.Find("srt")!.ReadText(Make("en", "Hello", "world").ToSrt(TestContext.Current.CancellationToken));
+        Assert.Equal("Hello world", Assert.Single(doc.Cues).Text);
+    }
+
+    [Fact]
+    public void ChineseWordsAreNotSpaced()
+    {
+        var doc = SubtitleFormats.Find("srt")!.ReadText(Make("zh", "你好", "世界").ToSrt(TestContext.Current.CancellationToken));
+        Assert.Equal("你好世界", Assert.Single(doc.Cues).Text);
+    }
+}

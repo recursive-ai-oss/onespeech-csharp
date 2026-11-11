@@ -5,10 +5,16 @@ All notable changes are documented here, following Keep a Changelog.
 ## [Unreleased]
 
 ### Added
+- `ERes2NetV2Embedder`: the ERes2NetV2 Chinese speaker embedder (192 dimensions), available by name (`iic/speech_eres2netv2_sv_zh-cn_16k-common`); never a default.
 - Nemotron 3.5 ASR streaming supports `WithPhrases`: token-level shallow fusion over the same phrase trie as Parakeet, offline, through `TranscribeStream` and in live sessions. `Capabilities.Biasing` is now `true` for this model.
 
 ### Changed
+- **Word and text spacing is the same for every family.** Whisper no longer leaves its leading space on `Word.Text`, `Segment.Text`, `Transcript.Text` or turn text, so cue text in SRT/VTT/ASS/TTML matches Moonshine's. Words and segments carry no leading or trailing whitespace; a space is inserted between words only where the script uses spaces (none between Han, kana, Thai, Lao, Myanmar or Khmer text). Transcript JSON written by 1.0.0 with leading spaces still reads unchanged.
 - Nemotron live sessions decode a chunk as soon as the audio it needs has arrived, instead of on the next fixed 80 ms-grid tick, so a Final word is published up to one grid step earlier. Recognized text is unchanged.
+
+### Fixed
+- `onespeech identify --help` described a default threshold of 0.3; the default is the development-fitted operating point (0.493 English, 0.723 Chinese), as the docs say.
+- Live sessions with online clustering no longer emit adjacent `SpeakerTurnEvent`s for the same speaker inside one utterance; the windows are merged before the turn is emitted. A speaker who continues across two utterances still gets one turn per utterance (emitted events never change).
 
 ## [1.0.0] - 2026-11-10
 

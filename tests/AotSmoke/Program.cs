@@ -147,6 +147,18 @@ if (pyannoteSnapshot is not null)
         throw new InvalidOperationException("Segmentation NativeAOT turn bounds failed.");
     Console.WriteLine("Local segmentation and overlap-aware diarizer NativeAOT inference passed.");
 }
+string? communitySnapshot = Environment.GetEnvironmentVariable("ONESPEECH_COMMUNITY_SNAPSHOT");
+if (communitySnapshot is not null)
+{
+    // Community-1 pipeline over the same snapshot: a 12 s two-tone signal exercises embedding, PLDA and VBx under AOT.
+    using var community = OneSpeech.Diarization.CommunityDiarizer.LoadLocal(communitySnapshot, Path.Combine(Path.GetTempPath(), "onespeech-aot-community"), 2);
+    var tone = new float[16000 * 12];
+    for (int i = 0; i < tone.Length; i++) tone[i] = 0.3f * MathF.Sin(i * (i < tone.Length / 2 ? 0.05f : 0.09f)) * (1 + MathF.Sin(i * 0.0007f)) / 2;
+    var communityTurns = community.DiarizeBlocks([new AudioBuffer(tone, 16000)], CancellationToken.None);
+    if (communityTurns.Any(turn => turn.Start < TimeSpan.Zero || turn.End > TimeSpan.FromSeconds(12.1)))
+        throw new InvalidOperationException("Community NativeAOT turn bounds failed.");
+    Console.WriteLine("Community-1 pipeline NativeAOT inference passed.");
+}
 string? int8WhisperDirectory = Environment.GetEnvironmentVariable("ONESPEECH_WHISPER_INT8");
 if (int8WhisperDirectory is not null && clipPath is not null)
 {

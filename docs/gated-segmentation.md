@@ -104,5 +104,6 @@ throws `ModelTokenRequiredException`; with credentials it currently throws
 `FeatureUnavailableException`. It never silently falls back to another model.
 Use `LoadLocal` for an authorized segmentation-3.0 snapshot. Local loading does
 not attest that a user accepted a gate; obtaining that snapshot is their
-responsibility. Community-1 is catalogued and can be explicitly prefetched, but
-has no native pipeline adapter. Its reference pipeline is evaluation-only.
+responsibility. Community-1 is catalogued and can be explicitly prefetched; the full pipeline
+(segmentation, WeSpeaker embeddings, PLDA, VBx) runs through
+`CommunityDiarizer.LoadLocal`, described in [diarization](diarization.md#community-1-pipeline-tier-2-gated).

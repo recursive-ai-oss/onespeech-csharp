@@ -16,7 +16,7 @@ public static class PyannoteSegmentation
     /// <param name="cancellationToken">Checked before validation.</param>
     /// <exception cref="ModelNotFoundException">The ID is not a supported segmentation entry.</exception>
     /// <exception cref="ModelTokenRequiredException">No nonempty credential is available.</exception>
-    /// <exception cref="FeatureUnavailableException">Remote loading is unavailable. Use LoadLocal for an authorized segmentation-3.0 snapshot; community-1 has no native pipeline adapter.</exception>
+    /// <exception cref="FeatureUnavailableException">Remote loading is unavailable. Use LoadLocal for an authorized segmentation-3.0 snapshot; use CommunityDiarizer.LoadLocal for an authorized community-1 snapshot.</exception>
     /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
     public static VoiceActivityDetector Load(string model = "pyannote/segmentation-3.0", string? token = null, CancellationToken cancellationToken = default)
     {
@@ -26,6 +26,6 @@ public static class PyannoteSegmentation
         _ = ModelCatalog.Default.Get(model);
         token ??= Environment.GetEnvironmentVariable("ONESPEECH_MODEL_TOKEN");
         if (string.IsNullOrWhiteSpace(token)) throw new ModelTokenRequiredException("Accept the publisher gate and pass a token or set ONESPEECH_MODEL_TOKEN.");
-        throw new FeatureUnavailableException("Remote pyannote segmentation loading is unavailable. Use PyannoteSegmentation.LoadLocal for an authorized segmentation-3.0 snapshot. The community-1 native pipeline is unavailable; model files can be prefetched explicitly with ModelStore.PullAsync.");
+        throw new FeatureUnavailableException("Remote pyannote segmentation loading is unavailable. Use PyannoteSegmentation.LoadLocal for an authorized segmentation-3.0 snapshot. Authorized community-1 files can be prefetched explicitly with ModelStore.PullAsync and loaded with CommunityDiarizer.LoadLocal.");
     }
 }

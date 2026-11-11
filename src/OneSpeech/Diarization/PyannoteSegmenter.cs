@@ -56,14 +56,19 @@ public sealed class PyannoteSegmenter : VoiceActivityDetector
         if (cacheDirectory is not null) ArgumentException.ThrowIfNullOrWhiteSpace(cacheDirectory);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threads);
         cancellationToken.ThrowIfCancellationRequested();
-        var entry = ModelCatalog.Default.Get("pyannote/segmentation-3.0");
-        string upstream = Path.Combine(snapshotDirectory, "pytorch_model.bin");
+        return LoadCheckpoint(Path.Combine(snapshotDirectory, "pytorch_model.bin"), snapshotDirectory, "pyannote/segmentation-3.0", "pyannote-segmentation-3.0", LicenseNotice, cacheDirectory, threads, cancellationToken);
+    }
+
+    /// <summary>Verifies and converts one pinned publisher segmentation checkpoint; entry file 0 is the segmentation checkpoint. The notice is appended to the attribution when not null.</summary>
+    internal static PyannoteSegmenter LoadCheckpoint(string upstream, string snapshotDirectory, string entryId, string cacheName, string? notice, string? cacheDirectory, int threads, CancellationToken cancellationToken)
+    {
+        var entry = ModelCatalog.Default.Get(entryId);
         using var file = File.OpenRead(upstream);
-        if (file.Length != entry.Files[0].Size) throw new ModelIntegrityException("The local segmentation-3.0 checkpoint has the wrong publisher file size.");
+        if (file.Length != entry.Files[0].Size) throw new ModelIntegrityException("The local segmentation checkpoint has the wrong publisher file size.");
         string hash = Convert.ToHexStringLower(SHA256.HashData(file));
-        if (hash != entry.Files[0].Sha256) throw new ModelIntegrityException("The local segmentation-3.0 checkpoint does not match the pinned publisher SHA-256.");
+        if (hash != entry.Files[0].Sha256) throw new ModelIntegrityException("The local segmentation checkpoint does not match the pinned publisher SHA-256.");
         cancellationToken.ThrowIfCancellationRequested();
-        string directory = Path.Combine(cacheDirectory ?? ModelStore.Default.CacheDirectory, "pyannote-segmentation-3.0", entry.Revision, "v1");
+        string directory = Path.Combine(cacheDirectory ?? ModelStore.Default.CacheDirectory, cacheName, entry.Revision, "v1");
         string snapshot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(snapshotDirectory));
         string cache = Path.GetFullPath(directory);
         if (cache == snapshot || cache.StartsWith(snapshot + Path.DirectorySeparatorChar, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
@@ -79,7 +84,7 @@ public sealed class PyannoteSegmenter : VoiceActivityDetector
             new PyannoteGraphConverter(TensorCheckpoint.Read(file, segmentation: true)).Save(temporary);
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(temporary, converted, overwrite: true);
-            File.WriteAllText(Path.Combine(directory, "LICENSE.txt"), LicenseNotice);
+            if (notice is not null) File.WriteAllText(Path.Combine(directory, "LICENSE.txt"), notice);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
         using var convertedFile = File.OpenRead(converted);
@@ -87,8 +92,8 @@ public sealed class PyannoteSegmenter : VoiceActivityDetector
         var model = new ModelInfo
         {
             Id = entry.Id, Source = entry.Source, Revision = entry.Revision, Tier = entry.Tier,
-            License = entry.License, Attribution = entry.Attribution + "\nConverted locally to OneModel format.\n" + LicenseNotice, Gated = entry.Gated,
-            Files = [new ModelFileInfo { Name = "pytorch_model.bin", Sha256 = hash }, new ModelFileInfo { Name = "segmentation.onemodel", Sha256 = convertedHash }]
+            License = entry.License, Attribution = entry.Attribution + "\nConverted locally to OneModel format." + (notice is null ? "" : "\n" + notice), Gated = entry.Gated,
+            Files = [new ModelFileInfo { Name = entry.Files[0].Name, Sha256 = hash }, new ModelFileInfo { Name = "segmentation.onemodel", Sha256 = convertedHash }]
         };
         return new PyannoteSegmenter(converted, model, threads, cancellationToken);
     }

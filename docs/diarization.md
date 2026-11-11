@@ -272,3 +272,43 @@ JER and both R8003 metrics agree with the reference; ES2004b JER differs by
 0.518 points and also misses. Single-file confidence intervals are unavailable.
 These fixed meetings do not establish population quality. This is not parity
 with the learned locator or the reference's full system.
+
+## Community-1 pipeline (tier 2, gated)
+
+`CommunityDiarizer` runs the published pyannote community-1 models natively on OneModel, with no Python and no network access. It is a `BlockDiarizer`, so it plugs into `VadTranscriptionPipeline` and the file helpers like the other diarizers, and it returns overlapping turns.
+
+```csharp
+using var diarizer = CommunityDiarizer.LoadLocal("/models/pyannote/speaker-diarization-community-1", threads: 8);
+var turns = diarizer.DiarizeBlocks(blocks, ct);   // blocks: consecutive 16 kHz AudioBuffer values
+```
+
+**Tier 2.** The model is CC-BY-4.0 and gated. You obtain the snapshot yourself from the publisher after accepting its terms; `LoadLocal` takes the directory holding `segmentation/pytorch_model.bin`, `embedding/pytorch_model.bin`, `plda/plda.npz` and `plda/xvec_transform.npz`, checks each file's size and SHA-256 against the pinned revision, and converts the two networks into the model cache. Nothing is copied back, mirrored or redistributed, and it is never a default. `Models` carries the exact attribution, including the converted-locally note; keep it with any transcript you share. Embeddings are held in memory for the run and never persisted.
+
+**What runs.**
+1. Powerset segmentation (the same network as [the segmentation slot](gated-segmentation.md)) on 10 s windows every second; up to three local speakers per window.
+2. WeSpeaker ResNet34-LM embeddings (80-band Kaldi-style fbank, weighted statistics pooling) of each local speaker's overlap-free frames, or all of its frames when none are overlap-free.
+3. The published x-vector transform and PLDA (inference only; nothing is fitted), agglomerative clustering with centroid linkage at threshold 0.6 to initialise, then VBx (Landini et al., arXiv 2012.14952, sections 2.1 to 2.3) with Fa 0.07, Fb 0.8.
+4. Reconstruction: per frame, the mean of the cluster activations over the windows covering it, keeping as many clusters as the rounded mean speaker count.
+
+The VBx loop probability (0.7), initial smoothing (7), iteration limit (20), the merge of clusters with fewer than 12 members, and the segment-boundary conventions are not published; they were settled by comparing against the output of the released pyannote.audio 4.0.7 package, run as a black box. They are matching settings, not model parameters, and they can differ from the reference on individual frames. See [results](results.md) for the measured agreement.
+
+**Memory and speed.** The whole recording is held as 16 kHz mono samples, and clustering keeps one 256-element embedding per active local speaker and window plus an O(n^2) distance matrix, so multi-hour recordings need gigabytes. About 0.25 times real time on four CPU threads.
+
+The tier-1 default and the segmentation-3.0 slot are unchanged.
+
+### Community-1 measured agreement
+
+DER and JER in percent, no collar, overlap scored, against the same meeting annotations; the reference is the released pyannote.audio 4.0.7 community-1 pipeline run offline on CPU. Differences are ours minus reference, with a 95% interval from a paired bootstrap over meetings (1000 resamples, seed 1729).
+
+| Set | Metric | OneSpeech | Reference | Difference [95% CI] | Verdict |
+|---|---|---|---|---|---|
+| AMI test (16 meetings) | DER | 20.38 | 17.05 | +3.33 [+1.82, +4.80] | gap |
+| AMI test (16 meetings) | JER | 24.10 | 22.19 | +1.92 [+0.81, +3.03] | gap |
+| AliMeeting Eval (8 meetings) | DER | 19.56 | 20.43 | -0.88 [-3.11, +0.31] | within noise |
+| AliMeeting Eval (8 meetings) | JER | 24.89 | 25.71 | -0.82 [-3.16, +0.33] | within noise |
+
+The AMI gap is entirely speaker confusion: miss and false-alarm seconds equal the reference's on every meeting, so segmentation and speaker counting agree. It concentrates in long meetings (EN2002a to d: +4.8, +6.6, +5.3, +8.2 DER points; IS1009d +7.3; IS1009c +4.7), while the ES2004 and TS3003 series are within about 2 points. On AliMeeting one meeting (R8008_M8013_MS807) is 7.8 points better than the reference and the rest are within 0.5 point. Per-meeting rows are in [results](results.md).
+
+On five 100 to 200 s excerpts, with the reference's own segmentation and embeddings as input, the clustering and reconstruction agree with the reference's frame-level diarization on 99.3 to 100 % of frames, and embeddings have cosine 0.999998 or better to the reference's. The longer AMI meetings have more windows per speaker than those excerpts, which is where the unpublished clustering choices listed above matter most.
+
+The unpublished settings were chosen by comparing with the reference on four excerpts of scored recordings (an AMI ES2004a excerpt, EN2002a, IS1009a and AliMeeting R8001) and one development excerpt, so the rows above are **tuned on test** in that sense; they are matching settings, not weights, and nothing was fitted to annotations. A re-check on the two development meetings only (ES2011a, ES2011b, first 600 s each) shows the loop probability does not matter between 0.3 and 0.9 (frame agreement moves by 0.1 point), while the small-cluster merge does (it removes spurious extra speakers).

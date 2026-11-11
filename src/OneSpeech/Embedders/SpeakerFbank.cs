@@ -11,9 +11,13 @@ public sealed class SpeakerFbank
     private static readonly float[] TwiddleReal = Twiddles(false), TwiddleImaginary = Twiddles(true);
 
     /// <summary>Creates fixed filter and window coefficients. There are no random or trainable parameters.</summary>
-    public SpeakerFbank()
+    public SpeakerFbank() : this(false) { }
+
+    // Hamming windows serve the WeSpeaker front end; the default keeps the CAM++ window.
+    internal SpeakerFbank(bool hamming)
     {
-        for (int i = 0; i < Window; i++) window[i] = MathF.Pow(.5f - .5f * MathF.Cos(2 * MathF.PI * i / (Window - 1)), .85f);
+        for (int i = 0; i < Window; i++)
+            window[i] = hamming ? .54f - .46f * MathF.Cos(2 * MathF.PI * i / (Window - 1)) : MathF.Pow(.5f - .5f * MathF.Cos(2 * MathF.PI * i / (Window - 1)), .85f);
         float low = Mel(20), high = Mel(8000), step = (high - low) / (Mels + 1);
         for (int m = 0; m < Mels; m++)
         {

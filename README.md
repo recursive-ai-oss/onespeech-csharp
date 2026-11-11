@@ -81,7 +81,7 @@ for prompt budgets, weights, decoder semantics and the repeatable evaluation.
 | `RecursiveAI.OneSpeech.Models.MoonshineTiny`, `.MoonshineBase`, `.MoonshineStreamingTiny` | Optional offline-at-restore Moonshine weights |
 | `RecursiveAI.OneSpeech.Cli` | The `onespeech` dotnet tool |
 
-Models not supplied by a package download on first use; CPU runtime graphs are built and verified in the per-user cache. An offline model package covers only that model, not every role used by `Transcribe`. See [cache, pre-fetch and offline use](docs/models.md) and [CLI and model packages](docs/cli-and-model-packages.md).
+Models that no referenced package supplies are downloaded on first use; CPU runtime graphs are built and verified in the per-user cache. An offline model package covers only that model, not every role used by `Transcribe`. See [cache, pre-fetch and offline use](docs/models.md) and [CLI and model packages](docs/cli-and-model-packages.md).
 
 ## Models by role
 

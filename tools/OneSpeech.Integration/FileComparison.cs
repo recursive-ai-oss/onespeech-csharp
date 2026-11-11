@@ -21,6 +21,19 @@ internal static class FileComparison
         }
         return 0;
     }
+    // Manifest from an id->reference-text map, an ID list and a directory of <id>.wav files (rows keep the ID-list order).
+    internal static int PrepareFromMap(string map, string ids, string audioDirectory, string output)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllBytes(map), new JsonDocumentOptions { MaxDepth = 8 });
+        using var writer = new StreamWriter(output, false, new UTF8Encoding(false));
+        foreach (string id in File.ReadAllLines(ids).Where(l => l.Length > 0))
+        {
+            using var memory = new MemoryStream();
+            using (var json = new Utf8JsonWriter(memory)) { json.WriteStartObject(); json.WriteString("id", id); json.WriteString("audio", Path.Combine(audioDirectory, id + ".wav")); json.WriteString("text", document.RootElement.GetProperty(id).GetString()!); json.WriteEndObject(); }
+            writer.WriteLine(Encoding.UTF8.GetString(memory.ToArray()));
+        }
+        return 0;
+    }
     internal static int PrepareEarnings(string root, string output)
     {
         // The second recording is chosen by numeric ID order, independently of scores.
@@ -107,6 +120,45 @@ internal static class FileComparison
         using var source = AudioFileSource.Open(path, CancellationToken.None);
         var turns = diarizer.DiarizeBlocks(Blocks(source), CancellationToken.None);
         return OneSpeech.Diarization.TranscriptDiarization.Merge(transcript, turns.Select(t => new OneSpeech.Diarization.ActiveTurn { Turn = t }), CancellationToken.None);
+    }
+    // Recognition stage of Speech.Transcribe (same VAD chunking and recognizer), without timing and diarization, which never change the text.
+    // Each recognized chunk is stored, so a queue job killed part-way resumes at the next chunk and yields the identical document.
+    internal static int LongText(string manifest, string output, string modelDirectory, string mode, int threads, int begin, int count)
+    {
+        Directory.CreateDirectory(output);
+        var options = new WhisperOptions { Threads = threads };
+        if (mode == "zero") options = options with { Temperatures = [0] };
+        else if (mode != "default") throw new ArgumentException("Expected zero or default.");
+        using var whisper = WhisperRecognizer.Load(modelDirectory, options);
+        using var vad = new OneSpeech.Vad.SileroVad();
+        foreach (string line in File.ReadLines(manifest).Skip(begin).Take(count))
+        {
+            using var doc = JsonDocument.Parse(line); var row = doc.RootElement;
+            string id = row.GetProperty("id").GetString()!, destination = Path.Combine(output, id + ".json");
+            if (File.Exists(destination)) continue;
+            string work = Path.Combine(output, "chunks", id); Directory.CreateDirectory(work);
+            var clock = Stopwatch.StartNew();
+            var transcript = new OneSpeech.Pipeline.VadTranscriptionPipeline(new ChunkCache(whisper, work), vad).Transcribe(row.GetProperty("audio").GetString()!, "en", CancellationToken.None);
+            File.WriteAllText(destination + ".part", transcript.ToJson()); File.Move(destination + ".part", destination);
+            Console.WriteLine(FormattableString.Invariant($"{id} {clock.Elapsed.TotalSeconds:F0} s this run"));
+        }
+        return 0;
+    }
+    private sealed class ChunkCache(SpeechRecognizer recognizer, string directory) : SpeechRecognizer
+    {
+        private int index;
+        public override ModelInfo Model => recognizer.Model;
+        public override Capabilities Capabilities => recognizer.Capabilities;
+        public override string DetectLanguage(AudioBuffer audio, CancellationToken cancellationToken) => recognizer.DetectLanguage(audio, cancellationToken);
+        public override Transcript Transcribe(AudioBuffer audio, string? language, CancellationToken cancellationToken)
+        {
+            string path = Path.Combine(directory, (index++).ToString("D5", CultureInfo.InvariantCulture) + ".json");
+            if (File.Exists(path)) return Transcript.FromJson(File.ReadAllText(path));
+            var transcript = recognizer.Transcribe(audio, language, cancellationToken);
+            File.WriteAllText(path + ".part", transcript.ToJson()); File.Move(path + ".part", path);
+            return transcript;
+        }
+        public override IEnumerable<Segment> TranscribeStream(AudioBuffer audio, string? language, CancellationToken cancellationToken) => Transcribe(audio, language, cancellationToken).Segments;
     }
     private sealed class TimedRecognizer(SpeechRecognizer recognizer, Aligner aligner) : SpeechRecognizer
     {

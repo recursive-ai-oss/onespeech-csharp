@@ -9,6 +9,28 @@ try
     var options=new Dictionary<string,string>(StringComparer.Ordinal);
     for(int i=1;i<args.Length;i+=2) {if(i+1>=args.Length || !args[i].StartsWith("--",StringComparison.Ordinal) || !options.TryAdd(args[i],args[i+1]))throw new ArgumentException("Expected unique --option value pairs.");}
     string Required(string name)=>options.GetValueOrDefault(name)??throw new ArgumentException("Missing "+name);
+    if(args[0]=="collect")
+    {
+        // Joins per-utterance hypothesis files (or an id->text map) into one scoring JSONL, in the order of an ID list.
+        string[] ids=File.ReadAllLines(Required("--ids")).Where(l=>l.Length>0).ToArray();
+        var records=new List<Utterance>();
+        if(options.TryGetValue("--map",out var mapPath))
+        {
+            using var map=JsonDocument.Parse(File.ReadAllBytes(mapPath),new JsonDocumentOptions{MaxDepth=8});
+            foreach(string id in ids)records.Add(new Utterance(id,map.RootElement.GetProperty(id).GetString()!));
+        }
+        else
+        {
+            string directory=Required("--dir");
+            foreach(string id in ids)
+            {
+                using var doc=JsonDocument.Parse(File.ReadAllBytes(Path.Combine(directory,id+".json")),new JsonDocumentOptions{MaxDepth=32});
+                var root=doc.RootElement.TryGetProperty("transcript",out var inner)?inner:doc.RootElement;
+                records.Add(new Utterance(id,root.GetProperty("text").GetString()!));
+            }
+        }
+        Hypotheses.Write(Required("--out"),records);Console.WriteLine(records.Count+" records");return 0;
+    }
     if(args[0]=="references")
     {
         var records=Required("--dataset") switch {"librispeech"=>Hypotheses.LibriSpeech(Required("--input")),"earnings22"=>Hypotheses.Earnings22(Required("--input")),_=>throw new ArgumentException("Unknown dataset.")};

@@ -58,4 +58,36 @@ if (args is ["export", var splitPath])
     Summary.Write(splitPath);
     return 0;
 }
+if (args is ["export-method", var methodSplit, var methodName])
+{
+    // Writes <split>/<method>.jsonl from per-utterance Transcript documents, in manifest order, for the shared scorer.
+    var list = new List<Utterance>();
+    foreach (string line in File.ReadLines(Path.Combine(methodSplit, "manifest.jsonl")))
+    {
+        using var manifest = JsonDocument.Parse(line);
+        string id = manifest.RootElement.GetProperty("id").GetString()!;
+        var t = Transcript.FromJson(File.ReadAllText(Path.Combine(methodSplit, methodName, id + ".json")));
+        list.Add(new(id, t.Text, t.Words.Select(w => new EvalWord(w.Text, w.Start?.TotalSeconds, w.End?.TotalSeconds)).ToArray()));
+    }
+    Hypotheses.Write(Path.Combine(methodSplit, methodName + ".jsonl"), list);
+    return 0;
+}
+if (args is ["pool", var scorePath])
+{
+    // Pools per-utterance boundary summaries of a score report, weighting each by its timed words (word-level pooled means).
+    using var report = JsonDocument.Parse(File.ReadAllText(scorePath));
+    double matched = 0, timed = 0, missing = 0, start = 0, end = 0, s50 = 0, s100 = 0, e50 = 0, e100 = 0;
+    foreach (var row in report.RootElement.GetProperty("utterances").EnumerateArray())
+    {
+        if (row.GetProperty("timing").ValueKind != JsonValueKind.Object) continue;
+        var t = row.GetProperty("timing"); double n = t.GetProperty("timed").GetDouble();
+        matched += t.GetProperty("matched").GetDouble(); timed += n; missing += t.GetProperty("missing").GetDouble();
+        if (n == 0) continue;
+        start += n * t.GetProperty("meanStartMs").GetDouble(); end += n * t.GetProperty("meanEndMs").GetDouble();
+        s50 += n * t.GetProperty("startWithin50").GetDouble(); s100 += n * t.GetProperty("startWithin100").GetDouble();
+        e50 += n * t.GetProperty("endWithin50").GetDouble(); e100 += n * t.GetProperty("endWithin100").GetDouble();
+    }
+    Console.WriteLine(FormattableString.Invariant($"matched {matched} timed {timed} missing {missing}; start mean {start / timed:F2} ms end mean {end / timed:F2} ms; start within 50/100 {100 * s50 / timed:F2}/{100 * s100 / timed:F2} %; end within 50/100 {100 * e50 / timed:F2}/{100 * e100 / timed:F2} %"));
+    return 0;
+}
 throw new ArgumentException("Expected native <ctc|dtw> <split> <models> <begin> <count>, or export <split>.");

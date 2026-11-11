@@ -34,3 +34,6 @@ for split in test-clean test-other; do
     echo "$NAME $split $SIDE $begin: complete"
   done
 done
+
+# All selected shards completed or were already present.
+exit 0

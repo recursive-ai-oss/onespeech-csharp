@@ -88,6 +88,21 @@ public sealed class OnlineDiarizationTests
     }
 
     [Fact]
+    public void WindowsOfOneUtteranceOnTheSameSpeakerAreOneTurn()
+    {
+        using var inner = new Scripted();
+        using var embedder = new AnalyticEmbedder();
+        using var session = new OnlineDiarizationSession(inner, embedder);
+        float[] a = new float[16000 * 3];
+        Array.Fill(a, 1);
+        var events = session.Push(new AudioBuffer(a, 16000), TestContext.Current.CancellationToken);
+        var turn = Assert.Single(events.OfType<SpeakerTurnEvent>());
+        Assert.Equal(TimeSpan.Zero, turn.Turn.Start);
+        Assert.Equal(TimeSpan.FromSeconds(3), turn.Turn.End);
+        Assert.Same(turn.Turn, Assert.Single(Assert.Single(events.OfType<FinalEvent>()).SpeakerTurns));
+    }
+
+    [Fact]
     public void ChineseUsesIndependentEmbeddingSpaceAndIds()
     {
         using var inner = new Scripted("zh-CN");

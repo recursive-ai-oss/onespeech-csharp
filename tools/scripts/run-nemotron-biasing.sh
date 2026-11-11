@@ -4,7 +4,7 @@ set -euo pipefail
 # offline (VAD-chunked) and through the live session. Each run is its own queue job and is skipped once its output exists.
 # Arguments: dotnet-tool-dll (OneSpeech.BiasingEval) nemotron-converted-dir state-dir (after "prepare")
 TOOL=$1 MODEL=$2 STATE=$3
-for family in nemotron nemotron-live; do
+for family in ${FAMILIES:-nemotron nemotron-live}; do
   for case in 0 1; do
     for mode in baseline phrases control; do
       for attempt in 1 2; do

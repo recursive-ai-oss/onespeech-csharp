@@ -4,6 +4,9 @@ All notable changes are documented here, following Keep a Changelog.
 
 ## [Unreleased]
 
+### Added
+- `CommunityDiarizer`: the published pyannote community-1 pipeline (powerset segmentation, WeSpeaker ResNet34 embeddings, the published PLDA, VBx, count-based reconstruction) running natively, overlap-aware, loaded from an authorized local snapshot of the gated CC-BY-4.0 models. Tier 2: never a default, never redistributed. See docs/diarization.md.
+
 ## [1.0.0] - 2026-11-10
 
 First release. Measured results and limits: [docs/results.md](docs/results.md).

@@ -2,6 +2,8 @@
 
 All notable changes are documented here, following Keep a Changelog.
 
+## [Unreleased]
+
 ## [1.0.0] - 2026-11-10
 
 First release. Measured results and limits: [docs/results.md](docs/results.md).

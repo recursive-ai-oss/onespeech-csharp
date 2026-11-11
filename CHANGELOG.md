@@ -4,6 +4,10 @@ All notable changes are documented here, following Keep a Changelog.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-11
+
+Minor release, additive over 1.0.0. Measured results and limits: [docs/results.md](docs/results.md).
+
 ### Added
 - `CommunityDiarizer`: the published pyannote community-1 pipeline (powerset segmentation, WeSpeaker ResNet34 embeddings, the published PLDA, VBx, count-based reconstruction) running natively, overlap-aware, loaded from an authorized local snapshot of the gated CC-BY-4.0 models. Tier 2: never a default, never redistributed. See docs/diarization.md.
 - `ERes2NetV2Embedder`: the ERes2NetV2 Chinese speaker embedder (192 dimensions), available by name (`iic/speech_eres2netv2_sv_zh-cn_16k-common`); never a default.

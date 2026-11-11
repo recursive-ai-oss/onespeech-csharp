@@ -1,4 +1,5 @@
 """Pinned CPU/fp32 black-box speaker embeddings, resumable by utterance file."""
+import os
 import warnings
 import logging
 import sys
@@ -38,7 +39,10 @@ def main():
         kaldi.fbank = capture
     from modelscope.pipelines import pipeline
     source, revision = MODELS[args.model]
-    model = pipeline(task="speaker-verification", model=source, model_revision=revision, device="cpu")
+    local = os.environ.get("ERES_LOCAL") if args.model == "eres2netv2" else None
+    # The published ERes2NetV2 configuration omits three architecture keys its own pipeline requires; a local copy of
+    # the pinned files with those keys added (see eres_config_loop.py) is used for that model.
+    model = pipeline(task="speaker-verification", model=local, device="cpu") if local else pipeline(task="speaker-verification", model=source, model_revision=revision, device="cpu")
     paths = {p.stem: p for split in ["test-clean", "test-other"] for p in (Path(args.data) / split).rglob("*.flac")}
     ids = Path(args.ids).read_text().splitlines()[args.start:args.start+args.count]
     out = Path(args.output)

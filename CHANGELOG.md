@@ -4,6 +4,9 @@ All notable changes are documented here, following Keep a Changelog.
 
 ## [Unreleased]
 
+### Added
+- `ERes2NetV2Embedder`: the ERes2NetV2 Chinese speaker embedder (192 dimensions), available by name (`iic/speech_eres2netv2_sv_zh-cn_16k-common`); never a default.
+
 ## [1.0.0] - 2026-11-10
 
 First release. Measured results and limits: [docs/results.md](docs/results.md).

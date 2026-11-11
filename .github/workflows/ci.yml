@@ -34,10 +34,13 @@ jobs:
         run: dotnet restore OneSpeech.slnx
       - name: Build
         run: dotnet build OneSpeech.slnx -c Release --no-restore
-      - name: Test contracts and evaluation
+      - name: Test contracts, evaluation, media and command line
+        # Tests that need worker-only models or data skip themselves when their environment variable is unset.
         run: |
           dotnet test tests/OneSpeech.Tests -c Release --no-build
           dotnet test eval/OneSpeech.Eval.Tests -c Release --no-build
+          dotnet test tests/OneSpeech.Media.Tests -c Release --no-build
+          dotnet test tests/OneSpeech.Cli.Tests -c Release --no-build
       - name: Pack
         # The three code packages. The offline model packages need hundreds of MB of pinned
         # publisher files and are built by the release workflow.

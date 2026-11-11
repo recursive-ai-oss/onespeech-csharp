@@ -69,6 +69,11 @@ internal static class RuntimeConversion
             using var checkpoint = File.OpenRead(Path.Combine(input, "campplus_cn_common.bin"));
             new CampPlusConverter(TensorCheckpoint.Read(checkpoint)).Save(Path.Combine(output, "campplus-zh-fp32.onemodel"));
         }
+        else if (entry.Id == "iic/speech_eres2netv2_sv_zh-cn_16k-common")
+        {
+            using var checkpoint = File.OpenRead(Path.Combine(input, "pretrained_eres2netv2.ckpt"));
+            new ERes2NetV2Converter(TensorCheckpoint.Read(checkpoint)).Save(Path.Combine(output, "eres2netv2-fp32.onemodel"));
+        }
         else if (entry.Id == "facebook/omniASR-CTC-300M")
         {
             using var checkpoint = File.OpenRead(Path.Combine(input, "omniASR-CTC-300M.pt"));

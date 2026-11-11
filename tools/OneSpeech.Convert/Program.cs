@@ -376,6 +376,11 @@ if (args is ["speaker-ids", var idsTrials, var idsClean, var idsOutput, var idsP
     SpeakerBatch.PrepareIds(idsTrials, idsClean, idsOutput, idsParity);
     return 0;
 }
+if (args is ["speaker-extract-eres", var eresGraph, var eresData, var eresIds, var eresDestination, var eresStart, var eresCount])
+{
+    SpeakerBatch.Extract(eresGraph, eresData, eresIds, eresDestination, int.Parse(eresStart, System.Globalization.CultureInfo.InvariantCulture), int.Parse(eresCount, System.Globalization.CultureInfo.InvariantCulture), 192, eres: true);
+    return 0;
+}
 if (args is ["speaker-extract-camp", var extractGraph, var extractData, var extractIds, var extractOutput, var extractStart, var extractCount, var extractDimension])
 {
     SpeakerBatch.Extract(extractGraph, extractData, extractIds, extractOutput, int.Parse(extractStart, System.Globalization.CultureInfo.InvariantCulture), int.Parse(extractCount, System.Globalization.CultureInfo.InvariantCulture), int.Parse(extractDimension, System.Globalization.CultureInfo.InvariantCulture));
@@ -405,6 +410,12 @@ if (args is ["speaker-convert-camp", var campCheckpoint, var campOutput])
 {
     using var campInput = File.OpenRead(campCheckpoint);
     new CampPlusConverter(TensorCheckpoint.Read(campInput)).Save(campOutput);
+    return 0;
+}
+if (args is ["speaker-convert-eres", var eresCheckpoint, var eresOutput])
+{
+    using var eresInput = File.OpenRead(eresCheckpoint);
+    new ERes2NetV2Converter(TensorCheckpoint.Read(eresInput)).Save(eresOutput);
     return 0;
 }
 if (args is ["speaker-fetch", var root])

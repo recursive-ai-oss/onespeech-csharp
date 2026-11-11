@@ -72,6 +72,37 @@ public sealed class CheckpointTests
         Assert.Throws<InvalidDataException>(() => TensorCheckpoint.Read(hostile));
     }
 
+    [Fact]
+    public void SegmentationMetadataIsInertAndOnlyStateDictionaryTensorsAreRead()
+    {
+        using var original = Fixture();
+        byte[] tensorIndex;
+        using (var archive = new ZipArchive(original, ZipArchiveMode.Read, leaveOpen: true))
+        using (var index = archive.GetEntry("archive/data.pkl")!.Open())
+        using (var data = new MemoryStream()) { index.CopyTo(data); tensorIndex = data.ToArray(); }
+        using var pickle = new MemoryStream();
+        using (var writer = new BinaryWriter(pickle, Encoding.UTF8, leaveOpen: true))
+        {
+            writer.Write(new byte[] { 0x80, 2, (byte)'}', (byte)'(' }); Text(writer, "state_dict");
+            writer.Write(tensorIndex.AsSpan(2, tensorIndex.Length - 3));
+            Text(writer, "specification"); Global(writer, "pyannote.audio.core.task", "Specifications");
+            writer.Write((byte)')'); writer.Write((byte)0x81); writer.Write((byte)'}'); writer.Write((byte)'b');
+            Text(writer, "problem"); Global(writer, "pyannote.audio.core.task", "Problem");
+            Integer(writer, 1); writer.Write((byte)0x85); writer.Write((byte)'R');
+            Text(writer, "version"); Global(writer, "torch.torch_version", "TorchVersion");
+            Text(writer, "2.0"); writer.Write((byte)0x85); writer.Write((byte)0x81);
+            writer.Write((byte)'u'); writer.Write((byte)'.');
+        }
+        using var checkpoint = Zip(pickle.ToArray());
+        Assert.Equal(new float[] { 1, 2 }, TensorCheckpoint.Read(checkpoint, segmentation: true)["weight"].Values);
+        checkpoint.Position = 0;
+        Assert.Throws<InvalidDataException>(() => TensorCheckpoint.Read(checkpoint));
+        using var executable = Zip([0x80, 2, .. Encoding.ASCII.GetBytes("cbuiltins\\neval\\n.")]);
+        Assert.Throws<InvalidDataException>(() => TensorCheckpoint.Read(executable, segmentation: true));
+        using var wrongRoot = Fixture();
+        Assert.Throws<InvalidDataException>(() => TensorCheckpoint.Read(wrongRoot, segmentation: true));
+    }
+
     // Synthetic tensor-only checkpoint: generated here, no speech or upstream implementation fixture.
     internal static MemoryStream Fixture(int offset = 0, int dimension = 2, int stride = 1)
     {

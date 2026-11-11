@@ -95,7 +95,7 @@ Models not supplied by a package download on first use; CPU runtime graphs are b
 | Voice activity | Silero VAD 6.2.3 | 1 / MIT | Embedded |
 | Diarization | Silero + CAM++ + spectral/AHC clustering | 1 / MIT + Apache-2.0 | Default; no overlap detection |
 | Diarization | Nemotron 3 Diarization | 2 / OpenMDW-1.1 | Explicit overlap-aware upgrade |
-| Segmentation | pyannote segmentation-3.0 / community-1 | 2 / MIT gated / CC-BY-4.0 gated | Gate required; inference rows pending |
+| Segmentation | pyannote segmentation-3.0 / community-1 | 2 / MIT gated / CC-BY-4.0 gated | Local segmentation-3.0 + our overlap-aware clustering; community-1 reference only |
 | Speaker embeddings | CAM++ English/Chinese; ECAPA-TDNN | 1 / Apache-2.0 | CAM++ English default; Chinese for Chinese speech |
 
 Tier 1 is ungated MIT/Apache-2.0/BSD and may be redistributed and selected by default. Tier 2 loads only from pinned publisher files, never from our mirror or model packages, never by default. Local conversion stays in your cache. Licence, revision, file digests and attribution travel in `ModelInfo`. Only the listed licence-cleared Moonshine checkpoints are supported; Community License checkpoints are excluded. See [gated models](docs/tier-2-models.md) and [third-party notices](THIRD-PARTY-NOTICES.md).

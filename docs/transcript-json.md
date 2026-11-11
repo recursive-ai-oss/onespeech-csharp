@@ -34,7 +34,24 @@ Model provenance: required nonblank `id`, `source` (upstream repo URL), `revisio
 
 ## Reader limits and failures
 
-Both string and UTF-8 readers enforce an 8 MiB UTF-8 input limit, maximum depth 32, maximum 500,000 tokens, maximum 100,000 combined object/array containers, and maximum 64 KiB raw encoded bytes per property name or string (including escapes). Thus primitive array counts are bounded by the token limit; object-array counts by both limits. Limits are checked with a forward-only reader before allocating the document graph or decoded strings. String callers necessarily already own their input; UTF-8 encoding allocation occurs only after byte-size validation. Invalid Unicode, malformed/truncated JSON, required-field omissions, null object/array members, invalid intervals/probabilities/provenance, and unsupported versions throw `InvalidTranscriptJsonException`. Empty arrays are allowed. These are document bounds, not unbounded-file ingestion APIs.
+Schema 1 supports **24 hours** of dense speech, with up to **600,000 words** (6.94 words/s over 24 h), **600,000 segments** and **600,000 turns**. Audio times and duration must be between 0 and 86,400 seconds. The wire repeats words inside segments and turns: the budget permits **1,800,000 total word entries across all `words` arrays**, so the root words can each appear once in a segment and once in a turn. Independent limits still apply; unusual verbosity or exceptionally long words can reach the byte budget first.
+
+| Budget | Maximum |
+|---|---:|
+| Complete UTF-8 document | 1,000,000,000 bytes (1 GB) |
+| Nesting depth | 32 |
+| Tokens / combined object-array containers | 80,000,000 / 8,000,000 |
+| Each words, segments or turns array | 600,000 items |
+| Total elements across every array, including metadata | 3,200,000 |
+| Each models or model-files array | 256 items |
+| Transcript, segment or turn `text` string | 32 MiB raw encoded bytes |
+| Any other string or property name | 64 KiB raw encoded bytes |
+
+Raw string sizes include escapes. These budgets accommodate the ordinary 24 h dense document with three word representations rather than treating each copy as a new recording. Catalog JSON retains its separate 8 MiB / 64 KiB limits.
+
+Both string and UTF-8 readers preflight **all wire budgets**, including per-array and aggregate counts, with a forward-only reader before allocating the document graph or decoded strings. The System.Text.Json converter follows the same preflight before source-generated deserialization, without an intermediate DOM. String callers necessarily already own their input; UTF-8 encoding allocation occurs only after exact byte-size validation. Fixed depth bookkeeping is bounded independently of input. Services should also enforce their own request-body limits appropriate to available memory; the library's maximum is not a recommendation to accept 1 GB network requests.
+
+Invalid Unicode, malformed/truncated JSON, required-field omissions, null object/array members, invalid intervals/probabilities/provenance, unsupported versions or exceeded budgets throw `InvalidTranscriptJsonException` (or `JsonException` through the System.Text.Json converter). Empty arrays are allowed. Writers validate shape, count, duration and strings, then count encoded bytes through a bounded scratch writer before allocating the final JSON. The completed wire is preflighted, not deserialized into a second document. Schema version, fields, ordering and numeric encodings are unchanged.
 
 Writers use the same validation and limits; callers should avoid constructing oversized documents. Segment/turn copies of words need not be object-identical to the top-level list. No cross-list identity, ordering, text reconstruction, or speaker attribution is invented by serialization.
 

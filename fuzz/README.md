@@ -20,6 +20,10 @@ and ordinary I/O errors. Seed checkpoints are constructed by our harness, withou
 execution or upstream fixtures. The normal executable creates seeds before instrumentation;
 only libFuzzer invokes the instrumented reader. Use one process at a time.
 
+Set `ONESPEECH_CHECKPOINT_SEGMENTATION=1` with pickle mode to exercise the nested
+`state_dict` and inert segmentation metadata path. Generated seeds include a
+synthetic metadata record; no gated checkpoint or derived weight bytes are used.
+
 ## Release runs
 
 All runners accept a duration up to 600 seconds (the SentencePiece runner takes

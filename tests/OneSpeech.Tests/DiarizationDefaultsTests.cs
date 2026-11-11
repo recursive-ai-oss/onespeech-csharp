@@ -39,10 +39,24 @@ public sealed class DiarizationDefaultsTests
     [InlineData(2798640000L)]
     [InlineData(1L)]
     [InlineData(2798640001L)]
-    [InlineData(long.MaxValue)]
+    [InlineData(864000000000L)]
     public void JsonPreservesEveryTick(long ticks)
     {
         var transcript = new Transcript { Text = "", Duration = TimeSpan.FromTicks(ticks) };
         Assert.Equal(ticks, Transcript.FromJson(transcript.ToJson()).Duration.Ticks);
+    }
+
+    [Fact]
+    public void SecondsCodecRetainsItsFullTickRangeIndependentlyOfDocumentBudgets()
+    {
+        var converter = new OneSpeech.Serialization.SecondsConverter();
+        using var bytes = new MemoryStream();
+        using (var writer = new System.Text.Json.Utf8JsonWriter(bytes))
+        {
+            converter.Write(writer, TimeSpan.MaxValue, System.Text.Json.JsonSerializerOptions.Default);
+            writer.Flush();
+        }
+        var reader = new System.Text.Json.Utf8JsonReader(bytes.ToArray()); reader.Read();
+        Assert.Equal(TimeSpan.MaxValue, converter.Read(ref reader, typeof(TimeSpan), System.Text.Json.JsonSerializerOptions.Default));
     }
 }

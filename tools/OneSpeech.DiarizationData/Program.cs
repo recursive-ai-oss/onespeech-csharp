@@ -7,9 +7,9 @@ using System.Text.Json;
 using System.Xml;
 using OneSpeech.Audio;
 
-if (args.Length != 2 || args[0] is not ("ami" or "alimeeting"))
+if (args.Length < 2 || args[0] is not ("ami" or "alimeeting"))
 {
-    Console.Error.WriteLine("Usage: OneSpeech.DiarizationData ami|alimeeting DATA_ROOT (archives must be fetched and SHA-256 verified first)");
+    Console.Error.WriteLine("Usage: OneSpeech.DiarizationData ami DATA_ROOT [MEETING ...] | alimeeting DATA_ROOT [all] (archives must be fetched and SHA-256 verified first)");
     return 2;
 }
 try
@@ -19,7 +19,7 @@ try
     if (args[0] == "ami")
     {
         using var archive = ZipFile.OpenRead(Path.Combine(root, "downloads", "ami_public_manual_1.6.2.zip"));
-        foreach (string id in new[] { "ES2011a", "ES2011b", "ES2004a", "ES2004b" })
+        foreach (string id in args.Length > 2 ? args[2..] : new[] { "ES2011a", "ES2011b", "ES2004a", "ES2004b" })
         {
             var intervals = new List<Interval>();
             foreach (var entry in archive.Entries.Where(e => e.FullName.StartsWith("words/" + id + ".", StringComparison.Ordinal) && e.FullName.EndsWith(".words.xml", StringComparison.Ordinal)))
@@ -53,13 +53,28 @@ try
             {
                 // Only these data files are selected. No archive path or link is followed.
                 string name = Path.GetFileName(entry.Name);
-                bool selected = name is "R8001_M8004_MS801.wav" or "R8003_M8001_MS801.wav" or "R8001_M8004.TextGrid" or "R8003_M8001.TextGrid";
+                bool selected = args.Length > 2 && args[2] == "all"
+                    ? name.EndsWith(".TextGrid", StringComparison.Ordinal) || name.EndsWith(".wav", StringComparison.Ordinal)
+                    : name is "R8001_M8004_MS801.wav" or "R8003_M8001_MS801.wav" or "R8001_M8004.TextGrid" or "R8003_M8001.TextGrid";
                 if (!selected || !entry.Name.StartsWith("Eval_Ali/Eval_Ali_far/", StringComparison.Ordinal)) continue;
                 if (entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile) || entry.DataStream is null) throw new InvalidDataException("Selected archive entry is not regular data.");
-                using var output = File.Create(Path.Combine(raw, name)); entry.DataStream.CopyTo(output);
+                string extracted = Path.Combine(raw, name);
+                if (name.EndsWith(".wav", StringComparison.Ordinal))
+                {
+                    string temporary = extracted + ".source.wav";
+                    using (var output = File.Create(temporary)) entry.DataStream.CopyTo(output);
+                    MonoWave(temporary, extracted);
+                    File.Delete(temporary);
+                }
+                else
+                {
+                    using var output = File.Create(extracted); entry.DataStream.CopyTo(output);
+                }
             }
         }
-        foreach (string id in new[] { "R8001_M8004_MS801", "R8003_M8001_MS801" })
+        foreach (string id in args.Length > 2 && args[2] == "all"
+            ? Directory.EnumerateFiles(raw, "*.wav").Select(Path.GetFileNameWithoutExtension).OfType<string>().Order(StringComparer.Ordinal).ToArray()
+            : new[] { "R8001_M8004_MS801", "R8003_M8001_MS801" })
         {
             string annotation = string.Join('_', id.Split('_').Take(2)) + ".TextGrid";
             var intervals = TextGrid(Path.Combine(raw, annotation));

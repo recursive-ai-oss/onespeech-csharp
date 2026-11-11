@@ -67,6 +67,53 @@ public sealed class TimingOrderTests
     }
 
     [Fact]
+    public void ScopedFallbackIteratorReleasesItsLeaseOnEarlySuccessAndFailure()
+    {
+        var audio = new AudioBuffer(new float[16000], 16000);
+        var original = new Transcript { Text = "word", Words = [new Word { Text = "word" }] };
+        bool released = false;
+        IEnumerable<Aligner> Candidates(Aligner fallback)
+        {
+            yield return new TestAligner(false);
+            try { yield return fallback; }
+            finally { released = true; }
+        }
+        var result = VadTranscriptionPipeline.ApplyTiming(audio, original, "en", Candidates(new TestAligner(true)), TestContext.Current.CancellationToken);
+        Assert.Equal(TimingMethod.CtcAligner, result.Words[0].TimingMethod);
+        Assert.True(released);
+        released = false;
+        _ = VadTranscriptionPipeline.ApplyTiming(audio, original, "en", Candidates(new FailingAligner()), TestContext.Current.CancellationToken);
+        Assert.True(released);
+    }
+
+    [Fact]
+    public void ReloadedCtcFallbackHasBitIdenticalWordTimesOnPublicSpeech()
+    {
+        string? directory = Environment.GetEnvironmentVariable("ONESPEECH_OMNI_DIRECTORY");
+        string? corpus = Environment.GetEnvironmentVariable("ONESPEECH_PROBE_CORPUS");
+        Assert.SkipWhen(directory is null || corpus is null, "Set ONESPEECH_OMNI_DIRECTORY and ONESPEECH_PROBE_CORPUS to verified model/public evaluation data.");
+        var info = new ModelInfo { Id = "facebook/omniASR-CTC-300M", Source = "https://huggingface.co/facebook/omniASR-CTC-300M", Revision = "8e35f0cc28fa6099e0c14d56db85ce0423baa691", Tier = ModelTier.Tier1, License = "Apache-2.0", Attribution = "Meta, Omnilingual ASR, Apache-2.0." };
+        OneSpeech.Alignment.OmniAsrAligner Load() => new(Path.Combine(directory!, "ctc-fp32.onemodel"), Path.Combine(directory!, "omniASR_tokenizer.model"), info, threads: 4);
+        using var cached = Load();
+        string root = Path.Combine(corpus!, "test-clean", "1089", "134686");
+        var text = File.ReadAllLines(Path.Combine(root, "1089-134686.trans.txt"));
+        int compared = 0;
+        for (int i = 0; i < 5; i++)
+        {
+            string id = $"1089-134686-{i:D4}";
+            var clip = OneAudio.Audio.Load(Path.Combine(root, id + ".flac"), cancellationToken: TestContext.Current.CancellationToken);
+            var audio = new AudioBuffer(clip.Samples, 16000);
+            string written = text.Single(line => line.StartsWith(id + " ", StringComparison.Ordinal))[(id.Length + 1)..];
+            var expected = cached.Align(audio, written, "en", TestContext.Current.CancellationToken);
+            using var scoped = Load();
+            var actual = scoped.Align(audio, written, "en", TestContext.Current.CancellationToken);
+            Assert.Equal(expected.Words, actual.Words);
+            compared += actual.Words.Length;
+        }
+        TestContext.Current.TestOutputHelper!.WriteLine($"CTC cached/scoped timing: {compared} words, zero bitwise differences.");
+    }
+
+    [Fact]
     public void WindowFailureFallsBackAndCancellationIsNotSwallowed()
     {
         var audio = new AudioBuffer(new float[16000], 16000);

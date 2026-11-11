@@ -5,6 +5,7 @@ All notable changes are documented here, following Keep a Changelog.
 ## [Unreleased]
 
 ### Added
+- The gated pyannote segmentation-3.0 model in the segmentation slot, with an overlap-aware diarizer over it (`PyannoteDiarizer`), loaded from publisher files the user is entitled to; never a default.
 - Mixed-int8 variants of Whisper large-v3-turbo, Whisper small and Moonshine streaming-tiny, selected by model ID (`-int8`) and converted locally from the same pinned weights; defaults remain fp32.
 - Contextual phrase biasing through `SpeechRecognizer.WithPhrases`: Whisper prompt conditioning, Qwen3-ASR context, and shallow fusion over a phrase trie for Parakeet and custom CTC/RNN-T/TDT models. Families that cannot bias refuse with `CapabilityNotSupportedException`.
 - `Speech.Enroll`, `Speech.Identify`, `Speech.Verify` and `Speech.ClearSpeakers`, with enrolled names on transcript speakers.
@@ -16,6 +17,10 @@ All notable changes are documented here, following Keep a Changelog.
 
 ### Changed
 - Requires RecursiveAI.OneModel 1.2.0.
+- Faster CAM++ feature extraction with identical output.
+
+### Fixed
+- `Transcript.ToJson` and `FromJson` handle recordings up to 24 hours (documented limits, checked before allocating).
 - One language-tag rule for every entry point; unsupported languages are refused, and `Align` no longer returns untimed words when no aligner applies.
 - The role base classes implement `IDisposable`. Wrappers and sessions borrow, and never dispose, the models they use.
 - `CreateLiveSession` accepts any `VoiceActivityDetector`.

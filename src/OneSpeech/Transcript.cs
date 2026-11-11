@@ -109,15 +109,15 @@ public sealed record Transcript
     public ImmutableArray<Turn> Turns { get; init; } = [];
     /// <summary>Predominant language tag, or null if unknown.</summary>
     public string? Language { get; init; }
-    /// <summary>Input duration, nonnegative, on the audio clock; zero by default.</summary>
+    /// <summary>Input duration, nonnegative, on the audio clock; zero by default. JSON documents support at most 24 hours.</summary>
     public TimeSpan Duration { get; init; }
     /// <summary>Models contributing to this document; empty when no model was used.</summary>
     public ImmutableArray<ModelInfo> Models { get; init; } = [];
     /// <summary>Returns Text unchanged; no normalization or spacing is applied.</summary>
     public string ToText() => Text;
-    /// <summary>Writes schema version 1 JSON. Throws InvalidTranscriptJsonException for invalid or over-limit documents.</summary>
+    /// <summary>Writes schema version 1 JSON, bounded to 24 hours, 600,000 words per array and 1 GB of UTF-8. Throws InvalidTranscriptJsonException for invalid or over-limit documents. Text and collection-copy budgets are specified in the JSON documentation.</summary>
     public string ToJson() => TranscriptJson.Write(this);
-    /// <summary>Reads bounded version 1 JSON. Throws InvalidTranscriptJsonException for malformed, invalid, or over-limit input.</summary>
+    /// <summary>Reads version 1 JSON, bounded to 24 hours, 600,000 words per array and 1 GB of UTF-8; all wire budgets are preflighted before document allocation. Throws InvalidTranscriptJsonException for malformed, invalid, or over-limit input.</summary>
     public static Transcript FromJson(string json) => TranscriptJson.Read(json);
     /// <summary>Reads bounded UTF-8 version 1 JSON. Throws InvalidTranscriptJsonException for invalid input.</summary>
     public static Transcript FromJson(ReadOnlySpan<byte> utf8Json) => TranscriptJson.Read(utf8Json);

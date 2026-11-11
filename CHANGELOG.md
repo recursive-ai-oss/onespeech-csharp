@@ -4,6 +4,9 @@ All notable changes are documented here, following Keep a Changelog.
 
 ## [Unreleased]
 
+### Added
+- `ERes2NetV2Embedder`: the ERes2NetV2 Chinese speaker embedder (192 dimensions), available by name (`iic/speech_eres2netv2_sv_zh-cn_16k-common`); never a default.
+
 ### Changed
 - **Word and text spacing is the same for every family.** Whisper no longer leaves its leading space on `Word.Text`, `Segment.Text`, `Transcript.Text` or turn text, so cue text in SRT/VTT/ASS/TTML matches Moonshine's. Words and segments carry no leading or trailing whitespace; a space is inserted between words only where the script uses spaces (none between Han, kana, Thai, Lao, Myanmar or Khmer text). Transcript JSON written by 1.0.0 with leading spaces still reads unchanged.
 

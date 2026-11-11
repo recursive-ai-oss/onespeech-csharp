@@ -5,7 +5,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackagePrefix>RecursiveAI</PackagePrefix>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -41,7 +41,7 @@
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <EnablePackageValidation>true</EnablePackageValidation>
-    <PackageValidationBaselineVersion>1.0.0</PackageValidationBaselineVersion>
+    <PackageValidationBaselineVersion>1.1.0</PackageValidationBaselineVersion>
   </PropertyGroup>
   <ItemGroup Condition="$([System.String]::Copy('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)src'))">
     <None Include="$(MSBuildThisFileDirectory)LICENSE-MIT;$(MSBuildThisFileDirectory)LICENSE-APACHE;$(MSBuildThisFileDirectory)PACKAGE.md;$(MSBuildThisFileDirectory)THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" />

@@ -2,6 +2,7 @@
 
 Uses the pipeline call, its `hook` argument (documented under "Monitoring progress" on the
 model card) and the documented output attributes. The hook only records what it is handed.
+Set ONESPEECH_ORACLE_DEVICE=cuda for the GPU venv (tools/oracles/pyannote-gpu).
 Usage: pipeline_probe.py SNAPSHOT AUDIO.wav OUT_DIR [--num-speakers N]
 """
 import os
@@ -41,7 +42,7 @@ def main():
     torch.set_num_threads(4)
     wav, rate = sf.read(audio, dtype="float32", always_2d=True)
     pipeline = Pipeline.from_pretrained(snapshot)
-    pipeline.to(torch.device("cpu"))
+    pipeline.to(torch.device(os.environ.get("ONESPEECH_ORACLE_DEVICE", "cpu")))  # "cuda" only in the approved GPU reference run
     seen = []
 
     def hook(name, artifact, *args, **kwargs):

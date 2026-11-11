@@ -126,6 +126,26 @@ public sealed class CommunityPipelineTests
     }
 
     [Fact]
+    public void EmbeddingsWithLittleOverlapFreeSpeechJoinTheNearestClusterWithoutShapingIt()
+    {
+        // Two windows with 200 overlap-free frames and one with 40 (under 0.2 of 589): the short one has a different
+        // embedding, must still be assigned, and must not move the centroid.
+        int chunks = 3;
+        var masks = new byte[chunks][];
+        for (int c = 0; c < chunks; c++) { masks[c] = new byte[589 * 3]; for (int f = 100; f < (c == 2 ? 140 : 300); f++) masks[c][f * 3] = 1; }
+        var embeddings = new float[chunks * 3][];
+        embeddings[0] = Enumerable.Range(0, 256).Select(i => i % 3 == 0 ? 1f : 0.1f).ToArray();
+        embeddings[3] = (float[])embeddings[0]!.Clone();
+        embeddings[6] = Enumerable.Range(0, 256).Select(i => i % 3 == 1 ? 1f : 0.1f).ToArray();
+        var plda = PldaTransform.Create(IdentityPlda(), IdentityTransform());
+        var result = new CommunityPipeline(null!, null!, plda, new CommunityOptions()).Finish(chunks, 12 * 16000, masks, embeddings);
+        Assert.Single(result.Centroids);
+        Assert.Equal(0, result.Assignment[6]);
+        Assert.Equal(embeddings[0]![0], result.Centroids[0][0]);
+        Assert.Equal(embeddings[0]![1], result.Centroids[0][1]);
+    }
+
+    [Fact]
     public void LocalSpeakersOfOneWindowNeverShareACluster()
     {
         var a = Enumerable.Range(0, 256).Select(i => i < 128 ? 1f : 0f).ToArray();

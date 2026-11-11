@@ -484,32 +484,32 @@ These results do not yet demonstrate every release target. See [evaluation conve
 
 ### Community-1 pipeline (CommunityDiarizer, tier 2)
 
-Summary, interpretation and the tuned-on-test caveat are in [diarization](diarization.md#community-1-measured-agreement). DER/JER %, no collar, overlap scored; reference is pyannote.audio 4.0.7 community-1 (CPU, offline); eight CPU threads, one recording per job.
+Summary, interpretation and the tuned-on-test caveat are in [diarization](diarization.md#community-1-measured-agreement). DER/JER %, no collar, overlap scored; reference is pyannote.audio 4.0.7 community-1 (CPU, offline); eight CPU threads, one recording per job. Set totals: AMI test DER 17.33 vs 17.05 (+0.28 [-0.33, +1.27]), JER 23.46 vs 22.19 (+1.27 [+0.13, +3.14]); AliMeeting Eval DER 19.38 vs 20.43 (-1.05 [-3.31, +0.12]), JER 24.74 vs 25.71 (-0.97 [-3.38, +0.22]); paired bootstrap over meetings, 1000 resamples, seed 1729.
 
 | Meeting | DER ours / reference | JER difference |
 |---|---|---|
-| EN2002a | 26.66 / 21.91 | +2.79 |
-| EN2002b | 27.34 / 20.74 | +5.08 |
-| EN2002c | 22.84 / 17.54 | +3.78 |
-| EN2002d | 31.36 / 23.17 | +6.43 |
-| ES2004a | 19.80 / 18.76 | +1.08 |
-| ES2004b | 14.38 / 12.61 | +1.00 |
-| ES2004c | 13.17 / 12.35 | +0.18 |
-| ES2004d | 20.19 / 18.67 | +0.79 |
-| IS1009a | 22.70 / 19.65 | +2.21 |
-| IS1009b | 16.41 / 15.19 | +0.66 |
-| IS1009c | 14.80 / 10.05 | +2.93 |
-| IS1009d | 23.70 / 16.45 | +2.36 |
-| TS3003a | 19.06 / 17.14 | +4.66 |
-| TS3003b | 12.14 / 11.97 | -1.81 |
-| TS3003c | 13.44 / 13.34 | -0.54 |
-| TS3003d | 21.44 / 21.08 | -0.49 |
-| R8001_M8004_MS801 | 22.47 / 22.02 | +0.48 |
-| R8003_M8001_MS801 | 17.47 / 17.38 | +0.11 |
-| R8007_M8010_MS803 | 34.67 / 34.24 | +0.58 |
-| R8007_M8011_MS806 | 20.17 / 20.17 | +0.22 |
-| R8008_M8013_MS807 | 20.68 / 28.46 | -8.30 |
-| R8009_M8018_MS809 | 12.31 / 11.97 | -0.41 |
-| R8009_M8019_MS810 | 8.72 / 8.72 | +0.01 |
+| EN2002a | 22.02 / 21.91 | +0.31 |
+| EN2002b | 20.80 / 20.74 | -0.06 |
+| EN2002c | 17.42 / 17.54 | -0.14 |
+| EN2002d | 23.34 / 23.17 | +0.09 |
+| ES2004a | 18.12 / 18.76 | -0.33 |
+| ES2004b | 12.18 / 12.61 | -0.12 |
+| ES2004c | 11.94 / 12.35 | +0.09 |
+| ES2004d | 19.01 / 18.67 | +0.59 |
+| IS1009a | 20.36 / 19.65 | +2.44 |
+| IS1009b | 13.20 / 15.19 | -0.24 |
+| IS1009c | 10.18 / 10.05 | +0.29 |
+| IS1009d | 23.22 / 16.45 | +2.57 |
+| TS3003a | 18.45 / 17.14 | +14.10 |
+| TS3003b | 11.97 / 11.97 | +0.04 |
+| TS3003c | 13.31 / 13.34 | -0.08 |
+| TS3003d | 21.11 / 21.08 | +0.43 |
+| R8001_M8004_MS801 | 22.30 / 22.02 | +0.32 |
+| R8003_M8001_MS801 | 17.41 / 17.38 | +0.04 |
+| R8007_M8010_MS803 | 34.48 / 34.24 | +0.36 |
+| R8007_M8011_MS806 | 20.19 / 20.17 | +0.30 |
+| R8008_M8013_MS807 | 20.42 / 28.46 | -8.73 |
+| R8009_M8018_MS809 | 11.44 / 11.97 | -0.92 |
+| R8009_M8019_MS810 | 8.72 / 8.72 | +0.00 |
 | R8009_M8020_MS810 | 7.73 / 7.84 | -0.19 |
 

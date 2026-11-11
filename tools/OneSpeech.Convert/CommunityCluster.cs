@@ -66,6 +66,28 @@ internal static class CommunityCluster
             }
             Console.WriteLine($"  ref centroid {r}: best ours {bi} cosine {best:F6}; all ours: {string.Join(" ", all)}");
         }
+        if (Environment.GetEnvironmentVariable("MEMBERS") is not null)
+        {
+            // Per cluster: size, chunk range, and how close the members are to the nearest reference centroid.
+            for (int k = 0; k < ourK; k++)
+            {
+                var members = Enumerable.Range(0, result.Assignment.Length).Where(i => result.Assignment[i] == k && embeddings[i] is not null).ToList();
+                var best = new List<double>(); var chunksOf = members.Select(i => i / 3).ToList();
+                foreach (int i in members)
+                {
+                    double top = -2;
+                    for (int r = 0; r < refK; r++)
+                    {
+                        double dot = 0, na = 0, nb = 0;
+                        for (int d = 0; d < 256; d++) { double a = embeddings[i]![d], b = cent.Values[r * 256 + d]; dot += a * b; na += a * a; nb += b * b; }
+                        top = Math.Max(top, dot / Math.Sqrt(na * nb));
+                    }
+                    best.Add(top);
+                }
+                best.Sort();
+                Console.WriteLine($"  cluster {k}: n={members.Count} chunks {chunksOf.Min()}..{chunksOf.Max()} (median {chunksOf.Order().ElementAt(chunksOf.Count / 2)}) best-ref-cos p10={best[best.Count / 10]:F3} median={best[best.Count / 2]:F3} p90={best[best.Count * 9 / 10]:F3}");
+            }
+        }
         // Frame agreement under the best one-to-one pairing of columns (greedy by overlap).
         int cols = disc.Shape[1], n = Math.Min(total, disc.Shape[0]);
         var used = new bool[ourK]; long agree = 0, refOn = 0, oursOn = 0, both = 0;
@@ -91,7 +113,7 @@ internal static class CommunityCluster
 
     private static CommunityOptions Options() => new()
     {
-        AhcThreshold = Env("AHC", 0.6), LoopP = Env("LOOP", 0.7), Smoothing = Env("SMOOTH", 7), Fa = Env("FA", 0.07), Fb = Env("FB", 0.8),
-        MaxIterations = (int)Env("ITERS", 20), Epsilon = Env("EPS", 1e-4), ReassignAll = Env("REASSIGN", 0) != 0, MinClusterSize = (int)Env("MCS", 0), PostMinClusterSize = (int)Env("PMCS", 12), AhcInLdaSpace = Env("LDA", 1) != 0, HammingActivity = Env("HAM", 0) != 0,
+        AhcThreshold = Env("AHC", 0.6), LoopP = Env("LOOP", 0.7), Smoothing = Env("SMOOTH", 7), Fa = Env("FA", 0.07), Fb = Env("FB", 3.2),
+        MaxIterations = (int)Env("ITERS", 20), Epsilon = Env("EPS", 1e-4), ReassignAll = Env("REASSIGN", 0) != 0, MinClusterSize = (int)Env("MCS", 0), PostMinClusterSize = (int)Env("PMCS", 12), AhcInLdaSpace = Env("LDA", 1) != 0, MinTrainRatio = Env("MINTRAIN", 0.2), HammingActivity = Env("HAM", 0) != 0,
     };
 }

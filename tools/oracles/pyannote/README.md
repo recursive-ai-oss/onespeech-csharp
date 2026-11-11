@@ -32,3 +32,10 @@ https://huggingface.co/pyannote/speaker-diarization-community-1,
 https://creativecommons.org/licenses/by/4.0/. Unmodified publisher assets;
 no endorsement implied. Keep the attribution with local results. Neither
 publisher nor derived weights belong in the repository or an output package.
+
+`pipeline_probe.py` records the community pipeline's documented progress-hook artifacts for one recording
+(`tools/scripts/community-long-probe.sh` wraps it for a full meeting plus a short excerpt on the same device).
+`../pyannote-gpu` pins the same releases with CUDA wheels of the same Torch version, for reference runs on long
+recordings only; set `ONESPEECH_ORACLE_DEVICE=cuda`. On a 180 s excerpt the GPU run's turns were identical to the CPU run's,
+embeddings differed by at most 3e-6 and the active-frame count differed by one of about 300,000 segmentation values. `centroid_scan.py` compares the
+recorded embeddings with the published speaker centroids under different overlap-free-frame thresholds.

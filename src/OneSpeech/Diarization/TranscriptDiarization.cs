@@ -68,7 +68,7 @@ public static class TranscriptDiarization
             Turns = [.. input.Select((t, i) => t.Turn with
             {
                 Words = turnWords[i] is {} assigned ? [.. assigned] : [],
-                Text = turnWords[i] is {} textWords ? string.Concat(textWords.Select(w => w.Text)) : ""
+                Text = turnWords[i] is {} textWords ? TextSpacing.Join(textWords.Select(w => w.Text)) : ""
             })]
         };
     }

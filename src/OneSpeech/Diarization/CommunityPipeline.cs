@@ -3,12 +3,16 @@ using System.Collections.Immutable;
 namespace OneSpeech.Diarization;
 
 /// <summary>Tunable constants of the community pipeline. Defaults are the publisher's configuration where it states one
-/// (AHC threshold 0.6, F_A 0.07, F_B 0.8); the rest were set by comparing intermediate outputs with the released reference.</summary>
+/// (AHC threshold 0.6, F_A 0.07); the rest, including F_B and the embedding filter, were set by comparing intermediate outputs with the released reference.</summary>
 internal sealed record CommunityOptions
 {
     internal double AhcThreshold { get; init; } = 0.6;
     internal double Fa { get; init; } = 0.07;
-    internal double Fb { get; init; } = 0.8;
+    // The publisher's configuration states F_B = 0.8. The reference's speaker counts and frame labels on three full meetings
+    // (two development, one test) match ours only for F_B between 1.4 and about 6.4 (F_A kept at 0.07); at the published
+    // value an extra small speaker survives in the long ones. 3.2 sits in the middle of that range (observed in output of the
+    // reference's hook artifacts; the reason for the scale difference is not documented).
+    internal double Fb { get; init; } = 3.2;
     internal double LoopP { get; init; } = 0.7;
     internal double Smoothing { get; init; } = 7;
     internal int MaxIterations { get; init; } = 20;
@@ -18,6 +22,10 @@ internal sealed record CommunityOptions
     internal int PostMinClusterSize { get; init; } = 12;
     internal bool AhcInLdaSpace { get; init; } = true;
     internal bool HammingActivity { get; init; }
+    // Only embeddings of local speakers with at least this fraction of the window's frames to themselves (no overlap) are
+    // clustered; the others join the nearest cluster afterwards. Observed in the reference: the published centroids equal the
+    // mean of the members with at least 0.2 of the frames overlap-free (a fine scan peaks at 118 of 589 frames).
+    internal double MinTrainRatio { get; init; } = 0.2;
 }
 
 /// <summary>Result with the intermediate arrays that the comparison tooling inspects.</summary>
@@ -115,7 +123,14 @@ internal sealed class CommunityPipeline(PyannoteSegmenter segmenter, WeSpeakerEm
                 }
             for (int i = 0; i < total; i++) counts[i] = seen[i] == 0 ? 0 : (int)Math.Round(sum[i] / seen[i], MidpointRounding.ToEven);
         }
-        var (assignment, centroids) = Cluster(embeddings, chunks);
+        var clean = new int[chunks * Locals];
+        for (int c = 0; c < chunks; c++)
+            for (int f = 0; f < Frames; f++)
+            {
+                int on = masks[c][f * Locals] + masks[c][f * Locals + 1] + masks[c][f * Locals + 2];
+                if (on == 1) for (int s = 0; s < Locals; s++) clean[c * Locals + s] += masks[c][f * Locals + s];
+            }
+        var (assignment, centroids) = Cluster(embeddings, chunks, clean);
         int clusters = centroids.Length;
         var activity = new byte[total][];
         for (int i = 0; i < total; i++) activity[i] = new byte[clusters];
@@ -156,13 +171,19 @@ internal sealed class CommunityPipeline(PyannoteSegmenter segmenter, WeSpeakerEm
         };
     }
 
-    private (int[] Assignment, float[][] Centroids) Cluster(float[][] embeddings, int chunks)
+    private (int[] Assignment, float[][] Centroids) Cluster(float[][] embeddings, int chunks, int[] clean)
     {
         var assignment = new int[embeddings.Length];
         Array.Fill(assignment, -1);
         var index = new List<int>();
         for (int i = 0; i < embeddings.Length; i++) if (embeddings[i] is not null) index.Add(i);
         if (index.Count == 0) return (assignment, []);
+        var everyone = index;
+        if (options.MinTrainRatio > 0)
+        {
+            var trained = index.Where(i => clean[i] >= Math.Ceiling(options.MinTrainRatio * Frames - 1e-9)).ToList();
+            if (trained.Count >= 2) index = trained;
+        }
         if (index.Count == 1) { assignment[index[0]] = 0; return (assignment, [embeddings[index[0]]]); }
         var unit = new float[index.Count][];
         for (int i = 0; i < unit.Length; i++) unit[i] = Normalize(embeddings[index[i]]);
@@ -184,6 +205,7 @@ internal sealed class CommunityPipeline(PyannoteSegmenter segmenter, WeSpeakerEm
                 for (int d = 0; d < z.Length; d++) rho[i][d] = z[d] * Math.Sqrt(phi[d]);
             }
             var vbx = VbxClustering.Run(rho, phi, init, initial, options.Fa, options.Fb, options.LoopP, options.Smoothing, options.MaxIterations, options.Epsilon);
+            Diagnostics?.Invoke("VBx iterations " + vbx.Iterations + ", priors > 1e-7: " + string.Join(",", vbx.Priors.Where(p => p > 1e-7).OrderByDescending(p => p).Select(p => p.ToString("G3", System.Globalization.CultureInfo.InvariantCulture))));
             var keep = new List<int>();
             for (int s = 0; s < initial; s++) if (vbx.Priors[s] > 1e-7) keep.Add(s);
             if (keep.Count == 0) keep.Add(0);
@@ -214,6 +236,22 @@ internal sealed class CommunityPipeline(PyannoteSegmenter segmenter, WeSpeakerEm
         // Two local speakers of one window are different people: where the clustering gave them one cluster, or when
         // asked to reassign everything, choose the best injective assignment by cosine similarity to the centroids.
         var unitCentroids = centroids.Select(Normalize).ToArray();
+        if (!ReferenceEquals(everyone, index))
+        {
+            var trainedSet = new HashSet<int>(index);
+            foreach (int i in everyone)
+            {
+                if (trainedSet.Contains(i)) continue;
+                var u = Normalize(embeddings[i]!);
+                int bestK = 0; double bestDot = double.NegativeInfinity;
+                for (int k = 0; k < clusters; k++)
+                {
+                    double dot = 0; for (int d = 0; d < u.Length; d++) dot += u[d] * (double)unitCentroids[k][d];
+                    if (dot > bestDot) { bestDot = dot; bestK = k; }
+                }
+                assignment[i] = bestK;
+            }
+        }
         for (int c = 0; c < chunks; c++)
         {
             var present = new List<int>();

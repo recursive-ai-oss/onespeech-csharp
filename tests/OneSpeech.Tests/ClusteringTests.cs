@@ -68,6 +68,20 @@ public sealed class ClusteringTests
     }
 
     [Fact]
+    public void EmbedderInputFloorRaisesTheSegmentCutoffInsteadOfThrowing()
+    {
+        // A 200 ms floor (as ERes2NetV2 has) is above the diarizer's 100 ms default: a 150 ms region is skipped like any short one.
+        using var embedder = new ProbeEmbedder { Floor = 3200 };
+        var diarizer = new ClusteringDiarizer(embedder, new ProbeVad());
+        Assert.Empty(diarizer.Diarize(new AudioBuffer(Enumerable.Repeat(0.2f, 2400).ToArray(), 16000), Token));
+        Assert.Equal(0, embedder.Calls);
+        // A longer region is embedded, and a trailing window under the floor is dropped rather than passed on.
+        var turns = diarizer.Diarize(new AudioBuffer(Enumerable.Repeat(0.2f, 16000 + 2400).ToArray(), 16000), Token);
+        Assert.NotEmpty(turns);
+        Assert.True(embedder.Calls > 0);
+    }
+
+    [Fact]
     public void SilenceCancellationLimitsAndMalformedEmbeddingsAreRefused()
     {
         using var embedder = new ProbeEmbedder();
@@ -135,12 +149,14 @@ public sealed class ClusteringTests
 
     private sealed class ProbeEmbedder : SpeakerEmbedder
     {
-        internal int Calls; internal bool Invalid;
+        internal int Calls; internal bool Invalid; internal int Floor = 1;
+        internal override int MinimumInputSamples => Floor;
         public override ModelInfo Model => ClusteringTests.Model;
         public override int Dimension => 3;
         public override int SampleRate => 16000;
         public override void Embed(AudioBuffer audio, Span<float> destination, CancellationToken cancellationToken)
         {
+            if (audio.FrameCount < Floor) throw new ArgumentException("Input is shorter than the embedder's floor.", nameof(audio));
             cancellationToken.ThrowIfCancellationRequested(); Calls++;
             double mean = 0; foreach (float value in audio.Samples.Span) mean += value;
             int index = Math.Clamp((int)Math.Round(mean / audio.FrameCount / 0.2) - 1, 0, 2);

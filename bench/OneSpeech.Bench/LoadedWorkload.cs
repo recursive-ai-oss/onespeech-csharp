@@ -55,10 +55,7 @@ internal sealed class LoadedWorkload : IDisposable
                     embedder = result.Own(new CampPlusEmbedder(Path.Combine(model.Directory, "campplus-en-fp32.onemodel"), model.Info, threads: threads));
                 }
                 var activity = result.Own(new SileroVad(SileroVadOptions.Diarization));
-                // ERes2NetV2 cannot embed under 200 ms (its pooling needs two frames after 8x down-sampling), while
-                // the diarizer's default floor is 100 ms, so this row raises the floor to the embedder's own.
-                var options = row == "eres2netv2" ? new ClusteringOptions { MinimumSegmentSeconds = 0.2 } : null;
-                result.diarizer = new ClusteringDiarizer(embedder, activity, options)
+                result.diarizer = new ClusteringDiarizer(embedder, activity)
                 {
                     IdentifyCluster = (vector, token) => SpeakerServices.Match(embedder.Model.Id, vector, token)
                 };

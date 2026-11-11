@@ -39,7 +39,12 @@ jobs:
           dotnet test tests/OneSpeech.Tests -c Release --no-build
           dotnet test eval/OneSpeech.Eval.Tests -c Release --no-build
       - name: Pack
-        run: dotnet pack OneSpeech.slnx -c Release --no-build -o "$RUNNER_TEMP/packages"
+        # The three code packages. The offline model packages need hundreds of MB of pinned
+        # publisher files and are built by the release workflow.
+        run: |
+          for project in OneSpeech OneSpeech.Media OneSpeech.Cli; do
+            dotnet pack "src/$project" -c Release --no-build -o "$RUNNER_TEMP/packages"
+          done
       - name: Publish NativeAOT smoke
         run: dotnet publish tests/AotSmoke -c Release -r ${{ matrix.rid }} -o "$RUNNER_TEMP/smoke" -warnaserror
       - name: Run NativeAOT smoke

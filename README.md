@@ -4,7 +4,7 @@ OneSpeech transcribes audio, times words, labels speakers and supports live sess
 
 OneSpeech is unaffiliated with other products or companies named OneSpeech.
 
-**In development; no public release yet.** See [measured results and limitations](docs/results.md) before choosing a model. Licensed under [MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE).
+See [measured results and limitations](docs/results.md) before choosing a model. Licensed under [MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE).
 
 ## Transcribe, stream and align
 
@@ -81,7 +81,7 @@ for prompt budgets, weights, decoder semantics and the repeatable evaluation.
 | `RecursiveAI.OneSpeech.Models.MoonshineTiny`, `.MoonshineBase`, `.MoonshineStreamingTiny` | Optional offline-at-restore Moonshine weights |
 | `RecursiveAI.OneSpeech.Cli` | The `onespeech` dotnet tool |
 
-Models not supplied by a package download on first use; CPU runtime graphs are built and verified in the per-user cache. An offline model package covers only that model, not every role used by `Transcribe`. See [cache, pre-fetch and offline use](docs/models.md) and [CLI and model packages](docs/cli-and-model-packages.md). Packages are not yet on nuget.org.
+Models not supplied by a package download on first use; CPU runtime graphs are built and verified in the per-user cache. An offline model package covers only that model, not every role used by `Transcribe`. See [cache, pre-fetch and offline use](docs/models.md) and [CLI and model packages](docs/cli-and-model-packages.md).
 
 ## Models by role
 
@@ -114,4 +114,4 @@ Speaker embeddings are biometric data. Obtain informed consent, limit retention 
 
 ## Build and sample checks
 
-Set `ONESPEECH_ARTIFACTS` to a directory outside the checkout. Run `dotnet restore`, then `dotnet build --no-restore`. The current OneModel dependency requires its local feed through `ONESPEECH_LOCAL_FEED`. Run `dotnet run --project tests/DocsSamples --no-build -- .` to exercise the no-download document examples and check local documentation links. Model-backed examples are compile-checked without downloading weights; run them with your own consented audio and fetched models.
+Set `ONESPEECH_ARTIFACTS` to a directory outside the checkout. Run `dotnet restore`, then `dotnet build --no-restore`. Run `dotnet run --project tests/DocsSamples --no-build -- .` to exercise the no-download document examples and check local documentation links. Model-backed examples are compile-checked without downloading weights; run them with your own consented audio and fetched models.

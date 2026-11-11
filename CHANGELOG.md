@@ -2,7 +2,21 @@
 
 All notable changes are documented here, following Keep a Changelog.
 
-## [Unreleased]
+## [1.0.0] - 2026-11-10
+
+First release. Measured results and limits: [docs/results.md](docs/results.md).
+
+### Highlights
+- **Transcription** with four model families behind one seam: Whisper (tiny to large-v3 and large-v3-turbo, the default), Qwen3-ASR 0.6B and 1.7B, FastConformer (Parakeet-TDT-0.6B-v3 and Nemotron 3.5 ASR streaming, by name), and Moonshine (the live default). VAD-first long-file chunking in constant memory, language identification, optional mixed-int8 variants.
+- **Word timing** from the best available method in a fixed order (native, Qwen3-ForcedAligner, omniASR-CTC, DTW), recorded per word; public `Speech.Align` for any text and audio.
+- **Diarization**: a tier-1 default of Silero VAD, CAM++ embeddings and spectral/AHC clustering with resegmentation, merged into the transcript. The default does **not** detect overlapping speech. Tier-2 upgrades, loaded by name from the publisher: Nemotron 3 Diarization (overlap-aware, up to eight speakers) and the gated pyannote segmentation-3.0 slot.
+- **Speaker recognition**: embeddings (CAM++, ECAPA-TDNN), enrolment, identification and verification with calibrated thresholds; in-memory only, never persisted.
+- **Live sessions** with one event model (`Partial`, `Final`, `Endpoint`, `SpeakerTurn`) on one audio clock; true streaming partials on Moonshine and Nemotron 3.5 ASR, utterance mode for the other families.
+- **Contextual biasing** through `WithPhrases` where the model supports it; other models refuse with a typed error.
+- **Packages**: `RecursiveAI.OneSpeech`, `.Media` (containers, SRT/VTT/ASS/TTML, caption muxing), `.Cli` (the `onespeech` tool), and offline weight packages `.Models.CamPlusEnglish`, `.Models.MoonshineTiny`, `.Models.MoonshineBase`, `.Models.MoonshineStreamingTiny`. NativeAOT and trim clean; no native code.
+- **Models**: tier-1 (MIT, Apache-2.0) models download on first use; tier-2 (CC-BY-4.0, OpenMDW-1.1, gated) models load only by name from the publisher's files and are never redistributed.
+
+Changes since the last preview follow.
 
 ### Added
 - The gated pyannote segmentation-3.0 model in the segmentation slot, with an overlap-aware diarizer over it (`PyannoteDiarizer`), loaded from publisher files the user is entitled to; never a default.
